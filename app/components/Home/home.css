@@ -1,0 +1,56 @@
+@media (max-width: 767px) {
+    .desktop {
+      display: none !important;
+    }
+    .tab {
+      display: none !important;
+    }
+  }
+ 
+  @media (min-width: 768px) and (max-width: 1024px) {
+    .desktop {
+      display: none !important;
+    }
+    .mobile {
+      display: none !important;
+    }
+  }
+ 
+  @media (min-width: 1025px) {
+    .mobile {
+      display: none !important;
+    }
+    .tab {
+      display: none !important;
+    }
+  }
+  .chart-container {
+    max-width: 100%;
+    padding: 10px;
+    background-color: white;
+    border-radius: 8px;
+  }
+ 
+  .chart-title {
+    font-size: 16px;
+    text-align: center;
+    font-weight: bold;
+  }
+ 
+  @media (max-width: 768px) {
+    .chart-container {
+      padding: 5px;
+    }
+ 
+    .chart-title {
+      font-size: 14px;
+    }
+ 
+    .recharts-text {
+      font-size: 8px !important;
+    }
+  }
+  .sub-but{
+background-color: #001624;
+  }
+ 

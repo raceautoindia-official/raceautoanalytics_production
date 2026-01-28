@@ -1,0 +1,20 @@
+.ql-container {
+    background-color: #000;
+    color: #fff;
+    border-radius: 0.25rem;
+}
+
+.ql-editor {
+    background-color: #000;
+    color: #fff;
+
+}
+
+
+.ql-toolbar button svg {
+    fill: #fff;
+}
+
+.ql-toolbar button:hover {
+    background-color: #333;
+}
