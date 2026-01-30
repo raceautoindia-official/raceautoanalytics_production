@@ -90,40 +90,71 @@ export default function CreateGraph({
         setExpandedKeys(rootKeys);
 
         // Flash graphs do NOT use dataset_ids for historical values (Flash uses /api/flash-reports/overall-chart-data),
-        // but we keep dataset selection to avoid CMS confusion by auto-selecting & locking to an "Overall" dataset.
+        // but we keep a locked dataset to avoid CMS confusion and to prevent Flash graphs from appearing inside Forecast categories.
         if (context === "flash") {
           try {
-            const overallNode =
-              hierarchy.find((n) => /\boverall\b/i.test(n?.name || "")) ||
-              hierarchy.find((n) => /overall/i.test(n?.name || "")) ||
-              hierarchy.find((n) => n.parent_id === null) ||
+            const roots = hierarchy.filter((n) => n.parent_id === null);
+
+            const findByName = (re, list) =>
+              (list || []).find((n) => re.test(String(n?.name || "")));
+
+            // Prefer the "Flash Reports" root if present
+            const flashRoot =
+              findByName(/flash\s*reports/i, hierarchy) ||
+              findByName(/^flash$/i, roots) ||
+              findByName(/flash/i, roots) ||
+              findByName(/flash/i, hierarchy) ||
               null;
 
-            let path = [];
-            if (overallNode) {
-              let cur = overallNode;
+            // Detect Forecast root so we can avoid it as a fallback
+            const forecastRoot =
+              findByName(/forecast/i, roots) ||
+              findByName(/forecast/i, hierarchy) ||
+              null;
+
+            const buildPath = (node) => {
+              const p = [];
+              let cur = node;
               while (cur) {
-                path.unshift(cur.id.toString());
+                p.unshift(cur.id.toString());
                 cur = hierarchy.find((n) => n.id === cur.parent_id);
               }
-              setSelectedStreamPath(path);
-            }
+              return p;
+            };
+
+            const baseNode =
+              flashRoot ||
+              roots.find((r) => !/forecast/i.test(String(r?.name || ""))) ||
+              roots[0] ||
+              null;
+
+            const path = baseNode ? buildPath(baseNode) : [];
+            if (path.length) setSelectedStreamPath(path);
 
             const pathStr = path.length ? path.join(",") : "";
-            const candidates = pathStr
-              ? volRows.filter((d) =>
-                  String(d.stream || "").startsWith(pathStr)
-                )
-              : [];
 
             const byNewest = (a, b) =>
               new Date(b.createdAt || b.created_at || 0).getTime() -
               new Date(a.createdAt || a.created_at || 0).getTime();
 
+            const inPath = pathStr
+              ? volRows.filter((d) => String(d.stream || "").startsWith(pathStr))
+              : [];
+
+            // Fallback: choose newest dataset that is NOT under Forecast root
+            let nonForecast = volRows;
+            if (forecastRoot) {
+              const fPath = buildPath(forecastRoot).join(",");
+              if (fPath) {
+                nonForecast = volRows.filter(
+                  (d) => !String(d.stream || "").startsWith(fPath)
+                );
+              }
+            }
+
             const chosen =
-              (candidates && candidates.length
-                ? [...candidates].sort(byNewest)[0]
-                : [...volRows].sort(byNewest)[0]) || null;
+              (inPath && inPath.length ? [...inPath].sort(byNewest)[0] : null) ||
+              ([...nonForecast].sort(byNewest)[0] || null);
 
             form.setFieldsValue({
               chartType: "line",
@@ -385,7 +416,7 @@ export default function CreateGraph({
                     treeData={treeData}
                     placeholder={
                       context === "flash"
-                        ? "Locked to Overall"
+                        ? "Locked to Flash Reports"
                         : "Select stream"
                     }
                     disabled={context === "flash"}
@@ -442,7 +473,7 @@ export default function CreateGraph({
               >
                 For <b>Flash Reports</b>, historical values come from the Flash
                 monthly stream (Overall chart API). The dataset is locked to an{" "}
-                <b>Overall</b> dataset here to avoid confusion.
+                <b>Flash Reports</b> dataset here to avoid confusion.
               </div>
             )}
 

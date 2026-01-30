@@ -198,7 +198,9 @@ export default function ForecastPage() {
 
   // ─── Fetch all needed data once ─────────────────────────────────────
   useEffect(() => {
-    fetch("/api/graphs", {
+    // Only Forecast graphs belong on the Forecast page.
+    // (Flash graphs are maintained separately under the Flash Reports CMS tab.)
+    fetch("/api/graphs?context=forecast", {
       headers: {
         Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
       },
@@ -219,7 +221,8 @@ export default function ForecastPage() {
           const cleanData = Object.fromEntries(
             Object.entries(d.data)
               .filter(
-                ([region, years]) => region != null && Object.keys(years).length
+                ([region, years]) =>
+                  region != null && Object.keys(years).length,
               )
               .map(([region, years]) => [
                 region,
@@ -227,9 +230,9 @@ export default function ForecastPage() {
                   Object.entries(years).map(([yr, val]) => [
                     yr,
                     Number(String(val).replace(/,/g, "")) || 0,
-                  ])
+                  ]),
                 ),
-              ])
+              ]),
           );
           m[d.id] = { ...d, data: cleanData };
         });
@@ -352,9 +355,9 @@ export default function ForecastPage() {
       }),
       fetch(
         `/api/saveScores?graphId=${selectedGraphId}&email=${encodeURIComponent(
-          email
+          email,
         )}`,
-        { headers: authHeader }
+        { headers: authHeader },
       ),
       fetch("/api/scoreSettings", { headers: authHeader }),
     ])
@@ -392,10 +395,10 @@ export default function ForecastPage() {
             const posScores = {},
               negScores = {};
             posAttrs.forEach(
-              (a) => (posScores[a.key] = Array(yearNames.length).fill(0))
+              (a) => (posScores[a.key] = Array(yearNames.length).fill(0)),
             );
             negAttrs.forEach(
-              (a) => (negScores[a.key] = Array(yearNames.length).fill(0))
+              (a) => (negScores[a.key] = Array(yearNames.length).fill(0)),
             );
             sub.scores.forEach(({ questionId, yearIndex, score, skipped }) => {
               if (!skipped) {
@@ -433,7 +436,7 @@ export default function ForecastPage() {
   // 1) Categories = nodes whose parent_id === ROOT_PARENT_ID
   const categories = useMemo(() => {
     return contentHierarchyNodes.filter(
-      (node) => node.parent_id == ROOT_PARENT_ID
+      (node) => node.parent_id == ROOT_PARENT_ID,
     );
   }, [contentHierarchyNodes]);
 
@@ -441,7 +444,7 @@ export default function ForecastPage() {
   const regions = useMemo(() => {
     if (!selectedCategoryId) return [];
     return contentHierarchyNodes.filter(
-      (node) => node.parent_id === selectedCategoryId
+      (node) => node.parent_id === selectedCategoryId,
     );
   }, [contentHierarchyNodes, selectedCategoryId]);
 
@@ -451,7 +454,7 @@ export default function ForecastPage() {
     return (
       contentHierarchyNodes.find(
         (node) =>
-          node.parent_id === selectedCategoryId && node.name === "All Regions"
+          node.parent_id === selectedCategoryId && node.name === "All Regions",
       ) || null
     );
   }, [contentHierarchyNodes, selectedCategoryId]);
@@ -467,7 +470,7 @@ export default function ForecastPage() {
     const lookup = {};
     displayRegions.forEach((region) => {
       lookup[region.id] = contentHierarchyNodes.filter(
-        (node) => node.parent_id === region.id
+        (node) => node.parent_id === region.id,
       );
     });
     return lookup;
@@ -477,7 +480,7 @@ export default function ForecastPage() {
   const allCountryNodes = useMemo(() => {
     // displayRegions are your region-level nodes:
     return displayRegions.flatMap((region) =>
-      contentHierarchyNodes.filter((node) => node.parent_id === region.id)
+      contentHierarchyNodes.filter((node) => node.parent_id === region.id),
     );
   }, [displayRegions, contentHierarchyNodes]);
 
@@ -491,7 +494,7 @@ export default function ForecastPage() {
     if (selectedRegionId != null) return;
 
     const match = allCountryNodes.find(
-      (node) => node.name === chosenCountryName
+      (node) => node.name === chosenCountryName,
     );
     if (match) setSelectedRegionId(match.id);
   }, [planName, chosenCountryName, allCountryNodes, selectedRegionId]);
@@ -501,7 +504,7 @@ export default function ForecastPage() {
     return displayRegions.flatMap((region) =>
       contentHierarchyNodes
         .filter((node) => node.parent_id === region.id)
-        .map((node) => node.id)
+        .map((node) => node.id),
     );
   }, [contentHierarchyNodes, displayRegions]);
 
@@ -522,7 +525,7 @@ export default function ForecastPage() {
       allCountryNodes.length
     ) {
       const match = allCountryNodes.find(
-        (node) => node.name === chosenCountryName
+        (node) => node.name === chosenCountryName,
       );
       if (match) {
         // match.id is the contentHierarchy ID of the country leaf node
@@ -569,14 +572,14 @@ export default function ForecastPage() {
 
     // 1) find your commercial category
     const commCat = contentHierarchyNodes.find(
-      (n) => n.name === "Commercial Vehicles"
+      (n) => n.name === "Commercial Vehicles",
     );
     console.log("comCat", commCat);
     if (!commCat) return;
 
     // 2) find its “All Regions” child
     const allReg = contentHierarchyNodes.find(
-      (n) => n.parent_id === commCat.id && n.name === "All Regions"
+      (n) => n.parent_id === commCat.id && n.name === "All Regions",
     );
     console.log("allReg", allReg);
     if (!allReg) return;
@@ -588,7 +591,7 @@ export default function ForecastPage() {
     console.log("available graphs", availableGraphs);
     // 3) find your default graph
     const defaultGraph = availableGraphs.find(
-      (g) => g.name === "Overall Commercial Vehicle Sales Trend Analysis"
+      (g) => g.name === "Overall Commercial Vehicle Sales Trend Analysis",
     );
     console.log("defaultGraph", defaultGraph);
     if (!defaultGraph) return;
@@ -685,13 +688,13 @@ export default function ForecastPage() {
   // ─── Forecast data (linear regression) ────────────────────────────────────
   const forecastDataLR = useLinearRegressionForecast(
     historicalVolumes,
-    scoreSettings.yearNames || []
+    scoreSettings.yearNames || [],
   );
 
   // ─── Forecast data (survey‐based) ─────────────────────────────────────────
   const forecastDataScoreAll = useForecastGrowth(
     historicalVolumes,
-    avgScoreValuesAll
+    avgScoreValuesAll,
   );
 
   // 3) then gate their outputs behind hasData
@@ -756,7 +759,7 @@ export default function ForecastPage() {
 
   // If there’s more than one of them, we need the “unified” bothData array.
   const forecastCount = [hasLinear, hasScore, hasAI, hasRace].filter(
-    Boolean
+    Boolean,
   ).length;
 
   // right after you destructure aiForecast & raceForecast
@@ -851,7 +854,7 @@ export default function ForecastPage() {
       linear: calcCAGR(
         firstFc.forecastLinear,
         lastFc.forecastLinear,
-        periodsFc
+        periodsFc,
       ),
       score: calcCAGR(firstFc.forecastScore, lastFc.forecastScore, periodsFc),
       ai: calcCAGR(firstFc.forecastAI, lastFc.forecastAI, periodsFc),
@@ -923,7 +926,7 @@ export default function ForecastPage() {
       const year = Number(label);
       const isHistorical = lastHistYear !== null && year <= lastHistYear;
       payload = payload.filter((p) =>
-        isHistorical ? p.dataKey === "value" : p.dataKey !== "value"
+        isHistorical ? p.dataKey === "value" : p.dataKey !== "value",
       );
       console.log("payload", payload);
       if (!payload.length) return null;
@@ -1389,8 +1392,8 @@ export default function ForecastPage() {
                         locked
                           ? "cursor-not-allowed text-white/40"
                           : active
-                          ? "bg-[#15AFE4]/15 text-[#FFDC00]"
-                          : "text-white hover:bg-white/5 hover:text-[#15AFE4]",
+                            ? "bg-[#15AFE4]/15 text-[#FFDC00]"
+                            : "text-white hover:bg-white/5 hover:text-[#15AFE4]",
                       ].join(" ")}
                     >
                       <span>{cat.name}</span>
@@ -1541,7 +1544,7 @@ export default function ForecastPage() {
                                         setSelectedRegionId(
                                           selectedRegionId === cn.id
                                             ? null
-                                            : cn.id
+                                            : cn.id,
                                         );
                                         if (selectedRegionId !== cn.id) {
                                           setSelectedGraphId(null);
