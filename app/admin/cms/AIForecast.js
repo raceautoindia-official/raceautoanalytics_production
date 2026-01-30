@@ -80,7 +80,7 @@ export default function AIForecast() {
           const firstCat = cats[0];
           setSelectedCategoryId(firstCat.id);
           const defRes = await fetch(
-            `/api/category-definition?categoryId=${firstCat.id}`
+            `/api/category-definition?categoryId=${firstCat.id}`,
           );
           if (defRes.ok) {
             const data = await defRes.json();
@@ -95,7 +95,8 @@ export default function AIForecast() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/graphs")
+    // Only Forecast graphs belong in this Forecast CMS tool
+    fetch("/api/graphs?context=forecast")
       .then((r) => r.json())
       .then((data) => {
         const parsed = data.map((g) => {
@@ -120,7 +121,7 @@ export default function AIForecast() {
             if (!res.ok) return { graphId: g.id, questions: [] };
             const data = await res.json();
             return { graphId: g.id, questions: data };
-          })
+          }),
         ).then((questionData) => {
           const map = {};
           questionData.forEach(({ graphId, questions }) => {
@@ -138,7 +139,7 @@ export default function AIForecast() {
         const eligibility = await checkGraphEligibility(
           graphs,
           datasets,
-          contentHierarchy
+          contentHierarchy,
         );
         setGraphEligibilityMap(eligibility);
       } catch (err) {
@@ -155,7 +156,7 @@ export default function AIForecast() {
     const ids = stream.split(",");
     const regionId = ids[ids.length - 2];
     const regionNode = contentHierarchy.find(
-      (n) => n.id.toString() === regionId
+      (n) => n.id.toString() === regionId,
     );
     return regionNode?.name || "Unknown";
   };
@@ -164,7 +165,7 @@ export default function AIForecast() {
     const ids = stream.split(",");
     const categoryId = ids[2]; // third value
     const categoryNode = contentHierarchy.find(
-      (n) => n.id.toString() === categoryId
+      (n) => n.id.toString() === categoryId,
     );
     return categoryNode?.name || "Unknown";
   };
@@ -179,7 +180,7 @@ export default function AIForecast() {
     if (!selectedStreamPath.length) return graphs;
     if (!filteredDatasetIds.length) return [];
     return graphs.filter((g) =>
-      g.dataset_ids.some((id) => filteredDatasetIds.includes(id))
+      g.dataset_ids.some((id) => filteredDatasetIds.includes(id)),
     );
   }, [graphs, selectedStreamPath, filteredDatasetIds]);
 
@@ -188,17 +189,17 @@ export default function AIForecast() {
       const datasetIds = Array.isArray(g.dataset_ids)
         ? g.dataset_ids
         : typeof g.dataset_ids === "string"
-        ? (() => {
-            try {
-              const parsed = JSON.parse(g.dataset_ids);
-              return Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              return [];
-            }
-          })()
-        : typeof g.dataset_ids === "number"
-        ? [g.dataset_ids]
-        : [];
+          ? (() => {
+              try {
+                const parsed = JSON.parse(g.dataset_ids);
+                return Array.isArray(parsed) ? parsed : [parsed];
+              } catch {
+                return [];
+              }
+            })()
+          : typeof g.dataset_ids === "number"
+            ? [g.dataset_ids]
+            : [];
 
       const firstDataset = datasets.find((d) => datasetIds.includes(d.id));
       const region = firstDataset
@@ -240,15 +241,15 @@ export default function AIForecast() {
     switch (graphFilter) {
       case "eligible":
         return graphTableData.filter(
-          (g) => graphEligibilityMap[g.graphId]?.isEligible
+          (g) => graphEligibilityMap[g.graphId]?.isEligible,
         );
       case "eligibleNoData":
         return graphTableData.filter(
-          (g) => graphEligibilityMap[g.graphId]?.isEligible && !g.hasAIData
+          (g) => graphEligibilityMap[g.graphId]?.isEligible && !g.hasAIData,
         );
       case "notEligible":
         return graphTableData.filter(
-          (g) => !graphEligibilityMap[g.graphId]?.isEligible
+          (g) => !graphEligibilityMap[g.graphId]?.isEligible,
         );
       default:
         return graphTableData;
@@ -373,7 +374,7 @@ export default function AIForecast() {
         }
 
         // 🟢 Step 2: Send updated ai_forecast to your API
-        const response = await fetch("/api/graphs", {
+        const response = await fetch("/api/graphs?context=forecast", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -400,7 +401,7 @@ export default function AIForecast() {
 
     setGenerationInProgress(false);
     message.success("AI Forecast generation completed.");
-    await fetch("/api/graphs")
+    await fetch("/api/graphs?context=forecast")
       .then((r) => r.json())
       .then((updated) => setGraphs(updated));
     setSelectedRowKeys(0);
@@ -410,7 +411,7 @@ export default function AIForecast() {
     if (!generationInProgress) return;
 
     const targetPercent = Math.round(
-      (generationProgress.current / generationProgress.total) * 100
+      (generationProgress.current / generationProgress.total) * 100,
     );
 
     const interval = setInterval(() => {
@@ -462,7 +463,7 @@ export default function AIForecast() {
 
   const treeData = useMemo(
     () => buildTree(contentHierarchy),
-    [contentHierarchy]
+    [contentHierarchy],
   );
 
   async function checkGraphEligibility(graphs, datasets, hierarchy) {
@@ -482,7 +483,7 @@ export default function AIForecast() {
         const regionId = streamParts.at(-2);
 
         const categoryNode = hierarchy.find(
-          (n) => n.id.toString() === categoryId
+          (n) => n.id.toString() === categoryId,
         );
         const regionNode = hierarchy.find((n) => n.id.toString() === regionId);
         const categoryName = categoryNode?.name || "";
@@ -491,7 +492,7 @@ export default function AIForecast() {
         const volumeData = dataset.data || {};
 
         const defRes = await fetch(
-          `/api/category-definition?categoryId=${categoryId}`
+          `/api/category-definition?categoryId=${categoryId}`,
         );
         const defJson = await defRes.json();
         const categoryDefinition = defJson?.definition || "";
@@ -526,7 +527,7 @@ export default function AIForecast() {
           isEligible: missing.length === 0,
           missingFields: missing,
         };
-      })
+      }),
     );
 
     return result;
@@ -544,7 +545,7 @@ export default function AIForecast() {
               onChange={async (val) => {
                 setSelectedCategoryId(val);
                 const res = await fetch(
-                  `/api/category-definition?categoryId=${val}`
+                  `/api/category-definition?categoryId=${val}`,
                 );
                 if (res.ok) {
                   const data = await res.json();

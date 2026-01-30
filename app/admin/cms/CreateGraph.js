@@ -68,20 +68,20 @@ export default function CreateGraph({
           }).then((r) => r.json()),
           fetch(
             `/api/scoreSettings?key=${encodeURIComponent(
-              resolvedScoreSettingsKey
+              resolvedScoreSettingsKey,
             )}`,
             {
               headers: {
                 Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
               },
-            }
+            },
           ).then((r) => r.json()),
         ]);
 
         setContentHierarchy(hierarchy);
         setYearNames(scoreSettings.yearNames || []);
         setDatasets(
-          volRows.map((d) => ({ ...d, parsedStream: d.stream.split(",") }))
+          volRows.map((d) => ({ ...d, parsedStream: d.stream.split(",") })),
         );
         const rootKeys = hierarchy
           .filter((n) => n.parent_id === null)
@@ -90,71 +90,40 @@ export default function CreateGraph({
         setExpandedKeys(rootKeys);
 
         // Flash graphs do NOT use dataset_ids for historical values (Flash uses /api/flash-reports/overall-chart-data),
-        // but we keep a locked dataset to avoid CMS confusion and to prevent Flash graphs from appearing inside Forecast categories.
+        // but we keep dataset selection to avoid CMS confusion by auto-selecting & locking to an "Overall" dataset.
         if (context === "flash") {
           try {
-            const roots = hierarchy.filter((n) => n.parent_id === null);
-
-            const findByName = (re, list) =>
-              (list || []).find((n) => re.test(String(n?.name || "")));
-
-            // Prefer the "Flash Reports" root if present
-            const flashRoot =
-              findByName(/flash\s*reports/i, hierarchy) ||
-              findByName(/^flash$/i, roots) ||
-              findByName(/flash/i, roots) ||
-              findByName(/flash/i, hierarchy) ||
+            const overallNode =
+              hierarchy.find((n) => /\boverall\b/i.test(n?.name || "")) ||
+              hierarchy.find((n) => /overall/i.test(n?.name || "")) ||
+              hierarchy.find((n) => n.parent_id === null) ||
               null;
 
-            // Detect Forecast root so we can avoid it as a fallback
-            const forecastRoot =
-              findByName(/forecast/i, roots) ||
-              findByName(/forecast/i, hierarchy) ||
-              null;
-
-            const buildPath = (node) => {
-              const p = [];
-              let cur = node;
+            let path = [];
+            if (overallNode) {
+              let cur = overallNode;
               while (cur) {
-                p.unshift(cur.id.toString());
+                path.unshift(cur.id.toString());
                 cur = hierarchy.find((n) => n.id === cur.parent_id);
               }
-              return p;
-            };
-
-            const baseNode =
-              flashRoot ||
-              roots.find((r) => !/forecast/i.test(String(r?.name || ""))) ||
-              roots[0] ||
-              null;
-
-            const path = baseNode ? buildPath(baseNode) : [];
-            if (path.length) setSelectedStreamPath(path);
+              setSelectedStreamPath(path);
+            }
 
             const pathStr = path.length ? path.join(",") : "";
+            const candidates = pathStr
+              ? volRows.filter((d) =>
+                  String(d.stream || "").startsWith(pathStr),
+                )
+              : [];
 
             const byNewest = (a, b) =>
               new Date(b.createdAt || b.created_at || 0).getTime() -
               new Date(a.createdAt || a.created_at || 0).getTime();
 
-            const inPath = pathStr
-              ? volRows.filter((d) => String(d.stream || "").startsWith(pathStr))
-              : [];
-
-            // Fallback: choose newest dataset that is NOT under Forecast root
-            let nonForecast = volRows;
-            if (forecastRoot) {
-              const fPath = buildPath(forecastRoot).join(",");
-              if (fPath) {
-                nonForecast = volRows.filter(
-                  (d) => !String(d.stream || "").startsWith(fPath)
-                );
-              }
-            }
-
             const chosen =
-              (inPath && inPath.length ? [...inPath].sort(byNewest)[0] : null) ||
-              ([...nonForecast].sort(byNewest)[0] || null);
+              (candidates && candidates.length
+                ? [...candidates].sort(byNewest)[0]
+                : [...volRows].sort(byNewest)[0]) || null;
 
             form.setFieldsValue({
               chartType: "line",
@@ -201,7 +170,7 @@ export default function CreateGraph({
     updated.splice(levelIndex + 1);
 
     const children = contentHierarchy.filter(
-      (n) => n.parent_id === parseInt(selectedId)
+      (n) => n.parent_id === parseInt(selectedId),
     );
     if (children.length) {
       updated.push({
@@ -227,7 +196,7 @@ export default function CreateGraph({
         const streamNames = d.stream
           .split(",")
           .map(
-            (id) => contentHierarchy.find((n) => n.id.toString() === id)?.name
+            (id) => contentHierarchy.find((n) => n.id.toString() === id)?.name,
           )
           .join(" > ");
         const date = new Date(d.createdAt).toLocaleDateString();
@@ -254,7 +223,7 @@ export default function CreateGraph({
 
   const treeData = useMemo(
     () => buildTreeData(contentHierarchy),
-    [contentHierarchy]
+    [contentHierarchy],
   );
 
   const onFinish = useCallback(
@@ -341,7 +310,7 @@ export default function CreateGraph({
         message.error(e.message || "Creation failed");
       }
     },
-    [form, yearNames, aiEnabled, context, resolvedScoreSettingsKey]
+    [form, yearNames, aiEnabled, context, resolvedScoreSettingsKey],
   );
 
   if (loading) {
@@ -376,29 +345,34 @@ export default function CreateGraph({
               <Input placeholder="e.g. Sales Trend 2020–2025" allowClear />
             </Form.Item>
 
-            <Form.Item
-              name="summary"
-              label="Summary (30 words)"
-              style={{ marginBottom: 12 }}
-            >
-              <Input.TextArea
-                rows={2}
-                placeholder="Add a brief summary..."
-                allowClear
-              />
-            </Form.Item>
+            {/* Summary/Description are not needed for Flash graphs */}
+            {context !== "flash" && (
+              <>
+                <Form.Item
+                  name="summary"
+                  label="Summary (30 words)"
+                  style={{ marginBottom: 12 }}
+                >
+                  <Input.TextArea
+                    rows={2}
+                    placeholder="Add a brief summary..."
+                    allowClear
+                  />
+                </Form.Item>
 
-            <Form.Item
-              name="description"
-              label="Description (300 words)"
-              style={{ marginBottom: 12 }}
-            >
-              <Input.TextArea
-                rows={5}
-                placeholder="Add a short description..."
-                allowClear
-              />
-            </Form.Item>
+                <Form.Item
+                  name="description"
+                  label="Description (300 words)"
+                  style={{ marginBottom: 12 }}
+                >
+                  <Input.TextArea
+                    rows={5}
+                    placeholder="Add a short description..."
+                    allowClear
+                  />
+                </Form.Item>
+              </>
+            )}
 
             {/* Stream filter + Dataset in a row */}
             <Row gutter={8}>
@@ -416,19 +390,19 @@ export default function CreateGraph({
                     treeData={treeData}
                     placeholder={
                       context === "flash"
-                        ? "Locked to Flash Reports"
+                        ? "Locked to Overall"
                         : "Select stream"
                     }
                     disabled={context === "flash"}
                     onChange={(val) => {
                       const path = [];
                       let current = contentHierarchy.find(
-                        (n) => n.id.toString() === val
+                        (n) => n.id.toString() === val,
                       );
                       while (current) {
                         path.unshift(current.id.toString());
                         current = contentHierarchy.find(
-                          (n) => n.id === current.parent_id
+                          (n) => n.id === current.parent_id,
                         );
                       }
                       setSelectedStreamPath(path);
@@ -473,7 +447,7 @@ export default function CreateGraph({
               >
                 For <b>Flash Reports</b>, historical values come from the Flash
                 monthly stream (Overall chart API). The dataset is locked to an{" "}
-                <b>Flash Reports</b> dataset here to avoid confusion.
+                <b>Overall</b> dataset here to avoid confusion.
               </div>
             )}
 

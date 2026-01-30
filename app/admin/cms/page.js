@@ -54,8 +54,17 @@ export default function Home() {
   ];
 
   const forecastSubtabs = [
-    { key: "create", label: "Create Graph", children: <CreateGraph /> },
-    { key: "list", label: "All Graphs", children: <GraphList /> },
+    // Forecast CMS should only show Forecast graphs (not Flash graphs)
+    {
+      key: "create",
+      label: "Create Graph",
+      children: <CreateGraph context="forecast" />,
+    },
+    {
+      key: "list",
+      label: "All Graphs",
+      children: <GraphList context="forecast" />,
+    },
     { key: "preview", label: "Preview Page", children: <PreviewPage /> },
     {
       key: "user",

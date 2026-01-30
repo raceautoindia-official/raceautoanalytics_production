@@ -20,7 +20,8 @@ import {
 } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 
-export default function GraphList({ context } = {}) {
+// Default to forecast context so the Forecast CMS never accidentally lists Flash graphs
+export default function GraphList({ context = "forecast" } = {}) {
   const [graphs, setGraphs] = useState([]);
   const [contentHierarchy, setContentHierarchy] = useState([]);
   const [volumeDataMap, setVolumeDataMap] = useState({});
@@ -159,13 +160,13 @@ export default function GraphList({ context } = {}) {
       Object.entries(record.ai_forecast || {}).map(([year, value]) => ({
         year,
         value,
-      }))
+      })),
     );
     setRaceForecastRows(
       Object.entries(record.race_forecast || {}).map(([year, value]) => ({
         year,
         value,
-      }))
+      })),
     );
     setEditModalVisible(true);
   };
@@ -219,47 +220,55 @@ export default function GraphList({ context } = {}) {
   }, [graphs, volumeDataMap, nodeNameById]);
 
   // Column definitions (memoized so they don’t recreate unnecessarily)
-  const columns = useMemo(
-    () => [
+  const columns = useMemo(() => {
+    const isFlashList = context === "flash";
+
+    const cols = [
       { title: "ID", dataIndex: "id", width: 60 },
       { title: "Name", dataIndex: "name", ellipsis: true },
+    ];
 
-      // NEW: Category (3rd node in stream)
-      {
-        title: "Category",
-        key: "category",
-        filters: categoryFilters,
-        filterMultiple: true,
-        filterSearch: true,
-        onFilter: (val, row) => {
-          const datasetId = parseDatasetId(row.dataset_ids);
-          const { category } = getCategoryAndRegion(datasetId);
-          return (category || "—") === val;
+    // Category/Region are derived from historical datasets; they confuse Flash Graphs (Flash uses segment mapping),
+    // so we hide them only for the Flash Graphs table.
+    if (!isFlashList) {
+      cols.push(
+        {
+          title: "Category",
+          key: "category",
+          filters: categoryFilters,
+          filterMultiple: true,
+          filterSearch: true,
+          onFilter: (val, row) => {
+            const datasetId = parseDatasetId(row.dataset_ids);
+            const { category } = getCategoryAndRegion(datasetId);
+            return (category || "—") === val;
+          },
+          render: (_, record) => {
+            const datasetId = parseDatasetId(record.dataset_ids);
+            return getCategoryAndRegion(datasetId).category;
+          },
         },
-        render: (_, record) => {
-          const datasetId = parseDatasetId(record.dataset_ids);
-          return getCategoryAndRegion(datasetId).category;
+        {
+          title: "Region",
+          key: "region",
+          filters: regionFilters,
+          filterMultiple: true,
+          filterSearch: true,
+          onFilter: (val, row) => {
+            const datasetId = parseDatasetId(row.dataset_ids);
+            const { region } = getCategoryAndRegion(datasetId);
+            return (region || "—") === val;
+          },
+          render: (_, record) => {
+            const datasetId = parseDatasetId(record.dataset_ids);
+            return getCategoryAndRegion(datasetId).region;
+          },
         },
-      },
+      );
+    }
 
-      // NEW: Region (penultimate node in stream)
-      {
-        title: "Region",
-        key: "region",
-        filters: regionFilters,
-        filterMultiple: true,
-        filterSearch: true,
-        onFilter: (val, row) => {
-          const datasetId = parseDatasetId(row.dataset_ids);
-          const { region } = getCategoryAndRegion(datasetId);
-          return (region || "—") === val;
-        },
-        render: (_, record) => {
-          const datasetId = parseDatasetId(record.dataset_ids);
-          return getCategoryAndRegion(datasetId).region;
-        },
-      },
-
+    // Core columns
+    cols.push(
       // Chart type unchanged (renamed title for clarity)
       {
         title: "Chart Type",
@@ -310,15 +319,17 @@ export default function GraphList({ context } = {}) {
           );
         },
       },
+    );
 
-      // NEW: Writeups (Summary + Description merged)
-      {
+    // Flash graphs don't use Summary/Description, so hide writeups column in Flash Graphs table
+    if (!isFlashList) {
+      cols.push({
         title: "Writeups",
         key: "writeups",
         render: (_, record) => {
           const hasSummary = Boolean(record.summary && record.summary.trim());
           const hasDescription = Boolean(
-            record.description && record.description.trim()
+            record.description && record.description.trim(),
           );
 
           const tooltipContent = (
@@ -350,8 +361,10 @@ export default function GraphList({ context } = {}) {
             </Tooltip>
           );
         },
-      },
+      });
+    }
 
+    cols.push(
       {
         title: "Created",
         dataIndex: "created_at",
@@ -383,10 +396,18 @@ export default function GraphList({ context } = {}) {
           </Space>
         ),
       },
-    ],
+    );
+
+    return cols;
     // 🔁 Dependencies: we derive Category/Region from volumeDataMap + nodeNameById
-    [volumeDataMap, nodeNameById, handleDelete, categoryFilters, regionFilters]
-  );
+  }, [
+    context,
+    volumeDataMap,
+    nodeNameById,
+    handleDelete,
+    categoryFilters,
+    regionFilters,
+  ]);
 
   if (loading) {
     return (
@@ -433,7 +454,7 @@ export default function GraphList({ context } = {}) {
             message.warning(
               `Skipped invalid month keys: ${badKeys.slice(0, 6).join(", ")}${
                 badKeys.length > 6 ? "…" : ""
-              }`
+              }`,
             );
           }
 
@@ -447,8 +468,11 @@ export default function GraphList({ context } = {}) {
               body: JSON.stringify({
                 id: editGraph.id,
                 name: editGraph.name,
-                description,
-                summary,
+                // Flash graphs don't use writeups; keep existing values untouched
+                description: isFlashGraph
+                  ? editGraph.description || ""
+                  : description,
+                summary: isFlashGraph ? editGraph.summary || "" : summary,
                 dataset_ids: editGraph.dataset_ids,
                 forecast_types: editGraph.forecast_types,
                 chart_type: editGraph.chart_type,
@@ -473,25 +497,27 @@ export default function GraphList({ context } = {}) {
         width={600}
         okText="Save"
       >
-        <Form layout="vertical">
-          <Form.Item label="Summary">
-            <Input.TextArea
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              placeholder="Enter summary"
-              autoSize={{ minRows: 2, maxRows: 4 }}
-            />
-          </Form.Item>
+        {!isFlashGraph && (
+          <Form layout="vertical">
+            <Form.Item label="Summary">
+              <Input.TextArea
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder="Enter summary"
+                autoSize={{ minRows: 2, maxRows: 4 }}
+              />
+            </Form.Item>
 
-          <Form.Item label="Description">
-            <Input.TextArea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter description"
-              autoSize={{ minRows: 2, maxRows: 6 }}
-            />
-          </Form.Item>
-        </Form>
+            <Form.Item label="Description">
+              <Input.TextArea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter description"
+                autoSize={{ minRows: 2, maxRows: 6 }}
+              />
+            </Form.Item>
+          </Form>
+        )}
 
         <h4>AI Forecast</h4>
         {aiForecastRows.map((row, i) => (
@@ -506,7 +532,7 @@ export default function GraphList({ context } = {}) {
                       setAiForecastRows,
                       i,
                       "year",
-                      e.target.value
+                      e.target.value,
                     )
                   }
                 />
@@ -562,7 +588,7 @@ export default function GraphList({ context } = {}) {
                       setRaceForecastRows,
                       i,
                       "year",
-                      e.target.value
+                      e.target.value,
                     )
                   }
                 />
