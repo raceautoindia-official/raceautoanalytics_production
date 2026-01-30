@@ -1829,6 +1829,7 @@ export default function ForecastPage() {
                               dataKey="value"
                               name="Historical"
                               stroke="url(#histGrad)"
+                              type="monotone"
                               strokeWidth={3}
                               connectNulls
                               animationBegin={0}
@@ -1843,6 +1844,7 @@ export default function ForecastPage() {
                                 }
                                 name="Forecast (Stats)"
                                 stroke="#F58C1F"
+                                type="monotone"
                                 strokeWidth={2}
                                 strokeDasharray="5 5"
                                 connectNulls
@@ -1859,6 +1861,7 @@ export default function ForecastPage() {
                                 }
                                 name="Forecast (Survey-based)"
                                 stroke="#23DD1D"
+                                type="monotone"
                                 strokeWidth={2}
                                 strokeDasharray="2 2"
                                 connectNulls
@@ -1871,6 +1874,7 @@ export default function ForecastPage() {
                                 dataKey="forecastAI"
                                 name="Forecast (AI)"
                                 stroke="#A17CFF"
+                                type="monotone"
                                 strokeWidth={2}
                                 strokeDasharray="4 4"
                                 connectNulls
@@ -1883,6 +1887,7 @@ export default function ForecastPage() {
                                 dataKey="forecastRace"
                                 name="Forecast (Race)"
                                 stroke="#ffc107"
+                                type="monotone"
                                 strokeWidth={2}
                                 strokeDasharray="2 4"
                                 connectNulls
@@ -1895,6 +1900,7 @@ export default function ForecastPage() {
                                 dataKey="forecastByf"
                                 name="Forecast (BYF)"
                                 stroke="#38CCD4"
+                                type="monotone"
                                 strokeWidth={2}
                                 strokeDasharray="3 3"
                                 connectNulls
