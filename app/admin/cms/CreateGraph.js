@@ -504,21 +504,23 @@ export default function CreateGraph({
             {context === "flash" && (
               <Form.Item
                 name="flashSegment"
-                label="Flash Segment (optional)"
+                label="Flash Segment"
+                rules={[{ required: true, message: "Select a Flash segment" }]}
                 style={{ marginBottom: 12 }}
               >
                 <Select
-                  placeholder="Overall / PV / CV / 2W..."
-                  allowClear
+                  placeholder="Select segment"
                   options={[
                     { label: "Overall", value: "overall" },
                     { label: "PV", value: "pv" },
                     { label: "CV", value: "cv" },
+                    // keep legacy keys (2w/3w) but prefer generator-friendly keys
                     { label: "2W", value: "2w" },
                     { label: "3W", value: "3w" },
                     { label: "Tractor", value: "tractor" },
                     { label: "Truck", value: "truck" },
                     { label: "Bus", value: "bus" },
+                    { label: "Construction Equipment", value: "ce" },
                   ]}
                 />
               </Form.Item>

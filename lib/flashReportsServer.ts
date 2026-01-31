@@ -66,6 +66,8 @@ function mapBackendKeyToCategory(normalizedKey: string): string | null {
     normalizedKey === "construction-equipment"
   )
     return "CE";
+  if (normalizedKey === "total") return "Total";
+
   return null;
 }
 
@@ -255,9 +257,14 @@ export async function getOverallChartDataWithMeta(opts?: {
         if (Number.isFinite(num)) data[catKey] = num;
       }
 
-      const catKeys = ["2W", "3W", "PV", "TRAC", "Truck", "Bus", "CV", "CE"];
-      const total = catKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
-      data["Total"] = total;
+      // ✅ Trust DB Total if present; compute only as fallback
+      const hasStoredTotal = Number.isFinite(data["Total"]);
+
+      if (!hasStoredTotal) {
+        const catKeys = ["2W", "3W", "PV", "TRAC", "CV", "CE"];
+        const total = catKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
+        data["Total"] = total;
+      }
 
       byMonth.set(formattedMonth, data);
     }

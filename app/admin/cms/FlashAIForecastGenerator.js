@@ -38,15 +38,21 @@ const SEGMENT_TO_CAT = {
   overall: "Total",
   pv: "PV",
   cv: "CV",
+  // allow both legacy and preferred keys
   tw: "2W",
+  "2w": "2W",
   threew: "3W",
+  "3w": "3W",
   tractor: "TRAC",
   truck: "Truck",
   bus: "Bus",
+  ce: "CE",
 };
 
 function guessFlashSegment(graph) {
-  const seg = String(graph?.flash_segment || "").toLowerCase().trim();
+  const seg = String(graph?.flash_segment || "")
+    .toLowerCase()
+    .trim();
   if (SEGMENT_TO_CAT[seg]) return seg;
 
   const name = String(graph?.name || "").toLowerCase();
@@ -58,6 +64,7 @@ function guessFlashSegment(graph) {
   if (name.includes("tractor") || name.includes("trac")) return "tractor";
   if (name.includes("truck")) return "truck";
   if (name.includes("bus")) return "bus";
+  if (name.includes("construction") || name.includes("equip")) return "ce";
   return "overall";
 }
 
@@ -87,14 +94,17 @@ export default function FlashAIForecastGenerator() {
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
           },
         }),
-        fetch(`/api/flash-reports/overall-chart-data?month=${baseMonth}&horizon=6`),
         fetch(
-          `/api/scoreSettings?key=flashScoreSettings&baseMonth=${baseMonth}&horizon=6`
+          `/api/flash-reports/overall-chart-data?month=${baseMonth}&horizon=6`,
+        ),
+        fetch(
+          `/api/scoreSettings?key=flashScoreSettings&baseMonth=${baseMonth}&horizon=6`,
         ),
       ]);
 
       if (!graphsRes.ok) throw new Error("Failed to load Flash graphs");
-      if (!chartRes.ok) throw new Error("Failed to load Flash overall chart data");
+      if (!chartRes.ok)
+        throw new Error("Failed to load Flash overall chart data");
       if (!periodsRes.ok) throw new Error("Failed to load Flash month labels");
 
       const [graphsJson, chartJson, periodsJson] = await Promise.all([
@@ -119,7 +129,7 @@ export default function FlashAIForecastGenerator() {
           } catch {
             return [gr.id, []];
           }
-        })
+        }),
       );
       const qMap = {};
       for (const [id, qs] of qPairs) qMap[id] = qs;
@@ -205,11 +215,11 @@ export default function FlashAIForecastGenerator() {
         if (!graph) continue;
 
         const qs = questionsMap[graphId] || [];
-        const { segment, categoryKey, volumeData } = buildVolumeDataForGraph(graph);
+        const { segment, categoryKey, volumeData } =
+          buildVolumeDataForGraph(graph);
 
         const categoryName = `Flash Reports — ${segment.toUpperCase()} (${categoryKey})`;
-        const categoryDefinition =
-          `Monthly Flash Reports forecast for segment ${segment}. Values are total volumes for ${categoryKey}.`;
+        const categoryDefinition = `Monthly Flash Reports forecast for segment ${segment}. Values are total volumes for ${categoryKey}.`;
 
         // Region is a human label used only in prompt
         const region = "India";
@@ -240,7 +250,9 @@ export default function FlashAIForecastGenerator() {
 
         const aiJson = await aiRes.json().catch(() => ({}));
         if (!aiRes.ok) {
-          throw new Error(aiJson?.error || `AI forecast failed for graph #${graphId}`);
+          throw new Error(
+            aiJson?.error || `AI forecast failed for graph #${graphId}`,
+          );
         }
 
         await updateGraphAIForecast(graph, aiJson);
@@ -263,7 +275,9 @@ export default function FlashAIForecastGenerator() {
       key: "name",
       render: (_, r) => (
         <div>
-          <div style={{ fontWeight: 600 }}>#{r.id} — {r.name}</div>
+          <div style={{ fontWeight: 600 }}>
+            #{r.id} — {r.name}
+          </div>
           <div style={{ fontSize: 12, opacity: 0.8 }}>
             segment: <b>{String(guessFlashSegment(r)).toUpperCase()}</b>
             {r.flash_segment ? "" : " (guessed)"}
@@ -300,9 +314,12 @@ export default function FlashAIForecastGenerator() {
     <Card style={{ maxWidth: 1100 }} loading={loading}>
       <Space direction="vertical" size={10} style={{ width: "100%" }}>
         <Text type="secondary">
-          This tool generates <b>monthly AI forecasts</b> for Flash graphs and saves them into
-          <code> graphs.ai_forecast </code> (keys like <code>YYYY-MM</code>).<br />
-          Base month is fixed to the <b>previous IST month</b>: <b>{baseMonth}</b>, and the future months are taken from
+          This tool generates <b>monthly AI forecasts</b> for Flash graphs and
+          saves them into
+          <code> graphs.ai_forecast </code> (keys like <code>YYYY-MM</code>).
+          <br />
+          Base month is fixed to the <b>previous IST month</b>:{" "}
+          <b>{baseMonth}</b>, and the future months are taken from
           <code> flashScoreSettings </code>.
         </Text>
 
@@ -312,10 +329,16 @@ export default function FlashAIForecastGenerator() {
           message="Requirements"
           description={
             <div style={{ fontSize: 12 }}>
-              <div>1) Ensure <code>OPENAI_API_KEY</code> is set on the server.</div>
-              <div>2) Ensure each Flash graph has relevant questions (optional, but recommended).</div>
               <div>
-                3) Ensure Flash segment mapping is set; otherwise the segment is guessed from the graph name.
+                1) Ensure <code>OPENAI_API_KEY</code> is set on the server.
+              </div>
+              <div>
+                2) Ensure each Flash graph has relevant questions (optional, but
+                recommended).
+              </div>
+              <div>
+                3) Ensure Flash segment mapping is set; otherwise the segment is
+                guessed from the graph name.
               </div>
             </div>
           }
