@@ -224,28 +224,41 @@ export default function PreviewPage() {
   // Reasonable defaults (first category + All Regions)
   useEffect(() => {
     if (!categories.length) return;
+
+    // initial default category
     if (selectedCategoryId == null) {
       setSelectedCategoryId(categories[0].id);
       return;
     }
-    // When category changes, default region to All Regions (if available)
-    if (selectedCategoryId != null && selectedRegionId == null) {
-      if (allRegionsNode) setSelectedRegionId(allRegionsNode.id);
+
+    // only set a default region if nothing is selected at all
+    if (selectedRegionId == null && allRegionsNode) {
+      setSelectedRegionId(allRegionsNode.id);
     }
   }, [categories, selectedCategoryId, selectedRegionId, allRegionsNode]);
 
   // Reset region/graph when category changes
   useEffect(() => {
     if (!selectedCategoryId) return;
-    // Ensure region belongs to category
-    const valid = regions.some(
-      (r) => String(r.id) === String(selectedRegionId),
-    );
-    if (!valid) {
+
+    const allowedIds = new Set();
+
+    // allow All Regions
+    if (allRegionsNode?.id) allowedIds.add(String(allRegionsNode.id));
+
+    // allow all country options shown in the dropdown
+    Object.values(countriesByRegion || {}).forEach((arr) => {
+      (arr || []).forEach((c) => allowedIds.add(String(c.id)));
+    });
+
+    const isValid =
+      selectedRegionId != null && allowedIds.has(String(selectedRegionId));
+
+    if (!isValid) {
       setSelectedRegionId(allRegionsNode?.id ?? null);
       setSelectedGraphId(null);
     }
-  }, [selectedCategoryId, regions, selectedRegionId, allRegionsNode]);
+  }, [selectedCategoryId, selectedRegionId, allRegionsNode, countriesByRegion]);
 
   const selectedGraph = useMemo(
     () => (graphs || []).find((g) => g.id === selectedGraphId) || null,
@@ -592,7 +605,7 @@ export default function PreviewPage() {
               }
               onChange={(v) => {
                 setSelectedCategoryId(Number(v));
-                setSelectedRegionId(null);
+                // setSelectedRegionId(null);
                 setSelectedGraphId(null);
               }}
               showSearch

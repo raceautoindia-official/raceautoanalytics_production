@@ -265,8 +265,8 @@ export default function CreateGraph({
           dataset_ids: datasetIdsArr,
           chart_type: values.chartType,
           forecast_types: values.forecastTypes || [],
-          race_forecast: raceForecast,
-          ai_forecast: aiEnabled && aiCount ? aiForecast : null,
+          race_forecast: values.chartType === "line" ? raceForecast : {}, // bar/pie => {}
+          ai_forecast: aiEnabled && aiCount ? aiForecast : {}, // never null
           context,
           score_settings_key: resolvedScoreSettingsKey,
           flash_segment:
@@ -276,8 +276,8 @@ export default function CreateGraph({
           datasetIds: datasetIdsArr,
           chartType: values.chartType,
           forecastTypes: values.forecastTypes || [],
-          raceForecast,
-          aiForecast: aiEnabled && aiCount ? aiForecast : null,
+          raceForecast: values.chartType === "line" ? raceForecast : {},
+          aiForecast: aiEnabled && aiCount ? aiForecast : {},
           scoreSettingsKey: resolvedScoreSettingsKey,
           flashSegment:
             context === "flash" ? values.flashSegment || null : null,
