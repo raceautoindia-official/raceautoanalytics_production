@@ -20,18 +20,30 @@ const pad2 = (n) => String(n).padStart(2, "0");
 
 // Previous calendar month based on Asia/Kolkata (IST) — returns YYYY-MM
 const getPrevMonthIST = () => {
-  const now = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-  const ist = new Date(utcMs + 330 * 60000);
+  // Flash reporting month rolls over on the 5th (IST):
+  // - 1st–4th: treat "latest available" as two months ago
+  // - 5th onwards: treat "latest available" as previous calendar month
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
 
-  let y = ist.getFullYear();
-  let m = ist.getMonth() + 1; // 1-12
-  m -= 1;
-  if (m === 0) {
-    y -= 1;
-    m = 12;
+  const y = Number(parts.find((p) => p.type === "year")?.value ?? "1970");
+  const m = Number(parts.find((p) => p.type === "month")?.value ?? "01");
+  const d = Number(parts.find((p) => p.type === "day")?.value ?? "01");
+
+  const cutoffDay = 5;
+  const back = d >= cutoffDay ? 1 : 2;
+
+  let year = y;
+  let month = m - back;
+  while (month <= 0) {
+    month += 12;
+    year -= 1;
   }
-  return `${y}-${pad2(m)}`;
+  return `${year}-${String(month).padStart(2, "0")}`;
 };
 
 export default function ScoreCard() {
@@ -166,7 +178,7 @@ export default function ScoreCard() {
       const scoreSettingsUrl =
         context === "flash"
           ? `/api/scoreSettings?key=${encodeURIComponent(
-              key
+              key,
             )}&baseMonth=${encodeURIComponent(bp)}&horizon=6`
           : `/api/scoreSettings?key=${encodeURIComponent(key)}`;
 
@@ -193,7 +205,7 @@ export default function ScoreCard() {
       setDropdownOpts(scoreLabels);
 
       setSelectedValues(
-        qList.map(() => Array(yearNames.length).fill("Select"))
+        qList.map(() => Array(yearNames.length).fill("Select")),
       );
       setSkipFlags(qList.map(() => false));
       setIncompleteFlags(qList.map(() => false));
@@ -268,7 +280,7 @@ export default function ScoreCard() {
     const step = dropdownOpts.length > 1 ? 10 / (dropdownOpts.length - 1) : 0;
     const labelToScore = dropdownOpts.reduce(
       (m, lbl, i) => ({ ...m, [lbl]: i * step }),
-      {}
+      {},
     );
 
     const payload = questions.map((q, idx) => ({
@@ -276,7 +288,7 @@ export default function ScoreCard() {
       scores: skipFlags[idx]
         ? []
         : selectedValues[idx].map((lbl) =>
-            labelToScore[lbl] != null ? labelToScore[lbl] : null
+            labelToScore[lbl] != null ? labelToScore[lbl] : null,
           ),
       skipped: skipFlags[idx],
     }));
@@ -305,7 +317,7 @@ export default function ScoreCard() {
         });
 
         setSelectedValues(
-          questions.map(() => Array(years.length).fill("Select"))
+          questions.map(() => Array(years.length).fill("Select")),
         );
         setSkipFlags(questions.map(() => false));
         swiperRef.current?.slideTo(0);
@@ -374,7 +386,7 @@ export default function ScoreCard() {
       if (!Number.isFinite(score) || step === 0) return "Select";
       const idx = Math.min(
         dropdownOpts.length - 1,
-        Math.max(0, Math.round(score / step))
+        Math.max(0, Math.round(score / step)),
       );
       return dropdownOpts[idx];
     };
@@ -388,11 +400,11 @@ export default function ScoreCard() {
 
     const idxLo = Math.max(
       0,
-      Math.min(dropdownOpts.length - 1, Math.floor(r.lo / step + 1e-9))
+      Math.min(dropdownOpts.length - 1, Math.floor(r.lo / step + 1e-9)),
     );
     const idxHi = Math.max(
       0,
-      Math.min(dropdownOpts.length - 1, Math.ceil(r.hi / step - 1e-9))
+      Math.min(dropdownOpts.length - 1, Math.ceil(r.hi / step - 1e-9)),
     );
 
     const loLabel = dropdownOpts[Math.min(idxLo, idxHi)];
@@ -417,7 +429,7 @@ export default function ScoreCard() {
 
   const mlUsable = useMemo(
     () => mlEnabled && Object.keys(rangeMap).length > 0,
-    [mlEnabled, rangeMap]
+    [mlEnabled, rangeMap],
   );
 
   // enable ML when >=2 non-skipped submissions
@@ -434,7 +446,7 @@ export default function ScoreCard() {
               Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
             },
             cache: "no-store",
-          }
+          },
         );
 
         if (!res.ok) throw new Error(`saveScores GET ${res.status}`);
@@ -447,7 +459,7 @@ export default function ScoreCard() {
               s &&
               !s.skipped &&
               s.score != null &&
-              Number.isFinite(Number(s.score))
+              Number.isFinite(Number(s.score)),
           );
           return acc + (hasData ? 1 : 0);
         }, 0);
@@ -465,7 +477,7 @@ export default function ScoreCard() {
 
         const r = await fetch(
           `/api/ml/results?graphId=${encodeURIComponent(graphId)}`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         if (!r.ok) throw new Error(`ml/results ${r.status}`);
         const ml = await r.json();
@@ -683,7 +695,7 @@ export default function ScoreCard() {
                 <div className="hidden sm:block w-full overflow-x-auto">
                   <div
                     className={[yearGridWithSkipClass, "min-w-max pb-1"].join(
-                      " "
+                      " ",
                     )}
                     style={yearGridWithSkipStyle}
                   >
@@ -770,8 +782,8 @@ export default function ScoreCard() {
                                     opinion === true
                                       ? "border-emerald-600 ring-1 ring-emerald-500/40"
                                       : opinion === false
-                                      ? "border-red-500 ring-1 ring-red-500/40"
-                                      : "border-slate-300";
+                                        ? "border-red-500 ring-1 ring-red-500/40"
+                                        : "border-slate-300";
 
                                   return (
                                     <select
@@ -816,7 +828,7 @@ export default function ScoreCard() {
                                                 const span =
                                                   rangeToLabelSpan(
                                                     item.id,
-                                                    yIdx
+                                                    yIdx,
                                                   ) || "typical range";
                                                 notification.warning({
                                                   message:
@@ -842,7 +854,7 @@ export default function ScoreCard() {
                                           item.id,
                                           yIdx,
                                           opt,
-                                          sel
+                                          sel,
                                         );
                                         return (
                                           <option

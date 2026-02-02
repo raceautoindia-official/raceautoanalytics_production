@@ -36,17 +36,27 @@ function getOrigin(req) {
 }
 
 function prevMonthRefIST() {
+  // Flash reporting month rolls over on the 5th (IST):
+  // - 1st–4th: treat "latest available" as two months ago
+  // - 5th onwards: treat "latest available" as previous calendar month
   const now = new Date();
   const ist = new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
   );
+
   let y = ist.getFullYear();
-  let m = ist.getMonth() + 1; // 1..12
-  m -= 1;
-  if (m === 0) {
-    m = 12;
+  let m = ist.getMonth() + 1; // 1..12 (current month)
+  const d = ist.getDate(); // 1..31
+
+  const cutoffDay = 5;
+  const back = d >= cutoffDay ? 1 : 2;
+
+  m -= back;
+  while (m <= 0) {
+    m += 12;
     y -= 1;
   }
+
   return `${y}-${String(m).padStart(2, "0")}`;
 }
 
@@ -75,7 +85,7 @@ export async function GET(req) {
     if (!segmentName) {
       return NextResponse.json(
         { error: "Missing segmentName" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -83,7 +93,7 @@ export async function GET(req) {
     if (!parsed) {
       return NextResponse.json(
         { error: "Invalid baseMonth. Use YYYY-MM" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -115,7 +125,7 @@ export async function GET(req) {
       (n) =>
         String(n.name || "")
           .toLowerCase()
-          .trim() === segmentName
+          .trim() === segmentName,
     );
     if (!segment) return NextResponse.json([], { status: 404 });
 
@@ -123,7 +133,7 @@ export async function GET(req) {
       (n) =>
         String(n.name || "")
           .toLowerCase()
-          .trim() === "segment split" && n.parent_id === segment.id
+          .trim() === "segment split" && n.parent_id === segment.id,
     );
     if (!splitNode) return NextResponse.json([], { status: 404 });
 
@@ -146,7 +156,7 @@ export async function GET(req) {
       const yearNode = hierarchyData.find(
         (n) =>
           String(n.name || "").trim() === String(t.year) &&
-          n.parent_id === splitNode.id
+          n.parent_id === splitNode.id,
       );
       if (!yearNode) continue;
 
@@ -156,7 +166,7 @@ export async function GET(req) {
           n.parent_id === yearNode.id &&
           String(n.name || "")
             .toLowerCase()
-            .trim() === t.monthName
+            .trim() === t.monthName,
       );
       if (!monthNode) continue;
 
@@ -185,10 +195,10 @@ export async function GET(req) {
       const [ma, ya] = a.month.split(" ");
       const [mb, yb] = b.month.split(" ");
       const ia = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(
-        ma.toLowerCase()
+        ma.toLowerCase(),
       );
       const ib = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(
-        mb.toLowerCase()
+        mb.toLowerCase(),
       );
       const da = new Date(`${ya}-${String(ia + 1).padStart(2, "0")}-01`);
       const db = new Date(`${yb}-${String(ib + 1).padStart(2, "0")}-01`);
@@ -200,7 +210,7 @@ export async function GET(req) {
     console.error("fetchCVSegmentSplit error:", err);
     return NextResponse.json(
       { error: "Internal Server Error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

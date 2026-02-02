@@ -32,17 +32,27 @@ const MONTHS_LOWER = [
 ];
 
 function prevMonthRefIST() {
+  // Flash reporting month rolls over on the 5th (IST):
+  // - 1st–4th: treat "latest available" as two months ago
+  // - 5th onwards: treat "latest available" as previous calendar month
   const now = new Date();
   const ist = new Date(
     now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
   );
+
   let y = ist.getFullYear();
-  let m = ist.getMonth() + 1;
-  m -= 1;
-  if (m === 0) {
-    m = 12;
+  let m = ist.getMonth() + 1; // 1..12 (current month)
+  const d = ist.getDate(); // 1..31
+
+  const cutoffDay = 5;
+  const back = d >= cutoffDay ? 1 : 2;
+
+  m -= back;
+  while (m <= 0) {
+    m += 12;
     y -= 1;
   }
+
   return `${y}-${String(m).padStart(2, "0")}`;
 }
 

@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface AppContextType {
@@ -22,20 +28,27 @@ export function useAppContext() {
 const REGIONS = ["india", "apac", "emea", "americas", "global"];
 
 function getPrevMonthIST(): string {
-  // current date in IST -> previous calendar month
+  // Flash reporting month rolls over on the 5th (IST):
+  // - 1st–4th: treat "latest available" as two months ago
+  // - 5th onwards: treat "latest available" as previous calendar month
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
     month: "2-digit",
+    day: "2-digit",
   }).formatToParts(new Date());
 
   const y = Number(parts.find((p) => p.type === "year")?.value ?? "1970");
   const m = Number(parts.find((p) => p.type === "month")?.value ?? "01");
+  const d = Number(parts.find((p) => p.type === "day")?.value ?? "01");
+
+  const cutoffDay = 5;
+  const back = d >= cutoffDay ? 1 : 2;
 
   let year = y;
-  let month = m - 1;
-  if (month <= 0) {
-    month = 12;
+  let month = m - back;
+  while (month <= 0) {
+    month += 12;
     year -= 1;
   }
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -76,7 +89,9 @@ export function Providers({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ region, month, setRegion, setMonth, updateUrl }}>
+    <AppContext.Provider
+      value={{ region, month, setRegion, setMonth, updateUrl }}
+    >
       {children}
     </AppContext.Provider>
   );

@@ -16,19 +16,27 @@ import {
 const { Text } = Typography;
 
 function getPrevMonthIST() {
+  // Flash reporting month rolls over on the 5th (IST):
+  // - 1st–4th: treat "latest available" as two months ago
+  // - 5th onwards: treat "latest available" as previous calendar month
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
     month: "2-digit",
+    day: "2-digit",
   }).formatToParts(new Date());
 
   const y = Number(parts.find((p) => p.type === "year")?.value ?? "1970");
   const m = Number(parts.find((p) => p.type === "month")?.value ?? "01");
+  const d = Number(parts.find((p) => p.type === "day")?.value ?? "01");
+
+  const cutoffDay = 5;
+  const back = d >= cutoffDay ? 1 : 2;
 
   let year = y;
-  let month = m - 1;
-  if (month <= 0) {
-    month = 12;
+  let month = m - back;
+  while (month <= 0) {
+    month += 12;
     year -= 1;
   }
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -38,15 +46,11 @@ const SEGMENT_TO_CAT = {
   overall: "Total",
   pv: "PV",
   cv: "CV",
-  // allow both legacy and preferred keys
   tw: "2W",
-  "2w": "2W",
   threew: "3W",
-  "3w": "3W",
   tractor: "TRAC",
   truck: "Truck",
   bus: "Bus",
-  ce: "CE",
 };
 
 function guessFlashSegment(graph) {
@@ -64,7 +68,6 @@ function guessFlashSegment(graph) {
   if (name.includes("tractor") || name.includes("trac")) return "tractor";
   if (name.includes("truck")) return "truck";
   if (name.includes("bus")) return "bus";
-  if (name.includes("construction") || name.includes("equip")) return "ce";
   return "overall";
 }
 

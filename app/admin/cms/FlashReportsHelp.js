@@ -25,8 +25,8 @@ export default function FlashReportsHelp() {
           <span>
             Forecast overlays appear only when users view the{" "}
             <b>latest month</b>
-            (previous calendar month in Asia/Kolkata). Older months show only
-            historical values.
+            (switches on the 5th of each month in Asia/Kolkata). Older months
+            show only historical values.
           </span>
         }
         style={{ marginBottom: 16 }}

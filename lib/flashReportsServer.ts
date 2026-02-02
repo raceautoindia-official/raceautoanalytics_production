@@ -23,7 +23,7 @@ export type OverallChartPoint = {
 
 export type OverallChartMeta = {
   baseMonth: string; // YYYY-MM
-  allowForecast: boolean; // true only when baseMonth is previous IST month
+  allowForecast: boolean; // true only when baseMonth is latest available month (5th cutoff)
   horizon: number; // months ahead (used only if allowForecast)
   windowMonths: string[]; // final months used in chart
 };
@@ -66,25 +66,31 @@ function mapBackendKeyToCategory(normalizedKey: string): string | null {
     normalizedKey === "construction-equipment"
   )
     return "CE";
-  if (normalizedKey === "total") return "Total";
-
   return null;
 }
 
 function getPrevMonthIST(): string {
+  // Flash reporting month rolls over on the 5th (IST):
+  // - 1st–4th: treat "latest available" as two months ago
+  // - 5th onwards: treat "latest available" as previous calendar month
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
     month: "2-digit",
+    day: "2-digit",
   }).formatToParts(new Date());
 
   const y = Number(parts.find((p) => p.type === "year")?.value ?? "1970");
   const m = Number(parts.find((p) => p.type === "month")?.value ?? "01");
+  const d = Number(parts.find((p) => p.type === "day")?.value ?? "01");
+
+  const cutoffDay = 5;
+  const back = d >= cutoffDay ? 1 : 2;
 
   let year = y;
-  let month = m - 1;
-  if (month <= 0) {
-    month = 12;
+  let month = m - back;
+  while (month <= 0) {
+    month += 12;
     year -= 1;
   }
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -257,14 +263,9 @@ export async function getOverallChartDataWithMeta(opts?: {
         if (Number.isFinite(num)) data[catKey] = num;
       }
 
-      // ✅ Trust DB Total if present; compute only as fallback
-      const hasStoredTotal = Number.isFinite(data["Total"]);
-
-      if (!hasStoredTotal) {
-        const catKeys = ["2W", "3W", "PV", "TRAC", "CV", "CE"];
-        const total = catKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
-        data["Total"] = total;
-      }
+      const catKeys = ["2W", "3W", "PV", "TRAC", "Truck", "Bus", "CV", "CE"];
+      const total = catKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
+      data["Total"] = total;
 
       byMonth.set(formattedMonth, data);
     }
