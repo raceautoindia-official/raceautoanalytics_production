@@ -269,7 +269,9 @@ export default function PassengerVehiclesPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             "passenger vehicle",
-          )}&selectedMonth=${shortMonth}&mode=${marketCompare}&segmentType=market share`,
+          )}&segmentType=market share&mode=${marketCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
         );
 
         if (!res.ok) {
@@ -316,7 +318,9 @@ export default function PassengerVehiclesPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             "passenger vehicle",
-          )}&selectedMonth=${shortMonth}&mode=${evCompare}&segmentType=ev`,
+          )}&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
         );
 
         if (!res.ok) {

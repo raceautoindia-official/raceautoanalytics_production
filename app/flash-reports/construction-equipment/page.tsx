@@ -189,7 +189,9 @@ export default function ConstructionEquipmentPage() {
         const effectiveMonth = oemCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=construction-equipment&selectedMonth=${shortMonth}&mode=${oemCompare}&segmentType=market share`;
+        const url = `/api/fetchMarketData?segmentName=construction-equipment&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+          effectiveMonth,
+        )}&selectedMonth=${shortMonth}`;
 
         const res = await fetch(url);
         if (!res.ok) {
@@ -360,7 +362,9 @@ export default function ConstructionEquipmentPage() {
         const effectiveMonth = evCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=construction-equipment&selectedMonth=${shortMonth}&mode=${evCompare}&segmentType=ev`;
+        const url = `/api/fetchMarketData?segmentName=construction-equipment&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+          effectiveMonth,
+        )}&selectedMonth=${shortMonth}`;
 
         const res = await fetch(url);
         if (!res.ok) {

@@ -56,9 +56,9 @@ function normalizeForecastTypes(v: any): Set<string> {
       .map((x) =>
         String(x || "")
           .toLowerCase()
-          .trim()
+          .trim(),
       )
-      .filter(Boolean)
+      .filter(Boolean),
   );
 }
 
@@ -91,41 +91,80 @@ function linearForecastVolumes(histValues: number[], futureMonths: string[]) {
 }
 
 /**
- * Convert submissions -> the structure expected by useAverageYearlyScores
- * by joining per-question scores and using "yearIndex" (here month-index).
+ * Convert raw /api/saveScores submissions into the structure expected by
+ * useAverageYearlyScores (same as Forecast page):
+ *   - posAttributes / negAttributes
+ *   - posScores / negScores arrays indexed by yearIndex (here: month offset)
+ *   - weights map keyed by questionId
  */
 function enrichSubmissions(
   submissions: any[],
   questions: QuestionRow[],
-  yearNames: string[]
+  yearNames: string[],
 ) {
-  if (!submissions?.length || !questions?.length) return [];
+  if (!Array.isArray(submissions) || !submissions.length) return [];
+  if (!Array.isArray(questions) || !questions.length) return [];
+  if (!Array.isArray(yearNames) || !yearNames.length) return [];
 
-  const qById = new Map<number, QuestionRow>();
-  questions.forEach((q) => qById.set(Number(q.id), q));
+  // Build attributes + weights from questions
+  const posAttrs: any[] = [];
+  const negAttrs: any[] = [];
+  const weights: Record<string, number> = {};
+
+  for (const q of questions) {
+    const key = String(q.id);
+    weights[key] = Number(q.weight) || 0;
+    (String(q.type) === "positive" ? posAttrs : negAttrs).push({
+      key,
+      label: q.text,
+    });
+  }
+
+  // Helper: init score maps with arrays
+  const initScoreMaps = () => {
+    const posScores: Record<string, number[]> = {};
+    const negScores: Record<string, number[]> = {};
+    posAttrs.forEach(
+      (a) => (posScores[a.key] = Array(yearNames.length).fill(0)),
+    );
+    negAttrs.forEach(
+      (a) => (negScores[a.key] = Array(yearNames.length).fill(0)),
+    );
+    return { posScores, negScores };
+  };
 
   return submissions.map((sub) => {
+    const { posScores, negScores } = initScoreMaps();
     const rows = Array.isArray(sub?.scores) ? sub.scores : [];
-    const scores = rows
-      .map((r: any) => {
-        const q = qById.get(Number(r.questionId));
-        if (!q) return null;
-        return {
-          questionId: Number(r.questionId),
-          yearIndex: Number(r.yearIndex),
-          score: r.score == null ? null : Number(r.score),
-          skipped: !!r.skipped,
-          weight: Number(q.weight ?? 1),
-          type: String(q.type ?? "positive"),
-        };
-      })
-      .filter(Boolean);
+
+    // Fill arrays by yearIndex
+    for (const r of rows) {
+      if (!r) continue;
+      const skipped = !!r.skipped;
+      const yearIndex = Number(r.yearIndex);
+      if (
+        !Number.isFinite(yearIndex) ||
+        yearIndex < 0 ||
+        yearIndex >= yearNames.length
+      )
+        continue;
+      if (skipped) continue;
+
+      const k = String(r.questionId);
+      const scoreNum = Number(r.score);
+      if (!Number.isFinite(scoreNum)) continue;
+
+      if (posScores[k] !== undefined) posScores[k][yearIndex] = scoreNum;
+      if (negScores[k] !== undefined) negScores[k][yearIndex] = scoreNum;
+    }
 
     return {
-      submissionId: sub.submissionId,
-      userEmail: sub.userEmail,
-      basePeriod: sub.basePeriod,
-      scores,
+      ...sub,
+      posAttributes: posAttrs,
+      negAttributes: negAttrs,
+      posScores,
+      negScores,
+      weights,
       yearNames,
     };
   });
@@ -161,7 +200,7 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
 
   const enabledTypes = useMemo(
     () => normalizeForecastTypes(graph?.forecast_types),
-    [graph?.forecast_types]
+    [graph?.forecast_types],
   );
 
   // Historical values and future months extracted from overallData
@@ -225,16 +264,16 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
         const q: QuestionRow[] = Array.isArray(qdata)
           ? qdata
           : Array.isArray(qdata?.questions)
-          ? qdata.questions
-          : [];
+            ? qdata.questions
+            : [];
 
         const key = g?.score_settings_key || "scoreSettings";
         const ssdata = await fetchJson(
           `/api/scoreSettings?key=${encodeURIComponent(
-            key
+            key,
           )}&baseMonth=${encodeURIComponent(String(baseMonth))}&horizon=${
             Number.isFinite(horizon as any) ? Number(horizon) : 6
-          }`
+          }`,
         );
         const yn: string[] = Array.isArray(ssdata?.yearNames)
           ? ssdata.yearNames
@@ -242,21 +281,21 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
 
         const subsAllData = await fetchJson(
           `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(
-            String(baseMonth)
-          )}`
+            String(baseMonth),
+          )}`,
         );
         const all: any[] = Array.isArray(subsAllData)
           ? subsAllData
           : Array.isArray(subsAllData?.submissions)
-          ? subsAllData.submissions
-          : [];
+            ? subsAllData.submissions
+            : [];
 
         const subsUserData =
           userEmail && String(userEmail).trim()
             ? await fetchJson(
                 `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(
-                  String(baseMonth)
-                )}&email=${encodeURIComponent(String(userEmail).trim())}`
+                  String(baseMonth),
+                )}&email=${encodeURIComponent(String(userEmail).trim())}`,
               )
             : null;
 
@@ -264,10 +303,10 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
           subsUserData == null
             ? []
             : Array.isArray(subsUserData)
-            ? subsUserData
-            : Array.isArray(subsUserData?.submissions)
-            ? subsUserData.submissions
-            : [];
+              ? subsUserData
+              : Array.isArray(subsUserData?.submissions)
+                ? subsUserData.submissions
+                : [];
 
         if (cancelled) return;
 
@@ -292,18 +331,18 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
 
   const enrichedAll = useMemo(
     () => enrichSubmissions(allSubs, questions, yearNames),
-    [allSubs, questions, yearNames]
+    [allSubs, questions, yearNames],
   );
   const enrichedUser = useMemo(
     () => enrichSubmissions(userSubs, questions, yearNames),
-    [userSubs, questions, yearNames]
+    [userSubs, questions, yearNames],
   );
 
   const { averages: surveyAverages } = useAverageYearlyScores(
-    enrichedAll as any
+    enrichedAll as any,
   );
   const { averages: byofAverages } = useAverageYearlyScores(
-    enrichedUser as any
+    enrichedUser as any,
   );
 
   const surveyAvgScores = useMemo(
@@ -311,17 +350,17 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
       Array.isArray(surveyAverages)
         ? surveyAverages.map((x: any) => x.avg)
         : [],
-    [surveyAverages]
+    [surveyAverages],
   );
   const byofAvgScores = useMemo(
     () =>
       Array.isArray(byofAverages) ? byofAverages.map((x: any) => x.avg) : [],
-    [byofAverages]
+    [byofAverages],
   );
 
   const scoreForecastData = useForecastGrowth(
     histValues,
-    surveyAvgScores as any
+    surveyAvgScores as any,
   );
   const byofForecastData = useForecastGrowth(histValues, byofAvgScores as any);
 

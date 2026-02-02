@@ -268,7 +268,9 @@ export default function FlashReportsPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             OVERALL_OEM_SEGMENT_NAME,
-          )}&selectedMonth=${shortMonth}&mode=mom&segmentType=market share`,
+          )}&segmentType=market share&mode=mom&baseMonth=${encodeURIComponent(
+            month,
+          )}&selectedMonth=${shortMonth}`,
         );
 
         if (!res.ok) {
@@ -277,11 +279,12 @@ export default function FlashReportsPage() {
 
         const json = (await res.json()) as any[];
         if (!cancelled && Array.isArray(json)) {
-          const y = month.split("-")[0]; // current year
+          const y = Number(month.split("-")[0]); // current year
           const monthIdx = MONTHS_SHORT.indexOf(shortMonth);
           const prevShort = monthIdx > 0 ? MONTHS_SHORT[monthIdx - 1] : "dec";
+          const prevYear = monthIdx === 0 ? y - 1 : y;
           const currKey = `${shortMonth} ${y}`;
-          const prevKey = `${prevShort} ${y}`;
+          const prevKey = `${prevShort} ${prevYear}`;
 
           const processed: TopOem[] = json
             .map((row) => {

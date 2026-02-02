@@ -2,207 +2,230 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const MONTHS_SHORT = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+] as const;
+
+function getOrigin(req: Request) {
+  return new URL(req.url).origin;
+}
+
+// ✅ Flash cadence: rollover happens on/after 5th of the month (IST)
+// Returns the *effective* "latest available" month key in YYYY-MM.
+function prevMonthRefISTCutoff5(): string {
+  const now = new Date();
+  const istParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const y = Number(istParts.find((p) => p.type === "year")?.value ?? "1970");
+  const m = Number(istParts.find((p) => p.type === "month")?.value ?? "01");
+  const d = Number(istParts.find((p) => p.type === "day")?.value ?? "01");
+
+  // before the 5th: treat latest available month as TWO months ago
+  const back = d < 5 ? 2 : 1;
+  let year = y;
+  let month = m - back;
+  while (month <= 0) {
+    month += 12;
+    year -= 1;
+  }
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function parseBaseMonth(yyyymm: string | null) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(yyyymm || "").trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const monthIndex = Number(m[2]) - 1;
+  if (!Number.isFinite(year) || monthIndex < 0 || monthIndex > 11) return null;
+  return { year, monthIndex };
+}
+
+function normalize(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[\s\-_]+/g, "");
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
 
     const rawSegmentName = searchParams.get("segmentName") || "";
-    const rawSelectedMonth = searchParams.get("selectedMonth") || "";
     const rawSegmentType = searchParams.get("segmentType") || "";
 
+    // Support either:
+    // - baseMonth=YYYY-MM (preferred, fixes year drift)
+    // - selectedMonth=YYYY-MM
+    // - selectedMonth=jan/feb/... (fallback)
+    const baseMonth =
+      searchParams.get("baseMonth") ||
+      (searchParams.get("selectedMonth")?.match(/^\d{4}-\d{2}$/)
+        ? searchParams.get("selectedMonth")
+        : null) ||
+      prevMonthRefISTCutoff5();
+
+    const selectedMonthRaw = (searchParams.get("selectedMonth") || "")
+      .toLowerCase()
+      .trim();
+
+    const parsed = parseBaseMonth(baseMonth);
+    if (!parsed) {
+      return NextResponse.json(
+        { error: "Invalid baseMonth (use YYYY-MM)" },
+        { status: 400 },
+      );
+    }
+
+    const { year: baseYear, monthIndex: baseMonthIndex } = parsed;
+    const monthName = MONTHS_SHORT.includes(selectedMonthRaw as any)
+      ? (selectedMonthRaw as (typeof MONTHS_SHORT)[number])
+      : MONTHS_SHORT[baseMonthIndex];
+
+    // current, previous month (with year crossing), and same month last year
+    const currentMonthIdx = MONTHS_SHORT.indexOf(monthName);
+    const prevDate = new Date(baseYear, currentMonthIdx - 1, 1);
+    const prevMonthYear = prevDate.getFullYear();
+    const prevMonthName = MONTHS_SHORT[prevDate.getMonth()];
+    const lastYearSameMonthYear = baseYear - 1;
+
     const segmentName = rawSegmentName.toLowerCase().trim();
-    const monthParam = rawSelectedMonth.toLowerCase().trim();
     const segmentType = rawSegmentType.toLowerCase().trim();
 
-    console.log("[fetchMarketData] params:", {
-      segmentName,
-      monthParam,
-      segmentType,
-    });
-
-    const token = "your-very-strong-random-string-here";
-
+    // ✅ Use internal Next.js APIs (local DB) so dev/prod behave consistently
+    const origin = getOrigin(req);
     const [hierarchyRes, volumeRes] = await Promise.all([
-      fetch("https://raceautoanalytics.com/api/contentHierarchy", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      }),
-      fetch("https://raceautoanalytics.com/api/volumeData", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      }),
+      fetch(`${origin}/api/contentHierarchy`, { cache: "no-store" }),
+      fetch(`${origin}/api/volumeData`, { cache: "no-store" }),
     ]);
+
+    if (!hierarchyRes.ok || !volumeRes.ok) {
+      return NextResponse.json([], { status: 200 });
+    }
 
     const hierarchyData = await hierarchyRes.json();
     const volumeData = await volumeRes.json();
 
     const buildPath = (id: number | string) => {
       const path: Array<number | string> = [];
-      let current = hierarchyData.find((n: any) => n.id === id);
-      while (current) {
-        path.unshift(current.id);
-        current = hierarchyData.find((n: any) => n.id === current.parent_id);
+      let cur = hierarchyData.find((n: any) => n.id === id);
+      while (cur) {
+        path.unshift(cur.id);
+        cur = hierarchyData.find((n: any) => n.id === cur.parent_id);
       }
       return path.join(",");
     };
 
-    const normalize = (s: string) =>
-      (s || "").toLowerCase().replace(/[\s\-]+/g, "");
+    // ✅ Prefer: Main Root → flash-reports → <segment>
+    const mainRoot = hierarchyData.find(
+      (n: any) =>
+        String(n?.name || "")
+          .toLowerCase()
+          .trim() === "main root" &&
+        (n.parent_id == null || n.parent_id === 0),
+    );
+    const flashReports = hierarchyData.find(
+      (n: any) =>
+        String(n?.name || "")
+          .toLowerCase()
+          .trim() === "flash-reports" &&
+        (mainRoot ? n.parent_id === mainRoot.id : true),
+    );
 
-    // 🔹 1) Find segment node (overall / PV / CV / etc.)
-    const segmentNode = hierarchyData.find((n: any) => {
-      const nameNorm = normalize(n.name || "");
-      const targetNorm = normalize(rawSegmentName);
-
-      // special handling for "overall" so it can match
-      // "Overall Automotive Industry", "Overall Industry", etc.
-      if (targetNorm === "overall") {
-        return (
-          nameNorm.includes("overall") ||
-          nameNorm.includes("totalindustry") ||
-          nameNorm.includes("allsegments")
-        );
-      }
-
-      return nameNorm === targetNorm;
-    });
-
-    if (!segmentNode) {
-      console.warn("[fetchMarketData] No segmentNode for", rawSegmentName);
-      // no hard error; just "no data"
-      return NextResponse.json([], { status: 200 });
+    let segmentNode: any = null;
+    if (flashReports) {
+      segmentNode =
+        hierarchyData.find(
+          (n: any) =>
+            n.parent_id === flashReports.id &&
+            normalize(n.name || "") === normalize(segmentName),
+        ) || null;
     }
 
-    // 🔹 2) Find the "market share" node under that segment
+    // Fallback: older behavior (match anywhere)
+    if (!segmentNode) {
+      segmentNode =
+        hierarchyData.find(
+          (n: any) =>
+            normalize(n.name || "") === normalize(segmentName) ||
+            (normalize(segmentName) === "overall" &&
+              normalize(n.name || "").includes("overall")),
+        ) || null;
+    }
+
+    if (!segmentNode) return NextResponse.json([], { status: 200 });
+
+    // Find "market share" node (or segmentType match) under segment
     const marketShareNode = hierarchyData.find(
       (n: any) =>
         n.parent_id === segmentNode.id &&
         normalize(n.name || "").includes(
-          segmentType ? normalize(segmentType) : "marketshare"
-        )
+          segmentType ? normalize(segmentType) : "marketshare",
+        ),
     );
 
-    if (!marketShareNode) {
-      console.warn("[fetchMarketData] No marketShareNode for", {
-        segmentName: rawSegmentName,
-        segmentType: rawSegmentType,
-      });
-      return NextResponse.json([], { status: 200 });
-    }
+    if (!marketShareNode) return NextResponse.json([], { status: 200 });
 
-    const monthsList = [
-      "jan",
-      "feb",
-      "mar",
-      "apr",
-      "may",
-      "jun",
-      "jul",
-      "aug",
-      "sep",
-      "oct",
-      "nov",
-      "dec",
-    ] as const;
+    const findYearNode = (y: number) =>
+      hierarchyData.find(
+        (n: any) =>
+          String(n.name || "").trim() === String(y) &&
+          n.parent_id === marketShareNode.id,
+      ) || null;
 
-    const now = new Date();
-    const nowMonthIndex = now.getMonth(); // 0..11
-    const nowYear = now.getFullYear();
+    const findMonthNode = (y: number, m: string) => {
+      const yearNode = findYearNode(y);
+      if (!yearNode) return null;
+      return (
+        hierarchyData.find(
+          (n: any) =>
+            n.parent_id === yearNode.id &&
+            String(n.name || "")
+              .toLowerCase()
+              .trim() === m,
+        ) || null
+      );
+    };
 
-    let monthIndex: number;
-
-    // 1) Decide monthIndex
-    if (monthParam) {
-      monthIndex = monthsList.indexOf(monthParam as any);
-      if (monthIndex === -1) {
-        console.warn("[fetchMarketData] Invalid monthParam:", monthParam);
-        return NextResponse.json([], { status: 200 });
-      }
-    } else {
-      // default to previous month
-      monthIndex = (nowMonthIndex + 11) % 12; // safe previous month
-    }
-
-    // 2) Decide year that corresponds to that month
-    let baseYear = nowYear;
-
-    if (!monthParam) {
-      // previous month default: if current month is Jan, previous month is Dec of last year
-      if (nowMonthIndex === 0) baseYear = nowYear - 1;
-    } else {
-      // month explicitly provided: assume user means the most recent occurrence of that month
-      // Example: now = Jan 2026 (0), selectedMonth=dec (11) => 11 > 0 => Dec 2025
-      if (monthIndex > nowMonthIndex) baseYear = nowYear - 1;
-    }
-
-    const month = monthsList[monthIndex];
-
-    const currentYear = baseYear;
-    const lastYear = currentYear - 1;
-    console.log("currentyear:",currentYear,"last year :",lastYear,"month: " , month)
-
-    const currentYearNode = hierarchyData.find(
-      (n: any) =>
-        (n.name || "").trim() === String(currentYear) &&
-        n.parent_id === marketShareNode.id
-    );
-    const previousYearNode = hierarchyData.find(
-      (n: any) =>
-        (n.name || "").trim() === String(lastYear) &&
-        n.parent_id === marketShareNode.id
-    );
-
-    if (!currentYearNode || !previousYearNode) {
-      console.warn("[fetchMarketData] Missing year nodes", {
-        currentYear,
-        lastYear,
-      });
-      return NextResponse.json([], { status: 200 });
-    }
-
-    const currentYearMonths = hierarchyData.filter(
-      (n: any) => n.parent_id === currentYearNode.id
-    );
-    const previousYearMonths = hierarchyData.filter(
-      (n: any) => n.parent_id === previousYearNode.id
-    );
-
-    const currentMonthNode = currentYearMonths.find(
-      (n: any) => (n.name || "").toLowerCase().trim() === month
-    );
-
-    const prevMonthIndex = monthsList.indexOf(month) - 1;
-    const previousMonthName =
-      prevMonthIndex >= 0 ? monthsList[prevMonthIndex] : null;
-
-    const previousMonthNode = previousMonthName
-      ? currentYearMonths.find(
-          (n: any) => (n.name || "").toLowerCase().trim() === previousMonthName
-        )
-      : null;
-
-    const lastYearSameMonthNode = previousYearMonths.find(
-      (n: any) => (n.name || "").toLowerCase().trim() === month
+    const previousMonthNode = findMonthNode(prevMonthYear, prevMonthName);
+    const currentMonthNode = findMonthNode(baseYear, monthName);
+    const lastYearSameMonthNode = findMonthNode(
+      lastYearSameMonthYear,
+      monthName,
     );
 
     const nodes = [previousMonthNode, currentMonthNode, lastYearSameMonthNode];
-
     const merged: Record<string, any> = {};
 
     for (const node of nodes) {
       if (!node) continue;
+
       const stream = buildPath(node.id);
       const volumeEntry = volumeData.find((v: any) => v.stream === stream);
-      if (!volumeEntry) continue;
+      if (!volumeEntry?.data?.data) continue;
 
       const nodeYear = hierarchyData.find(
-        (n: any) => n.id === node.parent_id
+        (n: any) => n.id === node.parent_id,
       )?.name;
-      const label = `${node.name} ${nodeYear}`;
+      const label = `${String(node.name || "")
+        .toLowerCase()
+        .trim()} ${String(nodeYear || "").trim()}`;
 
       for (const [name, value] of Object.entries(volumeEntry.data.data)) {
         if (!merged[name]) merged[name] = { name };
@@ -212,110 +235,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(Object.values(merged));
   } catch (err) {
-    console.error("Server API error:", err);
+    console.error("fetchMarketData error:", err);
     return NextResponse.json(
       { error: "Internal Server Error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-
-// import { NextResponse } from 'next/server';
-
-// // ⬇️ Add this
-// export const dynamic = "force-dynamic";
-
-// export async function GET(req) {
-//   try {
-//     const { searchParams } = new URL(req.url);
-//     const segmentName = searchParams.get('segmentName');
-//     const selectedMonth = searchParams.get('selectedMonth');
-//     const segmentType = searchParams.get('segmentType')
-
-//     const token = 'your-very-strong-random-string-here';
-
-//     const [hierarchyRes, volumeRes] = await Promise.all([
-//       fetch('https://raceautoanalytics.com/api/contentHierarchy', {
-//         headers: {
-//           Authorization: `Bearer ${token}`,
-//         },
-//         cache: 'no-store',
-//       }),
-//       fetch('https://raceautoanalytics.com/api/volumeData', {
-//         headers: {
-//           Authorization: `Bearer ${token}`,
-//         },
-//         cache: 'no-store',
-//       }),
-//     ]);
-
-//     const hierarchyData = await hierarchyRes.json();
-//     const volumeData = await volumeRes.json();
-
-//     const buildPath = (id) => {
-//       const path = [];
-//       let current = hierarchyData.find((n) => n.id === id);
-//       while (current) {
-//         path.unshift(current.id);
-//         current = hierarchyData.find((n) => n.id === current.parent_id);
-//       }
-//       return path.join(',');
-//     };
-
-//     const segmentNode = hierarchyData.find(
-//       (n) => n.name.toLowerCase().trim() === segmentName.toLowerCase()
-//     );
-//     if (!segmentNode) return NextResponse.json([], { status: 404 });
-
-//     const marketShareNode = hierarchyData.find(
-//       (n) =>
-//         n.name.toLowerCase().trim() === segmentType &&
-//         n.parent_id === segmentNode.id
-//     );
-//     if (!marketShareNode) return NextResponse.json([], { status: 404 });
-
-//     const monthsList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-//     const month = selectedMonth || monthsList[new Date().getMonth() - 1];
-
-//     const currentYear = new Date().getFullYear();
-//     const lastYear = currentYear - 1;
-
-//     const currentYearNode = hierarchyData.find((n) => n.name === String(currentYear) && n.parent_id === marketShareNode.id);
-//     const previousYearNode = hierarchyData.find((n) => n.name === String(lastYear) && n.parent_id === marketShareNode.id);
-
-//     if (!currentYearNode || !previousYearNode) return NextResponse.json([], { status: 404 });
-
-//     const currentYearMonths = hierarchyData.filter((n) => n.parent_id === currentYearNode.id);
-//     const previousYearMonths = hierarchyData.filter((n) => n.parent_id === previousYearNode.id);
-
-//     const currentMonthNode = currentYearMonths.find((n) => n.name.toLowerCase().trim() === month);
-//     const prevMonthIndex = monthsList.indexOf(month) - 1;
-//     const previousMonthName = prevMonthIndex >= 0 ? monthsList[prevMonthIndex] : null;
-//     const previousMonthNode = previousMonthName ? currentYearMonths.find((n) => n.name.toLowerCase().trim() === previousMonthName) : null;
-//     const lastYearSameMonthNode = previousYearMonths.find((n) => n.name.toLowerCase().trim() === month);
-
-//     const nodes = [previousMonthNode, currentMonthNode, lastYearSameMonthNode];
-
-//     const merged = {};
-
-//     for (const node of nodes) {
-//       if (!node) continue;
-//       const stream = buildPath(node.id);
-//       const volumeEntry = volumeData.find((v) => v.stream === stream);
-//       if (!volumeEntry) continue;
-
-//       const nodeYear = hierarchyData.find((n) => n.id === node.parent_id)?.name;
-//       const label = `${node.name} ${nodeYear}`;
-
-//       for (const [name, value] of Object.entries(volumeEntry.data.data)) {
-//         if (!merged[name]) merged[name] = { name };
-//         merged[name][label] = value;
-//       }
-//     }
-
-//     return NextResponse.json(Object.values(merged));
-//   } catch (err) {
-//     console.error('Server API error:', err);
-//     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-//   }
-// }

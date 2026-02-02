@@ -249,7 +249,9 @@ export default function TractorPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             "tractor",
-          )}&selectedMonth=${shortMonth}&mode=${oemCompare}&segmentType=market share`,
+          )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
         );
 
         if (!res.ok) {

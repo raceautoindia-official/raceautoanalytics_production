@@ -181,7 +181,9 @@ export default function TwoWheelerPage() {
         const effectiveMonth = oemCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=two-wheeler&selectedMonth=${shortMonth}&mode=${oemCompare}&segmentType=market share`;
+        const url = `/api/fetchMarketData?segmentName=two-wheeler&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+          effectiveMonth,
+        )}&selectedMonth=${shortMonth}`;
 
         const res = await fetch(url);
         if (!res.ok) {
@@ -352,7 +354,9 @@ export default function TwoWheelerPage() {
         const effectiveMonth = evCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=two-wheeler&selectedMonth=${shortMonth}&mode=${evCompare}&segmentType=ev`;
+        const url = `/api/fetchMarketData?segmentName=two-wheeler&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+          effectiveMonth,
+        )}&selectedMonth=${shortMonth}`;
 
         const res = await fetch(url);
         if (!res.ok) {

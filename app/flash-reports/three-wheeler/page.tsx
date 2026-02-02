@@ -146,7 +146,9 @@ export default function ThreeWheelerPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             segmentName,
-          )}&selectedMonth=${shortMonth}&mode=${oemCompare}&segmentType=market share`,
+          )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
         );
 
         if (!res.ok) {
@@ -322,7 +324,9 @@ export default function ThreeWheelerPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             segmentName,
-          )}&selectedMonth=${shortMonth}&mode=${evCompare}&segmentType=ev`,
+          )}&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
         );
 
         if (!res.ok) {

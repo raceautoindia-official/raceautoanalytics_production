@@ -156,7 +156,9 @@ export default function CommercialVehiclesPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             segmentName,
-          )}&selectedMonth=${shortMonth}&mode=${oemCompare}&segmentType=market share`,
+          )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
         );
 
         if (!res.ok) {
