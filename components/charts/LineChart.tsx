@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   LineChart as RechartsLineChart,
@@ -197,6 +198,26 @@ export function LineChart({
     const token = getCookie("authToken");
     return decodeJwtEmail(token);
   }, []);
+
+  const pathname = usePathname();
+  const sp = useSearchParams();
+
+  const returnTo = useMemo(() => {
+    const qs = sp?.toString();
+    return `${pathname}${qs ? `?${qs}` : ""}`;
+  }, [pathname, sp]);
+
+  const scoreCardHref = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("graphId", String(graphId));
+    if (isYYYYMM(baseMonth)) params.set("baseMonth", String(baseMonth));
+    params.set(
+      "horizon",
+      String(Number.isFinite(Number(horizon)) ? (horizon ?? 6) : 6),
+    );
+    if (returnTo) params.set("returnTo", returnTo);
+    return `/score-card?${params.toString()}`;
+  }, [graphId, baseMonth, horizon, returnTo]);
 
   const { forecastByMonth, loading: forecastLoading } = useFlashForecastStack({
     enabled: allowForecastByData,
@@ -535,7 +556,7 @@ export function LineChart({
           </div>
 
           {showSubmitScore && graphId && allowForecastByData ? (
-            <Link href={`/score-card?graphId=${graphId}`} prefetch={false}>
+            <Link href={scoreCardHref} prefetch={false}>
               <Button
                 size="xs"
                 variant="secondary"

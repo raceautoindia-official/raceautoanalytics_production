@@ -18,6 +18,28 @@ import LoginNavButton from "../flash-reports/components/Login/LoginAuthButton";
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
+const isYYYYMM = (s) => !!s && /^\d{4}-\d{2}$/.test(String(s));
+
+const prettyYYYYMM = (yyyymm) => {
+  if (!isYYYYMM(yyyymm)) return String(yyyymm || "");
+  const [y, m] = String(yyyymm).split("-").map(Number);
+  const names = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return `${names[(m || 1) - 1]} ${y}`;
+};
+
 // Previous calendar month based on Asia/Kolkata (IST) — returns YYYY-MM
 const getPrevMonthIST = () => {
   // Flash reporting month rolls over on the 5th (IST):
@@ -50,6 +72,9 @@ export default function ScoreCard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const graphId = searchParams.get("graphId");
+  const baseMonthParam = searchParams.get("baseMonth");
+  const horizonParam = searchParams.get("horizon");
+  const returnToParam = searchParams.get("returnTo");
   const { email } = useCurrentPlan();
 
   const [value, setValue] = useState(1);
@@ -69,6 +94,7 @@ export default function ScoreCard() {
   const [graphContext, setGraphContext] = useState("forecast");
   const [scoreSettingsKey, setScoreSettingsKey] = useState("scoreSettings");
   const [basePeriod, setBasePeriod] = useState(null);
+  const [horizon, setHorizon] = useState(6);
 
   // Swiper ref for programmatic control
   const swiperRef = useRef(null);
@@ -102,15 +128,17 @@ export default function ScoreCard() {
   useEffect(() => {
     async function fetchGraph() {
       try {
-        const graphs = await (
-          await fetch("/api/graphs", {
+        const gRes = await fetch(
+          `/api/graphs?id=${encodeURIComponent(graphId)}`,
+          {
             headers: {
               Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
             },
-          })
-        ).json();
-
-        const g = graphs.find((g) => String(g.id) === graphId);
+            cache: "no-store",
+          },
+        );
+        const gJson = await gRes.json();
+        const g = gJson?.graph || null;
         if (!g) return;
 
         setGraphName(g.name);
@@ -177,9 +205,9 @@ export default function ScoreCard() {
 
       const scoreSettingsUrl =
         context === "flash"
-          ? `/api/scoreSettings?key=${encodeURIComponent(
-              key,
-            )}&baseMonth=${encodeURIComponent(bp)}&horizon=6`
+          ? `/api/scoreSettings?key=${encodeURIComponent(key)}&baseMonth=${encodeURIComponent(
+              bp,
+            )}&horizon=6`
           : `/api/scoreSettings?key=${encodeURIComponent(key)}`;
 
       const [qRes, sRes] = await Promise.all([
@@ -240,9 +268,18 @@ export default function ScoreCard() {
       slides: [...posSlides, ...negSlides],
       driversCount: posSlides.length,
     };
-  }, [questions]);
+  }, [questions, chunkSize]);
 
   const totalPages = Math.max(1, slides.length);
+
+  const periodLabel = useMemo(() => {
+    if (!years?.length) return "";
+    const first = years[0];
+    const last = years[years.length - 1];
+    const pf = isYYYYMM(first) ? prettyYYYYMM(first) : String(first);
+    const pl = isYYYYMM(last) ? prettyYYYYMM(last) : String(last);
+    return `${pf} - ${pl}`;
+  }, [years]);
 
   // 3) Skip & Submit
   const handleSkip = (globalIdx) => {
@@ -315,6 +352,11 @@ export default function ScoreCard() {
           placement: "topRight",
           duration: 3,
         });
+
+        if (returnToParam) {
+          router.push(returnToParam);
+          return;
+        }
 
         setSelectedValues(
           questions.map(() => Array(years.length).fill("Select")),
@@ -520,7 +562,7 @@ export default function ScoreCard() {
 
   const getOptionVisuals = (qid, yIdx, optLabel, currentSelectedLabel) => {
     if (optLabel === "Select") {
-      return { style: { color: "#666" }, title: "Choose a value" };
+      return { style: { color: "#9CA3AF" }, title: "Choose a value" };
     }
     if (!mlEnabled) return {};
     const r = rangeMap?.[qid]?.[yIdx];
@@ -540,19 +582,19 @@ export default function ScoreCard() {
     const optionInRange = v >= r.lo - 1e-6 && v <= r.hi + 1e-6;
 
     return {
-      style: { color: optionInRange ? "#18a558" : "#cc3333" },
+      style: { color: optionInRange ? "#34D399" : "#F87171" }, // green/red on dark
       title: optionInRange ? "In suggested range" : "Out of suggested range",
     };
   };
 
   if (!graphId) {
-    router.replace("/forecast");
+    router.replace(returnToParam || "/forecast");
     return null;
   }
 
   if (loadingMeta) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-slate-600">
+      <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-slate-300">
         Loading…
       </div>
     );
@@ -560,7 +602,7 @@ export default function ScoreCard() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-slate-600">
+      <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-slate-300">
         Loading questions…
       </div>
     );
@@ -568,13 +610,11 @@ export default function ScoreCard() {
 
   if (!loading && !questions.length) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-slate-700">
+      <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-slate-200">
         No scoring questions have been configured for this graph yet.
       </div>
     );
   }
-
-  // Tailwind helper
 
   // column sizing for year dropdowns
   const yearColMin = 96;
@@ -587,24 +627,21 @@ export default function ScoreCard() {
 
   const yearGridWithSkipClass = "grid items-start gap-x-2 gap-y-2 justify-end";
 
-  const yearGridClass =
-    "grid grid-flow-col auto-cols-[96px] sm:auto-cols-[110px] gap-x-2 justify-end overflow-x-auto";
-
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-[#0B1220] text-slate-100">
       {/* Login logic (kept, hidden) */}
       <div className="hidden">
         <LoginNavButton />
       </div>
 
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-4 sm:px-6 lg:px-8">
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="rounded-2xl border border-slate-800/80 bg-[#0F1A2B] shadow-[0_10px_30px_-15px_rgba(0,0,0,0.6)]">
           {/* Header */}
           <div className="p-4 sm:p-6">
             {/* Desktop: all in one line */}
             <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3">
               <Image
-                src="/images/score_logo.webp"
+                src="/images/Ri-Logo-Graph-White.webp"
                 alt="Company Logo"
                 width={44}
                 height={44}
@@ -613,13 +650,33 @@ export default function ScoreCard() {
 
               {/* Desktop title in middle */}
               <div className="hidden sm:block text-center">
-                <h1 className="text-xl font-bold leading-tight text-[#12298C] lg:text-3xl">
-                  {categoryName ? `${categoryName} – ` : ""}
-                  {graphName || "Loading…"}
+                <h1 className="text-xl font-bold leading-tight text-slate-50 lg:text-3xl">
+                  {graphContext === "flash" ? (
+                    graphName || "Loading…"
+                  ) : (
+                    <>
+                      {categoryName ? `${categoryName} – ` : ""}
+                      {graphName || "Loading…"}
+                    </>
+                  )}
                 </h1>
-                <p className="mt-1 text-sm font-medium text-slate-700">
-                  Unit Sales Drivers, Ranked in Order of Impact 2025 - 2029
+
+                <p className="mt-1 text-sm font-medium text-slate-300">
+                  Unit Sales Drivers, Ranked in Order of Impact{" "}
+                  {periodLabel || "—"}
                 </p>
+
+                {graphContext === "flash" && basePeriod ? (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Scoring base month:{" "}
+                    <span className="font-semibold text-slate-200">
+                      {prettyYYYYMM(basePeriod)}
+                    </span>
+                    . Data updates on the{" "}
+                    <span className="font-semibold text-slate-200">5th</span>{" "}
+                    (IST).
+                  </p>
+                ) : null}
               </div>
 
               <button
@@ -634,20 +691,47 @@ export default function ScoreCard() {
               </button>
             </div>
 
-            {/* Mobile title below (tight, no big empty space) */}
+            {/* Mobile title below */}
             <div className="mt-2 text-center sm:hidden">
-              <h1 className="text-lg font-bold leading-tight text-[#12298C]">
-                {categoryName ? `${categoryName} – ` : ""}
-                {graphName || "Loading…"}
+              <h1 className="text-lg font-bold leading-tight text-slate-50">
+                {graphContext === "flash" ? (
+                  graphName || "Loading…"
+                ) : (
+                  <>
+                    {categoryName ? `${categoryName} – ` : ""}
+                    {graphName || "Loading…"}
+                  </>
+                )}
               </h1>
-              <p className="mt-1 text-xs font-medium text-slate-700">
-                Unit Sales Drivers, Ranked in Order of Impact 2025 - 2029
+
+              <p className="mt-1 text-xs font-medium text-slate-300">
+                Unit Sales Drivers, Ranked in Order of Impact{" "}
+                {periodLabel || "—"}
               </p>
+
+              {graphContext === "flash" && basePeriod ? (
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Scoring base month:{" "}
+                  <span className="font-semibold text-slate-200">
+                    {prettyYYYYMM(basePeriod)}
+                  </span>{" "}
+                  ({basePeriod}). Data updates on the{" "}
+                  <span className="font-semibold text-slate-200">5th</span>{" "}
+                  (IST).
+                </p>
+              ) : null}
             </div>
 
             {/* ML status */}
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <Tag color={mlUsable ? "green" : "default"}>
+              <Tag
+                color={mlUsable ? "green" : "default"}
+                style={{
+                  background: "rgba(17, 24, 39, 0.6)",
+                  borderColor: "rgba(148, 163, 184, 0.25)",
+                  color: "rgba(226, 232, 240, 0.95)",
+                }}
+              >
                 ML range guidance: {mlUsable ? "Active" : "Inactive"}
               </Tag>
 
@@ -659,8 +743,8 @@ export default function ScoreCard() {
                       When at least two users have submitted non-skipped scores
                       for this graph, we compute typical ranges per
                       question/year. If you pick a value outside that range,
-                      we’ll show a gentle warning
-                      <em> after you make a selection</em>. We suppress warnings
+                      we’ll show a gentle warning{" "}
+                      <em>after you make a selection</em>. We suppress warnings
                       if the range is too tight.
                     </div>
                   </div>
@@ -669,7 +753,11 @@ export default function ScoreCard() {
                 <Button
                   size="small"
                   type="text"
-                  icon={<InfoCircleOutlined />}
+                  icon={
+                    <InfoCircleOutlined
+                      style={{ color: "rgba(226,232,240,0.85)" }}
+                    />
+                  }
                 />
               </Tooltip>
             </div>
@@ -678,20 +766,22 @@ export default function ScoreCard() {
             <div className="mt-6">
               <div
                 className={[
-                  "flex flex-col gap-3 rounded-lg p-3 sm:flex-row sm:items-center sm:justify-between",
-                  isBarrierHeader ? "bg-red-100/80" : "bg-emerald-100/80",
+                  "flex flex-col gap-3 rounded-xl p-3 sm:flex-row sm:items-center sm:justify-between",
+                  isBarrierHeader
+                    ? "bg-red-500/10 ring-1 ring-red-400/20"
+                    : "bg-emerald-500/10 ring-1 ring-emerald-400/20",
                 ].join(" ")}
               >
                 <h3
                   className={[
-                    "text-lg font-bold sm:text-xl whitespace-nowrap ",
-                    isBarrierHeader ? "text-red-900" : "text-[#12298C]",
+                    "text-lg font-bold sm:text-xl whitespace-nowrap",
+                    isBarrierHeader ? "text-red-200" : "text-emerald-200",
                   ].join(" ")}
                 >
                   {isBarrierHeader ? "KEY BARRIERS" : "KEY DRIVERS"}
                 </h3>
 
-                {/* ✅ Desktop/Tablet Year header aligned with dropdown columns */}
+                {/* Desktop/Tablet Year header aligned with dropdown columns */}
                 <div className="hidden sm:block w-full overflow-x-auto">
                   <div
                     className={[yearGridWithSkipClass, "min-w-max pb-1"].join(
@@ -704,14 +794,16 @@ export default function ScoreCard() {
                         key={idx}
                         className={[
                           "text-center text-xs font-semibold sm:text-sm",
-                          isBarrierHeader ? "text-red-700" : "text-[#1D478A]",
+                          isBarrierHeader
+                            ? "text-red-200/80"
+                            : "text-emerald-200/80",
                         ].join(" ")}
                       >
                         {yr}
                       </div>
                     ))}
 
-                    {/* ✅ Placeholder for Skip column to keep perfect alignment */}
+                    {/* Placeholder for Skip column to keep perfect alignment */}
                     <div className="text-center text-xs font-semibold opacity-0 sm:text-sm">
                       Skip
                     </div>
@@ -736,33 +828,46 @@ export default function ScoreCard() {
                         const gIdx = item.originalIndex;
                         const isBarrier = sIdx >= driversCount;
 
+                        // Dark theme cards with subtle accent tint
                         const cardBg = isBarrier
-                          ? "bg-[#F5A9A9]"
-                          : "bg-[#5EC2A4]";
+                          ? "bg-[#121B2D] ring-1 ring-red-400/15"
+                          : "bg-[#121B2D] ring-1 ring-emerald-400/15";
+
+                        const headerStripe = isBarrier
+                          ? "bg-red-500/15"
+                          : "bg-emerald-500/15";
+
                         const skipBg = isBarrier
-                          ? "bg-[#F5A9A9]"
-                          : "bg-[#66C2A5]";
+                          ? "bg-red-500/15 hover:bg-red-500/20"
+                          : "bg-emerald-500/15 hover:bg-emerald-500/20";
 
                         const incompleteClass = incompleteFlags[gIdx]
                           ? "border-l-[6px] border-red-500 animate-score-highlight"
                           : "border-l-[6px] border-transparent";
+
                         return (
                           <div
                             key={gIdx}
                             className={[
-                              "w-full rounded-lg px-3 py-3",
+                              "w-full rounded-xl px-3 py-3",
                               "grid gap-3 sm:grid-cols-[minmax(260px,1fr),auto] sm:items-center",
                               cardBg,
                               incompleteClass,
                             ].join(" ")}
                           >
                             <div className="w-full sm:flex-1">
-                              <p className="m-0 text-sm font-semibold leading-relaxed text-black sm:text-base">
+                              <div
+                                className={[
+                                  "mb-2 h-1.5 w-16 rounded-full",
+                                  headerStripe,
+                                ].join(" ")}
+                              />
+                              <p className="m-0 text-sm font-semibold leading-relaxed text-slate-100 sm:text-base">
                                 {item.text}
                               </p>
                             </div>
 
-                            {/* ✅ Desktop/Tablet layout: same grid as header */}
+                            {/* Desktop/Tablet layout */}
                             <div className="hidden sm:block w-full overflow-x-auto">
                               <div
                                 className={[
@@ -780,18 +885,18 @@ export default function ScoreCard() {
 
                                   const borderClass =
                                     opinion === true
-                                      ? "border-emerald-600 ring-1 ring-emerald-500/40"
+                                      ? "border-emerald-400 ring-1 ring-emerald-400/30"
                                       : opinion === false
-                                        ? "border-red-500 ring-1 ring-red-500/40"
-                                        : "border-slate-300";
+                                        ? "border-red-400 ring-1 ring-red-400/30"
+                                        : "border-slate-700";
 
                                   return (
                                     <select
                                       key={yIdx}
                                       className={[
                                         "w-full",
-                                        "rounded-md bg-white px-2 py-2 text-xs font-bold text-slate-900 shadow-sm",
-                                        "border focus:outline-none focus:ring-2 focus:ring-[#1D478A]/30",
+                                        "rounded-md bg-[#0B1220] px-2 py-2 text-xs font-bold text-slate-100 shadow-sm",
+                                        "border focus:outline-none focus:ring-2 focus:ring-[#1D478A]/40",
                                         "disabled:cursor-not-allowed disabled:opacity-60",
                                         borderClass,
                                       ].join(" ")}
@@ -845,7 +950,7 @@ export default function ScoreCard() {
                                     >
                                       <option
                                         value="Select"
-                                        style={{ color: "#666" }}
+                                        style={{ color: "#9CA3AF" }}
                                       >
                                         Select
                                       </option>
@@ -871,11 +976,11 @@ export default function ScoreCard() {
                                   );
                                 })}
 
-                                {/* ✅ Skip in same grid column */}
+                                {/* Skip */}
                                 <button
                                   className={[
                                     "inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold",
-                                    "text-slate-900 shadow-sm",
+                                    "text-slate-100 shadow-sm ring-1 ring-white/10",
                                     "disabled:cursor-not-allowed disabled:opacity-60",
                                     skipBg,
                                   ].join(" ")}
@@ -897,7 +1002,8 @@ export default function ScoreCard() {
                                 </button>
                               </div>
                             </div>
-                            {/* ✅ Mobile layout */}
+
+                            {/* Mobile layout */}
                             <div className="sm:hidden">
                               <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
                                 {years.map((yr, yIdx) => {
@@ -906,14 +1012,14 @@ export default function ScoreCard() {
                                   return (
                                     <div
                                       key={yIdx}
-                                      className="rounded-md bg-white/70 p-2"
+                                      className="rounded-md bg-[#0B1220] ring-1 ring-white/10 p-2"
                                     >
-                                      <div className="mb-1 text-[11px] font-semibold text-slate-700">
+                                      <div className="mb-1 text-[11px] font-semibold text-slate-300">
                                         {yr}
                                       </div>
 
                                       <select
-                                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs font-bold text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1D478A]/30 disabled:cursor-not-allowed disabled:opacity-60"
+                                        className="w-full rounded-md border border-slate-700 bg-[#0B1220] px-2 py-2 text-xs font-bold text-slate-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1D478A]/40 disabled:cursor-not-allowed disabled:opacity-60"
                                         value={sel || "Select"}
                                         disabled={skipFlags[gIdx]}
                                         onChange={(e) => {
@@ -932,7 +1038,7 @@ export default function ScoreCard() {
                                       >
                                         <option
                                           value="Select"
-                                          style={{ color: "#666" }}
+                                          style={{ color: "#9CA3AF" }}
                                         >
                                           Select
                                         </option>
@@ -951,7 +1057,7 @@ export default function ScoreCard() {
                               <button
                                 className={[
                                   "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold",
-                                  "text-slate-900 shadow-sm",
+                                  "text-slate-100 shadow-sm ring-1 ring-white/10",
                                   "disabled:cursor-not-allowed disabled:opacity-60",
                                   skipBg,
                                 ].join(" ")}
@@ -973,23 +1079,39 @@ export default function ScoreCard() {
               </Swiper>
 
               {/* Note */}
-              <div className="mt-5 text-sm leading-relaxed text-slate-800 sm:text-base">
-                <span className="font-semibold text-red-600">Note:</span>{" "}
-                <span>
-                  These questions assess key factors shaping the{" "}
-                  <strong>{categoryName || "CV"} industry</strong>, with
-                  positive ones highlighting growth drivers and negative ones
-                  identifying challenges. Higher impact responses indicate
-                  strong market shifts, while lower ones suggest stability. This
-                  approach enables better forecasting and strategic planning.
-                </span>
+              <div className="mt-5 rounded-xl bg-[#0B1220] ring-1 ring-white/10 px-4 py-3 text-sm leading-relaxed text-slate-200 sm:text-base">
+                <span className="font-semibold text-red-300">Note:</span>{" "}
+                {graphContext === "flash" ? (
+                  <span>
+                    These questions assess key factors shaping{" "}
+                    <strong className="text-slate-50">
+                      {graphName || "this graph"}
+                    </strong>
+                    , with positive ones highlighting growth drivers and
+                    negative ones identifying challenges. Higher impact
+                    responses indicate strong market shifts, while lower ones
+                    suggest stability.
+                  </span>
+                ) : (
+                  <span>
+                    These questions assess key factors shaping the{" "}
+                    <strong className="text-slate-50">
+                      {categoryName || "CV"} industry
+                    </strong>
+                    , with positive ones highlighting growth drivers and
+                    negative ones identifying challenges. Higher impact
+                    responses indicate strong market shifts, while lower ones
+                    suggest stability. This approach enables better forecasting
+                    and strategic planning.
+                  </span>
+                )}
               </div>
 
               {/* Navigation & Progress */}
               <div className="mt-6 flex flex-col items-center gap-4">
                 <div className="flex w-full max-w-3xl items-center gap-3">
                   <button
-                    className="rounded-md px-2 py-1 text-2xl leading-none text-slate-800 hover:bg-slate-100"
+                    className="rounded-md px-2 py-1 text-2xl leading-none text-slate-200 hover:bg-white/5"
                     onClick={() => swiperRef.current?.slidePrev()}
                     type="button"
                     aria-label="Previous"
@@ -997,7 +1119,7 @@ export default function ScoreCard() {
                     ❮
                   </button>
 
-                  <div className="relative h-2 flex-1 rounded-full bg-slate-300">
+                  <div className="relative h-2 flex-1 rounded-full bg-white/10">
                     <div
                       className="absolute inset-y-0 left-0 rounded-full bg-[#4683A6] transition-[width] duration-300"
                       style={{ width: `${(value / totalPages) * 100}%` }}
@@ -1014,7 +1136,7 @@ export default function ScoreCard() {
                   </div>
 
                   <button
-                    className="rounded-md px-2 py-1 text-2xl leading-none text-slate-800 hover:bg-slate-100"
+                    className="rounded-md px-2 py-1 text-2xl leading-none text-slate-200 hover:bg-white/5"
                     onClick={() => swiperRef.current?.slideNext()}
                     type="button"
                     aria-label="Next"
@@ -1024,14 +1146,14 @@ export default function ScoreCard() {
                 </div>
 
                 <div className="flex w-full max-w-3xl items-center justify-between">
-                  <div className="text-base font-semibold text-[#12298C] sm:text-lg">
+                  <div className="text-base font-semibold text-slate-100 sm:text-lg">
                     {value}/{totalPages}
                   </div>
 
                   <button
                     type="button"
                     onClick={handleSuggestions}
-                    className="text-sm font-semibold text-[#1D478A] hover:underline"
+                    className="text-sm font-semibold text-[#7CB0FF] hover:underline"
                   >
                     Have suggestions?
                   </button>
@@ -1039,7 +1161,7 @@ export default function ScoreCard() {
               </div>
 
               {/* Impact Levels */}
-              <div className="mt-10 grid grid-cols-1 gap-6 text-sm text-slate-800 sm:text-base md:grid-cols-3">
+              <div className="mt-10 grid grid-cols-1 gap-6 text-sm text-slate-200 sm:text-base md:grid-cols-3">
                 <ul className="list-disc space-y-2 pl-5">
                   <li>
                     VERY HIGH – Strong influence, directly shaping industry
@@ -1065,6 +1187,9 @@ export default function ScoreCard() {
             </div>
           </div>
         </div>
+
+        {/* subtle bottom spacing */}
+        <div className="h-6" />
       </div>
     </div>
   );

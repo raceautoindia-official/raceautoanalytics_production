@@ -187,6 +187,11 @@ export default function FlashReportsPage() {
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
 
+  // Minimal YoY fix: fetch last year's same-month row separately so category cards can compute YoY
+  // even though /api/flash-reports/overall-chart-data returns a 10-month window.
+  const [overallLastYearRow, setOverallLastYearRow] =
+    useState<OverallRow | null>(null);
+
   const [topOEMs, setTopOEMs] = useState<TopOem[]>([]);
   const [topOemError, setTopOemError] = useState<string | null>(null);
   const [topOemLoading, setTopOemLoading] = useState(false);
@@ -203,12 +208,34 @@ export default function FlashReportsPage() {
         setOverallLoading(true);
         setOverallError(null);
 
-        const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6&forceHistorical=1`,
-          { cache: "no-store" },
-        );
+        // Prepare last-year key from the currently selected YYYY-MM.
+        const [mYearStr, mMonthStr] = String(month || "").split("-");
+        const mYear = Number(mYearStr);
+        const lastYearKey =
+          Number.isFinite(mYear) && mMonthStr
+            ? `${mYear - 1}-${mMonthStr}`
+            : null;
+
+        // Reset cached YoY row on month change (so UI doesn't show stale YoY while loading)
+        setOverallLastYearRow(null);
+
+        const [res, lastYearRes] = await Promise.all([
+          fetch(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6&forceHistorical=1`,
+            { cache: "no-store" },
+          ),
+          lastYearKey
+            ? fetch(
+                `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+                  lastYearKey,
+                )}&horizon=6&forceHistorical=1`,
+                { cache: "no-store" },
+              )
+            : Promise.resolve(null as any),
+        ]);
+
         if (!res.ok) {
           throw new Error(`Failed to fetch overall chart data: ${res.status}`);
         }
@@ -216,6 +243,28 @@ export default function FlashReportsPage() {
         const json = await res.json();
         const apiData = (json?.data || []) as OverallApiPoint[];
         setOverallMeta(json?.meta || null);
+
+        // Parse and cache last year's same-month row (used for YoY on tiles)
+        if (lastYearKey && lastYearRes && lastYearRes.ok) {
+          const lyJson = await lastYearRes.json();
+          const lyApiData = (lyJson?.data || []) as OverallApiPoint[];
+          const lyPoint =
+            lyApiData.find((pt) => pt.month === lastYearKey) ?? null;
+          if (lyPoint?.data) {
+            setOverallLastYearRow({
+              month: lyPoint.month,
+              Total: lyPoint.data["Total"] ?? 0,
+              "2W": lyPoint.data["2W"] ?? 0,
+              "3W": lyPoint.data["3W"] ?? 0,
+              PV: lyPoint.data["PV"] ?? 0,
+              TRAC: lyPoint.data["TRAC"] ?? 0,
+              Truck: lyPoint.data["Truck"] ?? 0,
+              Bus: lyPoint.data["Bus"] ?? 0,
+              CV: lyPoint.data["CV"] ?? 0,
+              CE: lyPoint.data["CE"] ?? 0,
+            });
+          }
+        }
 
         if (cancelled) return;
 
@@ -268,9 +317,7 @@ export default function FlashReportsPage() {
         const res = await fetch(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             OVERALL_OEM_SEGMENT_NAME,
-          )}&segmentType=market share&mode=mom&baseMonth=${encodeURIComponent(
-            month,
-          )}&selectedMonth=${shortMonth}`,
+          )}&selectedMonth=${shortMonth}&mode=mom&segmentType=market share`,
         );
 
         if (!res.ok) {
@@ -279,12 +326,11 @@ export default function FlashReportsPage() {
 
         const json = (await res.json()) as any[];
         if (!cancelled && Array.isArray(json)) {
-          const y = Number(month.split("-")[0]); // current year
+          const y = month.split("-")[0]; // current year
           const monthIdx = MONTHS_SHORT.indexOf(shortMonth);
           const prevShort = monthIdx > 0 ? MONTHS_SHORT[monthIdx - 1] : "dec";
-          const prevYear = monthIdx === 0 ? y - 1 : y;
           const currKey = `${shortMonth} ${y}`;
-          const prevKey = `${prevShort} ${prevYear}`;
+          const prevKey = `${prevShort} ${y}`;
 
           const processed: TopOem[] = json
             .map((row) => {
@@ -399,7 +445,8 @@ export default function FlashReportsPage() {
     const sorted = overallData;
     const selectedIndex = sorted.indexOf(selectedRow);
     const prev = prevRow;
-    const lastYear = lastYearRow;
+    // Prefer the separately-fetched last-year row (minimal fix) if the 10-month window doesn't include it.
+    const lastYear = lastYearRow ?? overallLastYearRow;
     const totalCurrent = getValue(selectedRow, "Total");
 
     const base: Record<string, TileMetrics> = {};
@@ -426,7 +473,7 @@ export default function FlashReportsPage() {
 
       const current = getValue(selectedRow, key);
       const prevVal = prevRow ? getValue(prevRow, key) : null;
-      const lastYearVal = lastYearRow ? getValue(lastYearRow, key) : null;
+      const lastYearVal = lastYear ? getValue(lastYear, key) : null;
 
       // Only compute if we have a positive base; else treat as "not available"
       const momGrowth =
@@ -498,7 +545,7 @@ export default function FlashReportsPage() {
     // ✅ REMOVE the special-case rank=0 block entirely
 
     return base;
-  }, [overallData, selectedRow, prevRow, lastYearRow]);
+  }, [overallData, selectedRow, prevRow, lastYearRow, overallLastYearRow]);
 
   // Key Highlights should be fully dynamic. Use segment momentum (best MoM)
   // as the middle highlight so it updates with the global month selector.
