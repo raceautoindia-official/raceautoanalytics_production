@@ -6,12 +6,15 @@ import {
   useState,
   useEffect,
   ReactNode,
+  useMemo,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface AppContextType {
   region: string;
-  month: string; // YYYY-MM
+  month: string; // YYYY-MM (current selection)
+  maxMonth: string; // ✅ stable upper bound (default/latest allowed)
+  minMonth: string; // ✅ stable lower bound
   setRegion: (region: string) => void;
   setMonth: (month: string) => void;
   updateUrl: (params: Record<string, string>) => void;
@@ -27,10 +30,20 @@ export function useAppContext() {
 
 const REGIONS = ["india", "apac", "emea", "americas", "global"];
 
+// ✅ Cap earliest selectable month (locked requirement)
+const MIN_MONTH = "2024-01";
+
+const isYYYYMM = (s: string) => /^\d{4}-\d{2}$/.test(s);
+const cmpYYYYMM = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+function clampYYYYMM(v: string, min: string, max: string) {
+  if (!isYYYYMM(v)) return min;
+  if (cmpYYYYMM(v, min) < 0) return min;
+  if (cmpYYYYMM(v, max) > 0) return max;
+  return v;
+}
+
 function getPrevMonthIST(): string {
-  // Flash reporting month rolls over on the 5th (IST):
-  // - 1st–4th: treat "latest available" as two months ago
-  // - 5th onwards: treat "latest available" as previous calendar month
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
@@ -58,16 +71,35 @@ export function Providers({ children }: { children: ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // ✅ Stable bounds
+  const [maxMonth] = useState(() => {
+    const latest = getPrevMonthIST();
+    // ensure maxMonth is never earlier than MIN_MONTH
+    return cmpYYYYMM(latest, MIN_MONTH) < 0 ? MIN_MONTH : latest;
+  });
+
+  const minMonth = MIN_MONTH;
+
   const [region, setRegionState] = useState("india");
-  const [month, setMonthState] = useState(getPrevMonthIST); // ✅ default: previous IST month
+
+  // ✅ Current month selection (clamped to [minMonth, maxMonth])
+  const [month, setMonthState] = useState(() =>
+    clampYYYYMM(maxMonth, minMonth, maxMonth),
+  );
 
   useEffect(() => {
     const urlRegion = searchParams.get("region");
     const urlMonth = searchParams.get("month");
 
-    if (urlRegion && REGIONS.includes(urlRegion)) setRegionState(urlRegion);
-    if (urlMonth && /^\d{4}-\d{2}$/.test(urlMonth)) setMonthState(urlMonth);
-  }, [searchParams]);
+    if (urlRegion && REGIONS.includes(urlRegion)) {
+      setRegionState(urlRegion);
+    }
+
+    // ✅ If URL provides month, accept it ONLY within bounds
+    if (urlMonth && isYYYYMM(urlMonth)) {
+      setMonthState(clampYYYYMM(urlMonth, minMonth, maxMonth));
+    }
+  }, [searchParams, minMonth, maxMonth]);
 
   const updateUrl = (params: Record<string, string>) => {
     const current = new URLSearchParams(searchParams.toString());
@@ -84,15 +116,23 @@ export function Providers({ children }: { children: ReactNode }) {
   };
 
   const setMonth = (newMonth: string) => {
-    setMonthState(newMonth);
-    updateUrl({ region, month: newMonth });
+    const clamped = clampYYYYMM(newMonth, minMonth, maxMonth);
+    setMonthState(clamped);
+    updateUrl({ region, month: clamped });
   };
 
-  return (
-    <AppContext.Provider
-      value={{ region, month, setRegion, setMonth, updateUrl }}
-    >
-      {children}
-    </AppContext.Provider>
+  const ctxValue = useMemo(
+    () => ({
+      region,
+      month,
+      maxMonth,
+      minMonth,
+      setRegion,
+      setMonth,
+      updateUrl,
+    }),
+    [region, month, maxMonth, minMonth, searchParams],
   );
+
+  return <AppContext.Provider value={ctxValue}>{children}</AppContext.Provider>;
 }
