@@ -51,13 +51,30 @@ const SEGMENT_TO_CAT = {
   tractor: "TRAC",
   truck: "Truck",
   bus: "Bus",
+  // ✅ Construction Equipment
+  ce: "CE",
+  construction: "CE",
+  constructionequipment: "CE",
+  "construction equipment": "CE",
 };
 
-function guessFlashSegment(graph) {
-  const seg = String(graph?.flash_segment || "")
+function normalizeSeg(s) {
+  return String(s || "")
     .toLowerCase()
+    .trim()
+    .replace(/[\s_-]+/g, " ")
+    .replace(/[^a-z0-9 ]/g, "")
     .trim();
+}
+
+function guessFlashSegment(graph) {
+  const segRaw = graph?.flash_segment || "";
+  const seg = normalizeSeg(segRaw);
+  // direct match
   if (SEGMENT_TO_CAT[seg]) return seg;
+  // common short keys
+  const compact = seg.replace(/\s+/g, "");
+  if (SEGMENT_TO_CAT[compact]) return compact;
 
   const name = String(graph?.name || "").toLowerCase();
   if (name.includes("overall") || name.includes("total")) return "overall";
@@ -68,6 +85,13 @@ function guessFlashSegment(graph) {
   if (name.includes("tractor") || name.includes("trac")) return "tractor";
   if (name.includes("truck")) return "truck";
   if (name.includes("bus")) return "bus";
+  // ✅ Construction Equipment (CE)
+  if (
+    name.includes("construction") ||
+    name.includes("equipment") ||
+    name.includes("ce")
+  )
+    return "ce";
   return "overall";
 }
 

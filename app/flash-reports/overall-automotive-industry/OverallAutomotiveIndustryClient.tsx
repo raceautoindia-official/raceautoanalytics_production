@@ -312,7 +312,6 @@ export function OverallAutomotiveIndustryClient({
           {/* Alt-fuel bar chart from backend */}
           <ChartWrapper
             title={
-              overAllText?.alternative_fuel_heading ||
               "Alternative Fuel Adoption – Segment-wise Comparison"
             }
             summary={
