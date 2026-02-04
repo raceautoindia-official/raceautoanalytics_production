@@ -66,6 +66,8 @@ function mapBackendKeyToCategory(normalizedKey: string): string | null {
     normalizedKey === "construction-equipment"
   )
     return "CE";
+  // ✅ IMPORTANT: keep and trust stored Total if present in DB
+  if (normalizedKey === "total") return "Total";
   return null;
 }
 
@@ -263,9 +265,27 @@ export async function getOverallChartDataWithMeta(opts?: {
         if (Number.isFinite(num)) data[catKey] = num;
       }
 
-      const catKeys = ["2W", "3W", "PV", "TRAC", "Truck", "Bus", "CV", "CE"];
-      const total = catKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
-      data["Total"] = total;
+      /**
+       * ✅ TOTAL RULE (locked requirement)
+       * - If Total exists in stored data, trust it.
+       * - Only compute Total as a fallback when Total is missing.
+       *
+       * ✅ Double-count protection
+       * - If CV exists, CV already represents Truck+Bus in most datasets.
+       *   So fallback Total = 2W + 3W + PV + TRAC + CV + CE (exclude Truck/Bus).
+       * - If CV does NOT exist, fallback Total = 2W + 3W + PV + TRAC + Truck + Bus + CE.
+       */
+      if (!Number.isFinite(data["Total"])) {
+        console.log("Total data is not available ",data["Total"]);
+        const baseKeys = ["2W", "3W", "PV", "TRAC", "CE"];
+        const baseSum = baseKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
+
+        const cv = data["CV"] || 0;
+        const truck = data["Truck"] || 0;
+        const bus = data["Bus"] || 0;
+
+        data["Total"] = cv > 0 ? baseSum + cv : baseSum + truck + bus;
+      }
 
       byMonth.set(formattedMonth, data);
     }
