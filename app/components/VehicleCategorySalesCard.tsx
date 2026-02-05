@@ -54,6 +54,14 @@ const CATEGORY_CONFIG: Array<{ key: string; name: string; color: string }> = [
   { key: "Bus", name: "Bus", color: "#F97316" },
 ];
 
+function formatKMB(n: number) {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `${(n / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`;
+  return String(Math.round(n));
+}
+
 /* ---------- component ---------- */
 const CrossCategoryPerformance: React.FC = () => {
   // Subtle hairline border (tweak opacity to taste: /25 lighter, /55 darker)
@@ -123,10 +131,7 @@ const CrossCategoryPerformance: React.FC = () => {
     }));
   }, [latestPoint]);
 
-  const chartData = useMemo(() => {
-    const maxSales = Math.max(1, ...baseData.map((d) => d.sales));
-    return baseData.map((d) => ({ ...d, value: d.sales / maxSales }));
-  }, [baseData]);
+  const chartData = useMemo(() => baseData, [baseData]);
 
   const latestMonthLabel = useMemo(() => {
     if (!latestPoint?.month) return "";
@@ -193,9 +198,8 @@ const CrossCategoryPerformance: React.FC = () => {
                     tickMargin={12}
                   />
                   <YAxis
-                    domain={[0, 1]}
-                    ticks={[0.25, 0.5, 0.75, 1]}
                     tick={{ fill: "rgba(255,255,255,.65)" }}
+                    tickFormatter={(v) => formatKMB(Number(v))}
                     axisLine={false}
                     tickLine={false}
                     tickMargin={8}
@@ -204,7 +208,7 @@ const CrossCategoryPerformance: React.FC = () => {
                     cursor={{ fill: "rgba(255,255,255,.03)" }}
                     content={<CardTooltip />}
                   />
-                  <Bar dataKey="value" barSize={24} radius={[8, 8, 0, 0]}>
+                  <Bar dataKey="sales" barSize={24} radius={[8, 8, 0, 0]}>
                     {chartData.map((d, i) => (
                       <Cell key={i} fill={d.color} />
                     ))}

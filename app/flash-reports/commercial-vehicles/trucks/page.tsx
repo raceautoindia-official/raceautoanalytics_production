@@ -81,6 +81,39 @@ function pickSeries(row: any, keys: string[]): number {
   return 0;
 }
 
+const MONTHS_TITLE = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function toMonthLabel(yyyymm: string) {
+  const [y, m] = (yyyymm || "").split("-");
+  const mi = Number(m) - 1;
+  return `${MONTHS_TITLE[mi] ?? "Jan"} ${y}`;
+}
+
+function sortMonthLabels(a: string, b: string) {
+  const [ma, ya] = a.split(" ");
+  const [mb, yb] = b.split(" ");
+
+  const ia = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(ma.toLowerCase());
+  const ib = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(mb.toLowerCase());
+
+  const da = new Date(Number(ya), ia === -1 ? 0 : ia, 1);
+  const db = new Date(Number(yb), ib === -1 ? 0 : ib, 1);
+  return da.getTime() - db.getTime();
+}
+
 export default function TrucksPage() {
   const { region, month } = useAppContext();
   const [mounted, setMounted] = useState(false);
@@ -388,31 +421,32 @@ export default function TrucksPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [month]);
 
   // ---------- Segment donut data ----------
   const segmentDonutData = useMemo(() => {
     if (!segmentRows.length) return [];
 
-    const latest = segmentRows[segmentRows.length - 1];
+    const wantedLabel = toMonthLabel(month);
 
-    const segments = [
-      { name: "LCV", key: "lcv", color: "#0EA5E9" },
-      { name: "MCV", key: "mcv", color: "#22C55E" },
-      { name: "HCV + Others", key: "hcv", color: "#F97316" },
-    ];
+    const sorted = [...segmentRows].sort((a, b) =>
+      sortMonthLabels(a.month, b.month),
+    );
 
-    const arr = segments
-      .map(({ name, key, color }) => ({
-        name,
-        value: Number((latest as any)[key] ?? 0) || 0,
-        color,
-      }))
-      .filter((item) => item.value > 0)
+    // pick selected month if present; otherwise fallback to last available
+    const picked =
+      sorted.find((r) => r.month === wantedLabel) ?? sorted[sorted.length - 1];
+
+    const arr = [
+      { name: "LCV", value: Number(picked.lcv ?? 0) || 0 },
+      { name: "MCV", value: Number(picked.mcv ?? 0) || 0 },
+      { name: "HCV + Others", value: Number(picked.hcv ?? 0) || 0 },
+    ]
+      .filter((x) => x.value > 0)
       .sort((a, b) => b.value - a.value);
 
     return arr;
-  }, [segmentRows]);
+  }, [segmentRows, month]);
 
   const segmentTotal = segmentDonutData.reduce(
     (sum, item) => sum + item.value,

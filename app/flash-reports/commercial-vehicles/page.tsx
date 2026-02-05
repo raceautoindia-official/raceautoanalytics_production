@@ -97,6 +97,27 @@ function sortMonthLabels(a: string, b: string): number {
   return da.getTime() - db.getTime();
 }
 
+const MONTHS_TITLE = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function toMonthLabel(yyyymm: string) {
+  const [y, m] = yyyymm.split("-");
+  const mi = Number(m) - 1;
+  return `${MONTHS_TITLE[mi]} ${y}`;
+}
+
 export default function CommercialVehiclesPage() {
   const { region, month } = useAppContext();
   const [mounted, setMounted] = useState(false);
@@ -391,28 +412,21 @@ export default function CommercialVehiclesPage() {
           sortMonthLabels(a.month, b.month),
         );
 
-        const latest = sortedRows[sortedRows.length - 1];
-        const latestLabel = latest.month;
+        const wantedLabel = toMonthLabel(month);
+        const picked =
+          sortedRows.find((r) => r.month === wantedLabel) ??
+          sortedRows[sortedRows.length - 1]; // fallback
+
+        const pickedLabel = picked.month;
 
         const donut: SegmentDonutPoint[] = [
-          {
-            name: "LCV",
-            value: Number(latest.lcv ?? 0) || 0,
-          },
-          {
-            name: "MCV",
-            value: Number(latest.mcv ?? 0) || 0,
-          },
-          {
-            name: "HCV + Others",
-            value: Number(latest.hcv ?? 0) || 0,
-          },
-        ]
-          .filter((item) => item.value > 0)
-          .sort((a, b) => b.value - a.value); // largest first for summaries
+          { name: "LCV", value: Number(picked.lcv ?? 0) || 0 },
+          { name: "MCV", value: Number(picked.mcv ?? 0) || 0 },
+          { name: "HCV + Others", value: Number(picked.hcv ?? 0) || 0 },
+        ].filter((x) => x.value > 0);
 
         setSegmentData(donut);
-        setSegmentMonthLabel(latestLabel);
+        setSegmentMonthLabel(pickedLabel);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
@@ -433,7 +447,7 @@ export default function CommercialVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [month]);
 
   // ---------- SUMMARY METRICS (CV volumes + segment split) ----------
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;

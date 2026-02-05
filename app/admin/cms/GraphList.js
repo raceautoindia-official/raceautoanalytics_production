@@ -476,8 +476,12 @@ export default function GraphList({ context = "forecast" } = {}) {
                 dataset_ids: editGraph.dataset_ids,
                 forecast_types: editGraph.forecast_types,
                 chart_type: editGraph.chart_type,
-                ai_forecast: Object.keys(ai).length ? ai : null,
-                race_forecast: Object.keys(race).length ? race : null,
+                ai_forecast: Object.keys(ai).length
+                  ? ai
+                  : (editGraph.ai_forecast ?? {}),
+                race_forecast: Object.keys(race).length
+                  ? race
+                  : (editGraph.race_forecast ?? {}),
                 context: editGraph.context || "forecast",
                 score_settings_key:
                   editGraph.score_settings_key || "scoreSettings",
