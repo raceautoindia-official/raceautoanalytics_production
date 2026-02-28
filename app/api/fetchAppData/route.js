@@ -27,9 +27,7 @@ function prevMonthRefIST() {
   // - 1st–4th: treat "latest available" as two months ago
   // - 5th onwards: treat "latest available" as previous calendar month
   const now = new Date();
-  const ist = new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
-  );
+  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 
   let y = ist.getFullYear();
   let m = ist.getMonth() + 1; // 1..12 (current month)
@@ -57,12 +55,37 @@ function parseBaseMonth(yyyymm) {
   return { year, monthIndex };
 }
 
+function norm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[-_\s]+/g, "");
+}
+function sid(v) {
+  return String(v ?? "");
+}
+function eqId(a, b) {
+  return sid(a) === sid(b);
+}
+function normalizeCountry(raw) {
+  const k = norm(raw);
+  if (!k || k === "india" || k === "in") return "india";
+  // optional alias support
+  if (k === "bazil") return "brazil";
+  return k;
+}
+
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
 
     const segmentName = searchParams.get("segmentName");
     const segmentType = searchParams.get("segmentType") || "app";
+
+    // ✅ NEW
+    const rawCountry = searchParams.get("country");
+    const countryKey = normalizeCountry(rawCountry);
+    const wantsNonIndia = !!rawCountry && countryKey !== "india";
 
     // Support either:
     // - baseMonth=YYYY-MM  (preferred)
@@ -76,10 +99,7 @@ export async function GET(req) {
       prevMonthRefIST();
 
     if (!segmentName) {
-      return NextResponse.json(
-        { error: "Missing segmentName" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Missing segmentName" }, { status: 400 });
     }
 
     const parsed = parseBaseMonth(baseMonth);
@@ -92,7 +112,6 @@ export async function GET(req) {
 
     const { year: baseYear, monthIndex: baseMonthIndex } = parsed;
 
-    // Determine monthName: if selectedMonth provided as "jan".."dec", respect it; else use baseMonth month
     const selectedMonthRaw = (searchParams.get("selectedMonth") || "")
       .toLowerCase()
       .trim();
@@ -100,14 +119,10 @@ export async function GET(req) {
       ? selectedMonthRaw
       : MONTHS_SHORT[baseMonthIndex];
 
-    // Compute target months:
-    // 1) current month = monthName in baseYear
-    // 2) previous month (may cross year)
-    // 3) same month last year
     const current = { year: baseYear, month: monthName };
 
     const currentMonthIdx = MONTHS_SHORT.indexOf(monthName);
-    const prevDate = new Date(baseYear, currentMonthIdx - 1, 1); // handles year crossing
+    const prevDate = new Date(baseYear, currentMonthIdx - 1, 1);
     const previous = {
       year: prevDate.getFullYear(),
       month: MONTHS_SHORT[prevDate.getMonth()],
@@ -115,7 +130,7 @@ export async function GET(req) {
 
     const lastYearSameMonth = { year: baseYear - 1, month: monthName };
 
-    // ✅ Internal calls to same Next.js app (no NEXT_PUBLIC_BACKEND_URL, no placeholder token)
+    // ✅ Internal calls to same Next.js app
     const origin = getOrigin(req);
     const [hierarchyRes, volumeRes] = await Promise.all([
       fetch(`${origin}/api/contentHierarchy`, { cache: "no-store" }),
@@ -132,64 +147,80 @@ export async function GET(req) {
     const hierarchyData = await hierarchyRes.json();
     const volumeData = await volumeRes.json();
 
+    // ✅ id-safe buildPath (avoids number/string mismatch)
     const buildPath = (id) => {
       const path = [];
-      let current = hierarchyData.find((n) => n.id === id);
+      let current = hierarchyData.find((n) => eqId(n.id, id));
       while (current) {
         path.unshift(current.id);
-        current = hierarchyData.find((n) => n.id === current.parent_id);
+        const pid = current.parent_id;
+        if (pid == null) break;
+        current = hierarchyData.find((n) => eqId(n.id, pid));
       }
       return path.join(",");
     };
 
-    const norm = (s) =>
-      String(s || "")
-        .toLowerCase()
-        .trim()
-        .replace(/[-_\s]+/g, "");
-
-    // Prefer the segment under: Main Root → flash-reports → <segment>
+    // Prefer the segment under:
+    // India: Main Root → flash-reports → <segment>
+    // Other: Main Root → flash-reports → countries → <country> → <segment>
     const mainRoot = hierarchyData.find(
       (n) =>
-        String(n.name || "")
-          .toLowerCase()
-          .trim() === "main root" &&
+        String(n.name || "").toLowerCase().trim() === "main root" &&
         (n.parent_id == null || n.parent_id === 0),
     );
+
     const flashReports = hierarchyData.find(
       (n) =>
-        String(n.name || "")
-          .toLowerCase()
-          .trim() === "flash-reports" &&
-        (mainRoot ? n.parent_id === mainRoot.id : true),
+        String(n.name || "").toLowerCase().trim() === "flash-reports" &&
+        (mainRoot ? eqId(n.parent_id, mainRoot.id) : true),
     );
 
-    let segmentNode = null;
-    if (flashReports) {
+    if (!flashReports) return NextResponse.json([], { status: 404 });
+
+    let segmentsRoot = flashReports;
+
+    if (wantsNonIndia) {
+      const countriesNode = hierarchyData.find(
+        (n) => eqId(n.parent_id, flashReports.id) && norm(n.name) === "countries",
+      );
+
+      const countryNode = countriesNode
+        ? hierarchyData.find(
+            (n) =>
+              eqId(n.parent_id, countriesNode.id) &&
+              norm(n.name) === norm(countryKey),
+          )
+        : null;
+
+      // non-india requested but missing -> return []
+      if (!countryNode) return NextResponse.json([], { status: 200 });
+
+      segmentsRoot = countryNode;
+    }
+
+    // ✅ Segment must be under segmentsRoot
+    let segmentNode =
+      hierarchyData.find(
+        (n) =>
+          eqId(n.parent_id, segmentsRoot.id) &&
+          norm(n.name) === norm(segmentName),
+      ) || null;
+
+    // Fallback: previous behavior (match anywhere) ONLY for India
+    if (!segmentNode && !wantsNonIndia) {
       segmentNode =
         hierarchyData.find(
           (n) =>
-            n.parent_id === flashReports.id &&
+            String(n.name || "").toLowerCase().trim() ===
+              segmentName.toLowerCase().trim() ||
             norm(n.name) === norm(segmentName),
         ) || null;
     }
 
-    // Fallback: previous behavior (exact name match anywhere)
-    if (!segmentNode) {
-      segmentNode =
-        hierarchyData.find(
-          (n) =>
-            String(n.name || "")
-              .toLowerCase()
-              .trim() === segmentName.toLowerCase().trim() ||
-            norm(n.name) === norm(segmentName),
-        ) || null;
-    }
     if (!segmentNode) return NextResponse.json([], { status: 404 });
 
     const appNode = hierarchyData.find(
-      (n) =>
-        n.parent_id === segmentNode.id && norm(n.name) === norm(segmentType),
+      (n) => eqId(n.parent_id, segmentNode.id) && norm(n.name) === norm(segmentType),
     );
     if (!appNode) return NextResponse.json([], { status: 404 });
 
@@ -198,16 +229,16 @@ export async function GET(req) {
       const yearNode = hierarchyData.find(
         (n) =>
           String(n.name || "").trim() === String(year) &&
-          n.parent_id === appNode.id,
+          eqId(n.parent_id, appNode.id),
       );
       if (!yearNode) return null;
 
-      return hierarchyData.find(
-        (n) =>
-          n.parent_id === yearNode.id &&
-          String(n.name || "")
-            .toLowerCase()
-            .trim() === month,
+      return (
+        hierarchyData.find(
+          (n) =>
+            eqId(n.parent_id, yearNode.id) &&
+            String(n.name || "").toLowerCase().trim() === month,
+        ) || null
       );
     };
 
@@ -223,13 +254,11 @@ export async function GET(req) {
       if (!node) continue;
 
       const stream = buildPath(node.id);
-      const volumeEntry = volumeData.find((v) => v.stream === stream);
+      const volumeEntry = volumeData.find((v) => String(v.stream) === String(stream));
       if (!volumeEntry?.data?.data) continue;
 
-      const nodeYear = hierarchyData.find((n) => n.id === node.parent_id)?.name;
-      const label = `${String(node.name || "")
-        .toLowerCase()
-        .trim()} ${nodeYear}`; // e.g. "dec 2025"
+      const nodeYear = hierarchyData.find((n) => eqId(n.id, node.parent_id))?.name;
+      const label = `${String(node.name || "").toLowerCase().trim()} ${nodeYear}`;
 
       for (const [name, value] of Object.entries(volumeEntry.data.data)) {
         if (!merged[name]) merged[name] = { name };
@@ -240,9 +269,6 @@ export async function GET(req) {
     return NextResponse.json(Object.values(merged));
   } catch (err) {
     console.error("fetchAppData error:", err);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

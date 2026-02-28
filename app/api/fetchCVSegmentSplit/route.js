@@ -36,17 +36,12 @@ function getOrigin(req) {
 }
 
 function prevMonthRefIST() {
-  // Flash reporting month rolls over on the 5th (IST):
-  // - 1st–4th: treat "latest available" as two months ago
-  // - 5th onwards: treat "latest available" as previous calendar month
   const now = new Date();
-  const ist = new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
-  );
+  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 
   let y = ist.getFullYear();
-  let m = ist.getMonth() + 1; // 1..12 (current month)
-  const d = ist.getDate(); // 1..31
+  let m = ist.getMonth() + 1;
+  const d = ist.getDate();
 
   const cutoffDay = 5;
   const back = d >= cutoffDay ? 1 : 2;
@@ -65,7 +60,7 @@ function parseBaseMonth(baseMonth) {
   const m = /^(\d{4})-(\d{2})$/.exec(s);
   if (!m) return null;
   const year = parseInt(m[1], 10);
-  const monthIndex = parseInt(m[2], 10) - 1; // 0..11
+  const monthIndex = parseInt(m[2], 10) - 1;
   if (monthIndex < 0 || monthIndex > 11) return null;
   return { year, monthIndex };
 }
@@ -76,17 +71,40 @@ function parseNumber(val) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// ✅ helpers for country routing
+function norm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[-_\s]+/g, "");
+}
+function sid(v) {
+  return String(v ?? "");
+}
+function eqId(a, b) {
+  return sid(a) === sid(b);
+}
+function normalizeCountry(raw) {
+  const k = norm(raw);
+  if (!k || k === "india" || k === "in") return "india";
+  if (k === "bazil") return "brazil";
+  return k;
+}
+
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
+
     const segmentName = searchParams.get("segmentName")?.toLowerCase()?.trim();
     const baseMonth = searchParams.get("baseMonth") || prevMonthRefIST();
 
+    // ✅ NEW
+    const rawCountry = searchParams.get("country");
+    const countryKey = normalizeCountry(rawCountry);
+    const wantsNonIndia = !!rawCountry && countryKey !== "india";
+
     if (!segmentName) {
-      return NextResponse.json(
-        { error: "Missing segmentName" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Missing segmentName" }, { status: 400 });
     }
 
     const parsed = parseBaseMonth(baseMonth);
@@ -109,42 +127,86 @@ export async function GET(req) {
     const hierarchyData = await hierarchyRes.json();
     const volumeData = await volumeRes.json();
 
-    // Build full path from node ID (same as your original logic)
+    // ✅ id-safe buildPath
     const buildPath = (id) => {
       const path = [];
-      let current = hierarchyData.find((n) => n.id === id);
+      let current = hierarchyData.find((n) => eqId(n.id, id));
       while (current) {
         path.unshift(current.id);
-        current = hierarchyData.find((n) => n.id === current.parent_id);
+        const pid = current.parent_id;
+        if (pid == null) break;
+        current = hierarchyData.find((n) => eqId(n.id, pid));
       }
       return path.join(",");
     };
 
-    // Resolve segment and split node
-    const segment = hierarchyData.find(
+    // ✅ Resolve segments root:
+    // India: main root -> flash-reports
+    // Others: main root -> flash-reports -> countries -> country
+    const mainRoot = hierarchyData.find(
       (n) =>
-        String(n.name || "")
-          .toLowerCase()
-          .trim() === segmentName,
+        String(n.name || "").toLowerCase().trim() === "main root" &&
+        (n.parent_id == null || n.parent_id === 0),
     );
+
+    const flashReports = hierarchyData.find(
+      (n) =>
+        String(n.name || "").toLowerCase().trim() === "flash-reports" &&
+        (mainRoot ? eqId(n.parent_id, mainRoot.id) : true),
+    );
+
+    if (!flashReports) return NextResponse.json([], { status: 404 });
+
+    let segmentsRoot = flashReports;
+
+    if (wantsNonIndia) {
+      const countriesNode = hierarchyData.find(
+        (n) => eqId(n.parent_id, flashReports.id) && norm(n.name) === "countries",
+      );
+
+      const countryNode = countriesNode
+        ? hierarchyData.find(
+            (n) =>
+              eqId(n.parent_id, countriesNode.id) &&
+              norm(n.name) === norm(countryKey),
+          )
+        : null;
+
+      if (!countryNode) {
+        // non-india requested but missing -> return []
+        return NextResponse.json([], { status: 200 });
+      }
+
+      segmentsRoot = countryNode;
+    }
+
+    // ✅ Segment must be under segmentsRoot (prevents Peru falling back to India)
+    const segment =
+      hierarchyData.find(
+        (n) =>
+          eqId(n.parent_id, segmentsRoot.id) &&
+          String(n.name || "").toLowerCase().trim() === segmentName,
+      ) || null;
+
     if (!segment) return NextResponse.json([], { status: 404 });
 
-    const splitNode = hierarchyData.find(
-      (n) =>
-        String(n.name || "")
-          .toLowerCase()
-          .trim() === "segment split" && n.parent_id === segment.id,
-    );
+    const splitNode =
+      hierarchyData.find(
+        (n) =>
+          eqId(n.parent_id, segment.id) &&
+          String(n.name || "").toLowerCase().trim() === "segment split",
+      ) || null;
+
     if (!splitNode) return NextResponse.json([], { status: 404 });
 
-    // Build target window around baseMonth (same offsets as your old code: -3..+6)
+    // Build target window around baseMonth (same offsets as old code: -3..+6)
     const targets = [];
     for (let offset = -3; offset <= 6; offset++) {
       const d = new Date(baseYear, baseMonthIndex + offset, 1);
       targets.push({
         year: d.getFullYear(),
         monthIndex: d.getMonth(),
-        label: `${MONTHS_TITLE[d.getMonth()]} ${d.getFullYear()}`, // ✅ matches UI format "Apr 2025"
+        label: `${MONTHS_TITLE[d.getMonth()]} ${d.getFullYear()}`,
         monthName: MONTHS_SHORT[d.getMonth()],
       });
     }
@@ -152,26 +214,22 @@ export async function GET(req) {
     const result = [];
 
     for (const t of targets) {
-      // Find year node for the target year (IMPORTANT: handles Dec-25 → Jan-26 crossing)
       const yearNode = hierarchyData.find(
         (n) =>
           String(n.name || "").trim() === String(t.year) &&
-          n.parent_id === splitNode.id,
+          eqId(n.parent_id, splitNode.id),
       );
       if (!yearNode) continue;
 
-      // Find month node under that year
       const monthNode = hierarchyData.find(
         (n) =>
-          n.parent_id === yearNode.id &&
-          String(n.name || "")
-            .toLowerCase()
-            .trim() === t.monthName,
+          eqId(n.parent_id, yearNode.id) &&
+          String(n.name || "").toLowerCase().trim() === t.monthName,
       );
       if (!monthNode) continue;
 
       const stream = buildPath(monthNode.id);
-      const volumeEntry = volumeData.find((v) => v.stream === stream);
+      const volumeEntry = volumeData.find((v) => String(v.stream) === String(stream));
       if (!volumeEntry?.data?.data) continue;
 
       const raw = volumeEntry.data.data;
@@ -194,12 +252,8 @@ export async function GET(req) {
     result.sort((a, b) => {
       const [ma, ya] = a.month.split(" ");
       const [mb, yb] = b.month.split(" ");
-      const ia = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(
-        ma.toLowerCase(),
-      );
-      const ib = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(
-        mb.toLowerCase(),
-      );
+      const ia = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(ma.toLowerCase());
+      const ib = MONTHS_TITLE.map((x) => x.toLowerCase()).indexOf(mb.toLowerCase());
       const da = new Date(`${ya}-${String(ia + 1).padStart(2, "0")}-01`);
       const db = new Date(`${yb}-${String(ib + 1).padStart(2, "0")}-01`);
       return da.getTime() - db.getTime();
@@ -208,9 +262,6 @@ export async function GET(req) {
     return NextResponse.json(result);
   } catch (err) {
     console.error("fetchCVSegmentSplit error:", err);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

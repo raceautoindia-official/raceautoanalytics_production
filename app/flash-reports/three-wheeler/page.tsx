@@ -11,6 +11,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
+import { withCountry } from "@/lib/withCountry";
 
 const MONTHS_SHORT = [
   "jan",
@@ -68,6 +69,13 @@ function getShortMonthFromYyyyMm(yyyymm: string): string {
 
 export default function ThreeWheelerPage() {
   const { region, month } = useAppContext();
+  const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
   const [mounted, setMounted] = useState(false);
 
   // ---- OEM chart (market share) ----
@@ -77,7 +85,7 @@ export default function ThreeWheelerPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setOemCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [oemRaw, setOemRaw] = useState<MarketBackendRow[]>([]);
   const [oemLoading, setOemLoading] = useState(false);
   const [oemError, setOemError] = useState<string | null>(null);
@@ -89,7 +97,7 @@ export default function ThreeWheelerPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setEvCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [evRaw, setEvRaw] = useState<MarketBackendRow[]>([]);
   const [evLoading, setEvLoading] = useState(false);
   const [evError, setEvError] = useState<string | null>(null);
@@ -106,7 +114,7 @@ export default function ThreeWheelerPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setAppMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [appRaw, setAppRaw] = useState<any[]>([]);
   const [appAvailableMonths, setAppAvailableMonths] = useState<string[]>([]);
   const [appSelectedKey, setAppSelectedKey] = useState<string | null>(null);
@@ -144,11 +152,14 @@ export default function ThreeWheelerPage() {
         const segmentName = "three wheeler";
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
-            segmentName,
-          )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
-            effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              segmentName,
+            )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${shortMonth}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -176,7 +187,7 @@ export default function ThreeWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [oemCompare, oemCurrentMonth, month]);
+  }, [oemCompare, oemCurrentMonth, month, region]);
 
   // ---------- PROCESS OEM DATA ----------
   const oemComputed = useMemo(() => {
@@ -322,11 +333,14 @@ export default function ThreeWheelerPage() {
         const segmentName = "three wheeler";
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
-            segmentName,
-          )}&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
-            effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              segmentName,
+            )}&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${shortMonth}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -354,7 +368,7 @@ export default function ThreeWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [evCompare, evCurrentMonth, month]);
+  }, [evCompare, evCurrentMonth, month, region]);
 
   // ---------- PROCESS EV DATA ----------
   const evComputed = useMemo(() => {
@@ -500,11 +514,14 @@ export default function ThreeWheelerPage() {
 
         // This API route should call getOverallChartData() on the server
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
-          { cache: "no-store" },
-        );
+  withCountry(
+    `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+      month,
+    )}&horizon=6`,
+    region,
+  ),
+  { cache: "no-store" },
+);
 
         if (!res.ok) {
           throw new Error(`Failed to fetch overall chart data: ${res.status}`);
@@ -531,7 +548,7 @@ export default function ThreeWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- FETCH APPLICATION DATA ----------
   useEffect(() => {
@@ -545,11 +562,14 @@ export default function ThreeWheelerPage() {
         const base = appMonth || month;
 
         const res = await fetch(
-          `/api/fetchAppData?segmentName=${encodeURIComponent(
-            "three wheeler",
-          )}&segmentType=app&baseMonth=${encodeURIComponent(base)}`,
-          { cache: "no-store" },
-        );
+  withCountry(
+    `/api/fetchAppData?segmentName=${encodeURIComponent(
+      "three wheeler",
+    )}&segmentType=app&baseMonth=${encodeURIComponent(base)}`,
+    region,
+  ),
+  { cache: "no-store" },
+);
         if (!res.ok) {
           throw new Error(`Failed to fetch application data: ${res.status}`);
         }
@@ -609,7 +629,7 @@ export default function ThreeWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [appMonth, month]);
+  }, [appMonth, month, region]);
 
   // Update selected app month when MonthSelector changes
   useEffect(() => {
@@ -683,7 +703,7 @@ export default function ThreeWheelerPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               { label: "Three Wheeler" },
             ]}
             className="mb-4"

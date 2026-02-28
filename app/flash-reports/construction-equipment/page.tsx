@@ -11,7 +11,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
-
+import { withCountry } from "@/lib/withCountry";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -115,6 +115,13 @@ function mapVolumeKeyToCategory(rawKey: string): string | null {
 
 export default function ConstructionEquipmentPage() {
   const { region, month } = useAppContext();
+  const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
   const [mounted, setMounted] = useState(false);
 
   // ---- OEM chart (backend: segmentType=market share) ----
@@ -124,7 +131,7 @@ export default function ConstructionEquipmentPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setOemCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [oemRaw, setOemRaw] = useState<MarketBackendRow[]>([]);
   const [oemLoading, setOemLoading] = useState(false);
   const [oemError, setOemError] = useState<string | null>(null);
@@ -136,7 +143,7 @@ export default function ConstructionEquipmentPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setEvCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [evRaw, setEvRaw] = useState<MarketBackendRow[]>([]);
   const [evLoading, setEvLoading] = useState(false);
   const [evError, setEvError] = useState<string | null>(null);
@@ -153,7 +160,7 @@ export default function ConstructionEquipmentPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setAppMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [appRaw, setAppRaw] = useState<any[]>([]);
   const [appAvailableMonths, setAppAvailableMonths] = useState<string[]>([]);
   const [appSelectedKey, setAppSelectedKey] = useState<string | null>(null);
@@ -189,10 +196,12 @@ export default function ConstructionEquipmentPage() {
         const effectiveMonth = oemCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=construction-equipment&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
-          effectiveMonth,
-        )}&selectedMonth=${shortMonth}`;
-
+        const url = withCountry(
+          `/api/fetchMarketData?segmentName=construction-equipment&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
+          region,
+        );
         const res = await fetch(url);
         if (!res.ok) {
           throw new Error(`Failed to fetch OEM data: ${res.status}`);
@@ -219,7 +228,7 @@ export default function ConstructionEquipmentPage() {
     return () => {
       cancelled = true;
     };
-  }, [oemCompare, oemCurrentMonth, month]);
+  }, [oemCompare, oemCurrentMonth, month, region]);
 
   // ---------- PROCESS OEM DATA ----------
   const oemComputed = useMemo(() => {
@@ -362,10 +371,12 @@ export default function ConstructionEquipmentPage() {
         const effectiveMonth = evCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=construction-equipment&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
-          effectiveMonth,
-        )}&selectedMonth=${shortMonth}`;
-
+        const url = withCountry(
+          `/api/fetchMarketData?segmentName=construction-equipment&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+            effectiveMonth,
+          )}&selectedMonth=${shortMonth}`,
+          region,
+        );
         const res = await fetch(url);
         if (!res.ok) {
           throw new Error(`Failed to fetch EV data: ${res.status}`);
@@ -391,7 +402,7 @@ export default function ConstructionEquipmentPage() {
     return () => {
       cancelled = true;
     };
-  }, [evCompare, evCurrentMonth, month]);
+  }, [evCompare, evCurrentMonth, month, region]);
 
   // ---------- PROCESS EV DATA ----------
   const evComputed = useMemo(() => {
@@ -537,9 +548,12 @@ export default function ConstructionEquipmentPage() {
 
         // ✅ call your own Next API, which uses getOverallChartData() on the server
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -569,7 +583,7 @@ export default function ConstructionEquipmentPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- FETCH APPLICATION DATA ----------
   useEffect(() => {
@@ -583,9 +597,12 @@ export default function ConstructionEquipmentPage() {
         const base = appMonth || month;
 
         const res = await fetch(
-          `/api/fetchAppData?segmentName=construction-equipment&segmentType=app&baseMonth=${encodeURIComponent(
-            base,
-          )}`,
+          withCountry(
+            `/api/fetchAppData?segmentName=construction-equipment&segmentType=app&baseMonth=${encodeURIComponent(
+              base,
+            )}`,
+            region,
+          ),
           { cache: "no-store" },
         );
         if (!res.ok) {
@@ -647,7 +664,7 @@ export default function ConstructionEquipmentPage() {
     return () => {
       cancelled = true;
     };
-  }, [appMonth, month]);
+  }, [appMonth, month, region]);
 
   // Update selected application month when user changes MonthSelector
   useEffect(() => {
@@ -718,7 +735,7 @@ export default function ConstructionEquipmentPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               { label: "Construction Equipment" },
             ]}
             className="mb-4"

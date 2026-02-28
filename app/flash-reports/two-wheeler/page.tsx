@@ -11,7 +11,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
-
+import { withCountry } from "@/lib/withCountry";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -108,7 +108,13 @@ function mapVolumeKeyToCategory(rawKey: string): string | null {
 export default function TwoWheelerPage() {
   const { region, month } = useAppContext();
   const [mounted, setMounted] = useState(false);
-
+const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
   // ---- OEM chart (backend: segmentType=market share) ----
   const [oemCompare, setOemCompare] = useState<"mom" | "yoy">("mom");
   const [oemCurrentMonth, setOemCurrentMonth] = useState(month);
@@ -116,7 +122,7 @@ export default function TwoWheelerPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setOemCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [oemRaw, setOemRaw] = useState<MarketBackendRow[]>([]);
   const [oemLoading, setOemLoading] = useState(false);
   const [oemError, setOemError] = useState<string | null>(null);
@@ -128,7 +134,7 @@ export default function TwoWheelerPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setEvCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [evRaw, setEvRaw] = useState<MarketBackendRow[]>([]);
   const [evLoading, setEvLoading] = useState(false);
   const [evError, setEvError] = useState<string | null>(null);
@@ -145,7 +151,7 @@ export default function TwoWheelerPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setAppMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [appRaw, setAppRaw] = useState<any[]>([]);
   const [appAvailableMonths, setAppAvailableMonths] = useState<string[]>([]);
   const [appSelectedKey, setAppSelectedKey] = useState<string | null>(null);
@@ -181,11 +187,13 @@ export default function TwoWheelerPage() {
         const effectiveMonth = oemCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=two-wheeler&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
-          effectiveMonth,
-        )}&selectedMonth=${shortMonth}`;
-
-        const res = await fetch(url);
+const url = withCountry(
+  `/api/fetchMarketData?segmentName=two-wheeler&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+    effectiveMonth,
+  )}&selectedMonth=${shortMonth}`,
+  region,
+);
+const res = await fetch(url);
         if (!res.ok) {
           throw new Error(`Failed to fetch OEM data: ${res.status}`);
         }
@@ -211,8 +219,9 @@ export default function TwoWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [oemCompare, oemCurrentMonth, month]);
+  }, [oemCompare, oemCurrentMonth, month, region]);
 
+  
   // ---------- PROCESS OEM DATA ----------
   const oemComputed = useMemo(() => {
     if (!oemRaw.length) return null;
@@ -310,6 +319,8 @@ export default function TwoWheelerPage() {
           ? "text-rose-400"
           : "text-muted-foreground";
 
+
+          
     return (
       <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg px-4 py-3 shadow-xl">
         <p className="text-sm font-semibold mb-2">{row.name}</p>
@@ -354,11 +365,13 @@ export default function TwoWheelerPage() {
         const effectiveMonth = evCurrentMonth || month;
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
-        const url = `/api/fetchMarketData?segmentName=two-wheeler&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
-          effectiveMonth,
-        )}&selectedMonth=${shortMonth}`;
-
-        const res = await fetch(url);
+const url = withCountry(
+  `/api/fetchMarketData?segmentName=two-wheeler&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+    effectiveMonth,
+  )}&selectedMonth=${shortMonth}`,
+  region,
+);
+const res = await fetch(url);
         if (!res.ok) {
           throw new Error(`Failed to fetch EV data: ${res.status}`);
         }
@@ -383,8 +396,9 @@ export default function TwoWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [evCompare, evCurrentMonth, month]);
+  }, [evCompare, evCurrentMonth, month,region]);
 
+  
   // ---------- PROCESS EV DATA ----------
   const evComputed = useMemo(() => {
     if (!evRaw.length) return null;
@@ -528,12 +542,15 @@ export default function TwoWheelerPage() {
         setOverallError(null);
 
         // ✅ call your own Next API, which uses getOverallChartData() on the server
-        const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
-          { cache: "no-store" },
-        );
+const res = await fetch(
+  withCountry(
+    `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+      month,
+    )}&horizon=6`,
+    region,
+  ),
+  { cache: "no-store" },
+);
 
         if (!res.ok) {
           throw new Error(`Failed to fetch overall chart data: ${res.status}`);
@@ -561,7 +578,7 @@ export default function TwoWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month,region]);
 
   // ---------- FETCH APPLICATION DATA ----------
   useEffect(() => {
@@ -574,12 +591,15 @@ export default function TwoWheelerPage() {
 
         const base = appMonth || month;
 
-        const res = await fetch(
-          `/api/fetchAppData?segmentName=two-wheeler&segmentType=app&baseMonth=${encodeURIComponent(
-            base,
-          )}`,
-          { cache: "no-store" },
-        );
+const res = await fetch(
+  withCountry(
+    `/api/fetchAppData?segmentName=two-wheeler&segmentType=app&baseMonth=${encodeURIComponent(
+      base,
+    )}`,
+    region,
+  ),
+  { cache: "no-store" },
+);
         if (!res.ok) {
           throw new Error(`Failed to fetch application data: ${res.status}`);
         }
@@ -639,7 +659,7 @@ export default function TwoWheelerPage() {
     return () => {
       cancelled = true;
     };
-  }, [appMonth, month]);
+  }, [appMonth, month,region]);
 
   // Update selected application month when user changes MonthSelector
   useEffect(() => {
@@ -698,11 +718,19 @@ export default function TwoWheelerPage() {
     month: "long",
     year: "numeric",
   });
+  
+  useEffect(() => {
+  setAppRaw([]);
+  setAppAvailableMonths([]);
+  setAppSelectedKey(null);
+}, [region]);
 
   if (!mounted) {
     return <PageSkeleton />;
   }
 
+
+  
   return (
     <div className="min-h-screen py-0">
       <div className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4">
@@ -710,7 +738,7 @@ export default function TwoWheelerPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               { label: "Two Wheeler" },
             ]}
             className="mb-4"

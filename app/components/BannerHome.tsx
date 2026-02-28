@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { Globe2, ChevronRight } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Globe2, ChevronRight, PlayCircle, ArrowLeftRight } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart as RLineChart,
@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from "recharts";
 import NavBar from "./Navbar";
+import Link from "next/link";
 
 /* sample data */
 const data = [
@@ -19,8 +20,6 @@ const data = [
   { month: "August ", actual: 198_500, forecast: 200_000 },
   { month: "September ", actual: 201_400, forecast: 206_000 },
   { month: "October ", actual: 194_200, forecast: 203_500 },
-  // { month: "November 2025", actual: 198_900, forecast: 209_000 },
-  // { month: "December 2025", actual: 200_600, forecast: 210_500 },
 ];
 
 /* small UI helpers */
@@ -29,6 +28,7 @@ const Badge = ({ children }: React.PropsWithChildren) => (
     {children}
   </span>
 );
+
 const PillButton = ({
   href,
   children,
@@ -44,6 +44,7 @@ const PillButton = ({
     <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
   </a>
 );
+
 const GhostButton = ({
   href,
   children,
@@ -53,7 +54,7 @@ const GhostButton = ({
 }) => (
   <a
     href={href}
-    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-white/90 shadow-sm hover:bg-white/10"
+    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-white/90 shadow-sm hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
   >
     {children}
   </a>
@@ -95,10 +96,259 @@ function GlassCard({
   );
 }
 
+/** --- Flip Card (no popup) --- */
+function FlipInfoCard({
+  title,
+  subtitle,
+  bullets,
+  ctaHref,
+  ctaLabel,
+  theme = "blue",
+}: {
+  title: string;
+  subtitle: string;
+  bullets: string[];
+  ctaHref: string;
+  ctaLabel: string;
+  theme?: "blue" | "indigo";
+}) {
+  const [flipped, setFlipped] = useState(false);
+
+  const themeGrad =
+    theme === "indigo"
+      ? "from-indigo-600/30 via-slate-950/40 to-slate-950/20"
+      : "from-blue-600/30 via-slate-950/40 to-slate-950/20";
+
+  const accent =
+    theme === "indigo"
+      ? "text-indigo-200 border-indigo-400/20 bg-indigo-400/10"
+      : "text-blue-200 border-blue-400/20 bg-blue-400/10";
+
+  return (
+    <div className="group relative">
+      <div
+        className="relative h-[360px] md:h-[380px] lg:h-[360px] w-full [perspective:1400px]"
+        aria-label={`${title} info card`}
+      >
+        <div
+          className={[
+            "absolute inset-0 transition-transform duration-700 [transform-style:preserve-3d]",
+            flipped ? "[transform:rotateY(180deg)]" : "[transform:rotateY(0deg)]",
+          ].join(" ")}
+        >
+          {/* FRONT */}
+          <div className="absolute inset-0 [backface-visibility:hidden]">
+            <div className="h-full rounded-2xl border border-white/10 bg-white/5 p-5 md:p-6 shadow-2xl shadow-black/40 backdrop-blur-xl overflow-hidden isolate">
+              <div
+                className={`pointer-events-none absolute inset-0 opacity-[0.25] bg-gradient-to-br ${themeGrad}`}
+              />
+              <div className="relative z-10 flex h-full flex-col">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${accent}`}>
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                      <span>Interactive guide</span>
+                    </div>
+                    <h3 className="mt-4 text-xl font-semibold text-white/95">
+                      {title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-white/70">
+                      {subtitle}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm text-white/70">
+                  {bullets.slice(0, 3).map((b, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/40" />
+                      <span>{b}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-auto flex items-center gap-3 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => setFlipped(true)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                  >
+                    Read more
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+
+                  <a
+                    href={ctaHref}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm text-white shadow-md shadow-blue-900/20 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/60 overflow-hidden"
+                  >
+                    {ctaLabel}
+                    <ChevronRight className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* BACK */}
+          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+            <div className="h-full rounded-2xl border border-white/10 bg-white/5 p-5 md:p-6 shadow-2xl shadow-black/40 backdrop-blur-xl overflow-hidden">
+              <div
+                className={`pointer-events-none absolute inset-0 opacity-[0.25] bg-gradient-to-br ${themeGrad}`}
+              />
+              <div className="relative z-10 flex h-full flex-col">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white/95">
+                      How to use {title}
+                    </h4>
+                    <p className="mt-1 text-sm text-white/70">
+                      Quick steps + video walkthrough
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setFlipped(false)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                    aria-label="Back"
+                  >
+                    Back
+                  </button>
+                </div>
+
+                {/* Instructions */}
+                {/* <div className="mt-4 space-y-2 text-sm text-white/75">
+                  {bullets.map((b, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-white/40" />
+                      <span>{b}</span>
+                    </div>
+                  ))}
+                </div> */}
+
+                {/* Video placeholder */}
+                <div className="mt-auto pt-5">
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-white/90">
+                          Instruction Video
+                        </div>
+                      
+                      </div>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        Watch
+                      </button>
+                    </div>
+
+                    <div className="mt-3 h-20 rounded-xl border border-dashed border-white/15 bg-white/5 flex items-center justify-center text-xs text-white/50">
+                      Video coming soon
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* /BACK */}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingHero() {
+  const flashBullets = useMemo(
+    () => [
+      "Select Country + Month to load country-wise flash report data.",
+      "Compare MoM/YoY trends across segments and categories.",
+      "Open category cards to drill into 2W / 3W / PV / CV / TRAC / CE.",
+      "Use charts for market share, EV split, and OEM performance (where available).",
+    ],
+    []
+  );
+
+  const forecastBullets = useMemo(
+    () => [
+      "Choose a segment and time range for forecasting.",
+      "Compare actual vs forecast and review assumptions (AI/linear/BYOF/survey).",
+      "Use scenario adjustments to tune inputs and validate outputs.",
+      "Export or share insights after finalizing forecast view.",
+    ],
+    []
+  );
+
   return (
     <>
       <NavBar />
+
+      {/* ✅ NEW SECTION: two column flip cards (above main) */}
+      <section className="relative overflow-hidden bg-slate-950 text-white">
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950/98 to-slate-950" />
+          <div className="absolute right-0 top-[-10rem] h-[40rem] w-[40rem] rounded-full bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.22),transparent_60%)] blur-3xl" />
+          <div className="absolute left-0 bottom-[-12rem] h-[44rem] w-[44rem] rounded-full bg-[radial-gradient(circle_at_center,rgba(37,99,235,0.20),transparent_60%)] blur-3xl" />
+        </div>
+
+        <div className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4 pt-10 md:pt-12">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/70">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300/70" />
+                Learn modules quickly
+              </div>
+              <h2 className="mt-3 text-2xl md:text-3xl font-bold tracking-tight">
+                Flash Reports & Forecast - Quick Guides
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm md:text-base text-white/70">
+                Explore both modules and flip the cards to see how-to steps and
+                a panel for instruction videos.
+              </p>
+            </div>
+
+            {/* <div className="flex items-center gap-3">
+              <Link
+                href="/flash-reports"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+              >
+                Flash Reports
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/forecast"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+              >
+                Forecast
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div> */}
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-6 pb-10 md:grid-cols-2">
+            <FlipInfoCard
+              title="Flash Reports"
+              subtitle="Monthly market snapshots across categories with country-wise switching, segment splits, OEM share, and EV adoption insights."
+              bullets={flashBullets}
+              ctaHref="/flash-reports"
+              ctaLabel="Open Flash Reports"
+              theme="blue"
+            />
+            <FlipInfoCard
+              title="Forecast"
+              subtitle="Forecast volumes with analytics-driven methods and scenario comparisons. Designed for segment-level planning and trend validation."
+              bullets={forecastBullets}
+              ctaHref="/forecast"
+              ctaLabel="Open Forecast"
+              theme="indigo"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* your existing hero */}
       <main className="relative min-h-[60svh] overflow-hidden bg-slate-950 text-white mb-6">
         {/* background */}
         <div className="pointer-events-none absolute inset-0 -z-10">
@@ -146,16 +396,12 @@ export default function LandingHero() {
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <PillButton href="/flash-reports">
-                  <span>View Flash Reports</span>
+                  <span>Explore full dataset</span>
                 </PillButton>
                 <GhostButton href="/forecast">
                   <span>Go to Forecast</span>
                 </GhostButton>
               </div>
-              {/* <div className="mt-8 text-sm text-white/50">
-                <span className="font-medium text-white/70">Note:</span> This
-                module links to your existing RaceAutoAnalytics project.
-              </div> */}
             </div>
 
             {/* right chart */}
@@ -189,7 +435,6 @@ export default function LandingHero() {
                         tickLine={false}
                       />
                       <YAxis
-                        // width={72}
                         tick={false}
                         tickMargin={12}
                         axisLine={false}
@@ -223,8 +468,6 @@ export default function LandingHero() {
             </div>
           </div>
         </section>
-
-        {/* maker badge */}
       </main>
     </>
   );

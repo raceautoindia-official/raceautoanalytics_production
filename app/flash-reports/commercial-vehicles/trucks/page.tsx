@@ -13,7 +13,7 @@ import { useAppContext } from "@/components/providers/Providers";
 import { formatNumber } from "@/lib/mockData";
 import TipperTable from "@/components/charts/TipperTable";
 import TractorTrailerForecast from "@/components/charts/TractorTrailorTable";
-
+import { withCountry } from "@/lib/withCountry";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -68,9 +68,9 @@ function pickSeries(row: any, keys: string[]): number {
   const lowerMap: Record<string, number> = {};
 
   for (const [k, v] of Object.entries(source)) {
-    if (typeof v === "number") {
-      lowerMap[k.toLowerCase()] = v;
-    }
+const num =
+  typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+if (Number.isFinite(num)) lowerMap[k.toLowerCase()] = num;
   }
 
   for (const key of keys) {
@@ -116,6 +116,13 @@ function sortMonthLabels(a: string, b: string) {
 
 export default function TrucksPage() {
   const { region, month } = useAppContext();
+  const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
   const [mounted, setMounted] = useState(false);
 
   // ---- OEM chart (truck market share) ----
@@ -146,7 +153,7 @@ export default function TrucksPage() {
 
   useEffect(() => {
     setOemCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
 
   useEffect(() => {
     (async () => {
@@ -174,11 +181,13 @@ export default function TrucksPage() {
         const segmentName = "truck";
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
+          withCountry(`/api/fetchMarketData?segmentName=${encodeURIComponent(
             segmentName,
           )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
             effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          )}&selectedMonth=${encodeURIComponent(shortMonth)}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -206,7 +215,16 @@ export default function TrucksPage() {
     return () => {
       cancelled = true;
     };
-  }, [oemCompare, oemCurrentMonth, month]);
+  }, [oemCompare, oemCurrentMonth, month, region]);
+
+useEffect(() => {
+  setSegmentRows([]);
+  setSegmentError(null);
+
+  setAppRaw([]);
+  setAppError(null);
+  setAppMonth("");
+}, [region]);
 
   // ---------- PROCESS OEM DATA ----------
   const oemComputed = useMemo(() => {
@@ -347,9 +365,11 @@ export default function TrucksPage() {
         setOverallError(null);
 
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+          withCountry(`/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
             month,
           )}&horizon=6`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -379,7 +399,7 @@ export default function TrucksPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- FETCH SEGMENT SPLIT (LCV/MCV/HCV for trucks) ----------
   useEffect(() => {
@@ -391,9 +411,11 @@ export default function TrucksPage() {
         setSegmentError(null);
 
         const res = await fetch(
-          `/api/fetchCVSegmentSplit?segmentName=${encodeURIComponent(
+         withCountry( `/api/fetchCVSegmentSplit?segmentName=${encodeURIComponent(
             "truck",
           )}&baseMonth=${encodeURIComponent(month)}`,
+           region,
+          ),
         );
 
         if (!res.ok) {
@@ -421,7 +443,7 @@ export default function TrucksPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- Segment donut data ----------
   const segmentDonutData = useMemo(() => {
@@ -464,9 +486,11 @@ export default function TrucksPage() {
         setAppError(null);
 
         const res = await fetch(
-          `/api/fetchAppData?segmentName=${encodeURIComponent(
+           withCountry(`/api/fetchAppData?segmentName=${encodeURIComponent(
             "truck",
           )}&segmentType=app&baseMonth=${encodeURIComponent(month)}`,
+           region,
+          ),
           { cache: "no-store" },
         );
 
@@ -497,7 +521,7 @@ export default function TrucksPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   const appAvailableMonths = useMemo(() => {
     if (!appRaw.length) return [] as string[];
@@ -536,7 +560,7 @@ export default function TrucksPage() {
         : appAvailableMonths[appAvailableMonths.length - 1];
 
     setAppMonth(fallback);
-  }, [month, appAvailableMonths]);
+  }, [month, appAvailableMonths, region]);
 
   const appChartData = useMemo(() => {
     if (!appMonth || !appRaw.length) return [];
@@ -586,10 +610,10 @@ export default function TrucksPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               {
                 label: "Commercial Vehicles",
-                href: "/flash-reports/commercial-vehicles",
+                href: `/flash-reports/commercial-vehicles${suffix}`,
               },
               { label: "Trucks" },
             ]}

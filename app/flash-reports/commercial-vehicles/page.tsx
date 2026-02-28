@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { withCountry } from "@/lib/withCountry";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -13,6 +14,7 @@ import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { formatNumber } from "@/lib/mockData";
 import { Truck, Bus, ChevronRight } from "lucide-react";
+import { DataAvailabilityHint } from "@/components/ui/DataAvailabilityHint";
 
 const SUB_CATEGORIES = [
   {
@@ -120,6 +122,14 @@ function toMonthLabel(yyyymm: string) {
 
 export default function CommercialVehiclesPage() {
   const { region, month } = useAppContext();
+  const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
+
   const [mounted, setMounted] = useState(false);
 
   // ---- OEM chart (market share) ----
@@ -147,7 +157,7 @@ export default function CommercialVehiclesPage() {
 
   useEffect(() => {
     setOemCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
 
   useEffect(() => {
     (async () => {
@@ -175,11 +185,14 @@ export default function CommercialVehiclesPage() {
         const segmentName = "commercial vehicle";
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
-            segmentName,
-          )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
-            effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              segmentName,
+            )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${shortMonth}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -209,7 +222,7 @@ export default function CommercialVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, [oemCompare, oemCurrentMonth, month]);
+  }, [oemCompare, oemCurrentMonth, month, region]);
 
   // ---------- PROCESS OEM DATA ----------
   const oemComputed = useMemo(() => {
@@ -283,6 +296,12 @@ export default function CommercialVehiclesPage() {
     }.`;
   }, [oemComputed, oemCompare]);
 
+  useEffect(() => {
+  setSegmentData([]);
+  setSegmentMonthLabel(null);
+  setSegmentError(null);
+}, [region]);
+
   const renderOemTooltip = (props: any) => {
     const { active, payload } = props;
     if (!active || !payload || !payload.length || !oemComputed) return null;
@@ -340,9 +359,12 @@ export default function CommercialVehiclesPage() {
         setOverallError(null);
 
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -372,7 +394,7 @@ export default function CommercialVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- FETCH SEGMENT SPLIT (REAL backend via /api/fetchCVSegmentSplit) ----------
   useEffect(() => {
@@ -386,9 +408,12 @@ export default function CommercialVehiclesPage() {
         const segmentName = "commercial vehicle";
 
         const res = await fetch(
-          `/api/fetchCVSegmentSplit?segmentName=${encodeURIComponent(
-            segmentName,
-          )}&baseMonth=${encodeURIComponent(month)}`,
+          withCountry(
+            `/api/fetchCVSegmentSplit?segmentName=${encodeURIComponent(
+              segmentName,
+            )}&baseMonth=${encodeURIComponent(month)}`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -447,7 +472,7 @@ export default function CommercialVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- SUMMARY METRICS (CV volumes + segment split) ----------
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;
@@ -456,8 +481,13 @@ export default function CommercialVehiclesPage() {
   const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
 
-  const latestCV = basePoint?.data?.["CV"] ?? 0;
-  const prevCV = prevPoint?.data?.["CV"] ?? 0;
+const toNum = (v: any) => {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+const latestCV = toNum(basePoint?.data?.["CV"]);
+const prevCV = toNum(prevPoint?.data?.["CV"]);
 
   const growthRate =
     prevCV > 0 ? Math.round(((latestCV - prevCV) / prevCV) * 100) : 0;
@@ -495,7 +525,7 @@ export default function CommercialVehiclesPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               { label: "Commercial Vehicles" },
             ]}
             className="mb-4"
@@ -560,7 +590,9 @@ export default function CommercialVehiclesPage() {
               return (
                 <Link
                   key={category.id}
-                  href={`/flash-reports/commercial-vehicles/${category.id}`}
+                  href={`/flash-reports/commercial-vehicles/${category.id}?country=${encodeURIComponent(
+  region,
+)}&month=${encodeURIComponent(month)}`}
                   className="group block animate-fade-in hover-lift"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
@@ -610,6 +642,7 @@ export default function CommercialVehiclesPage() {
                 graphId={graphId}
               />
             )}
+            <DataAvailabilityHint points={overallData || []} />
           </ChartWrapper>
           {/* 2) Segmental split (backend → donut) + 3) Forecast (backend timeseries) */}
           <div className="grid lg:grid-cols-3 gap-8">

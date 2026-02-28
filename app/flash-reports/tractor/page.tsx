@@ -11,6 +11,8 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
+import { withCountry } from "@/lib/withCountry";
+import { DataAvailabilityHint } from "@/components/ui/DataAvailabilityHint";
 
 const MONTHS_SHORT = [
   "jan",
@@ -126,9 +128,8 @@ function pickSeries(row: any, keys: string[]): number {
   const lowerMap: Record<string, number> = {};
 
   for (const [k, v] of Object.entries(source)) {
-    if (typeof v === "number") {
-      lowerMap[k.toLowerCase()] = v;
-    }
+const num = typeof v === "number" ? v : Number(String(v).replace(/,/g, ""));
+if (Number.isFinite(num)) lowerMap[k.toLowerCase()] = num;
   }
 
   for (const key of keys) {
@@ -191,6 +192,13 @@ function createCompareTooltip(computed: any) {
 
 export default function TractorPage() {
   const { region, month } = useAppContext();
+  const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
   const [mounted, setMounted] = useState(false);
 
   // OEM chart state
@@ -200,7 +208,7 @@ export default function TractorPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setOemCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [oemRaw, setOemRaw] = useState<MarketBackendRow[]>([]);
   const [oemLoading, setOemLoading] = useState(false);
   const [oemError, setOemError] = useState<string | null>(null);
@@ -247,11 +255,14 @@ export default function TractorPage() {
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
-            "tractor",
-          )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
-            effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              "tractor",
+            )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${shortMonth}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -277,7 +288,7 @@ export default function TractorPage() {
     return () => {
       cancelled = true;
     };
-  }, [oemCompare, oemCurrentMonth, month]);
+  }, [oemCompare, oemCurrentMonth, month, region]);
 
   // ---- Fetch overall timeseries (for TRAC series) ----
   useEffect(() => {
@@ -289,11 +300,14 @@ export default function TractorPage() {
         setOverallError(null);
 
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
-          { cache: "no-store" },
-        );
+  withCountry(
+    `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+      month,
+    )}&horizon=6`,
+    region,
+  ),
+  { cache: "no-store" },
+);
 
         if (!res.ok) {
           throw new Error(`Failed to fetch overall chart data: ${res.status}`);
@@ -319,7 +333,7 @@ export default function TractorPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---- Fetch application data (/api/fetchAppData) ----
   useEffect(() => {
@@ -331,11 +345,14 @@ export default function TractorPage() {
         setAppError(null);
 
         const res = await fetch(
-          `/api/fetchAppData?segmentName=${encodeURIComponent(
-            "tractor",
-          )}&segmentType=app&baseMonth=${encodeURIComponent(month)}`,
-          { cache: "no-store" },
-        );
+  withCountry(
+    `/api/fetchAppData?segmentName=${encodeURIComponent(
+      "tractor",
+    )}&segmentType=app&baseMonth=${encodeURIComponent(month)}`,
+    region,
+  ),
+  { cache: "no-store" },
+);
 
         if (!res.ok) {
           throw new Error(
@@ -362,7 +379,7 @@ export default function TractorPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---- Application available months & default month ----
   const appAvailableMonths = useMemo(() => {
@@ -402,7 +419,7 @@ export default function TractorPage() {
         : appAvailableMonths[appAvailableMonths.length - 1];
 
     setAppMonth(fallback);
-  }, [month, appAvailableMonths]);
+  }, [month, region, appAvailableMonths]);
 
   const appChartData = useMemo(() => {
     if (!appMonth || !appRaw.length) return [];
@@ -477,6 +494,16 @@ export default function TractorPage() {
   const segmentTotal = segmentData.reduce((sum, item) => sum + item.value, 0);
   const leadingSegment = segmentData[0];
 
+useEffect(() => {
+  // keep chart state clean when switching country
+  setAppRaw([]);
+  setAppMonth("");
+}, [region]);
+
+useEffect(() => {
+  setOemCurrentMonth(month);
+}, [region]);
+  
   if (!mounted) {
     return <PageSkeleton />;
   }
@@ -488,7 +515,7 @@ export default function TractorPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               { label: "Tractor" },
             ]}
             className="mb-4"
@@ -619,7 +646,9 @@ export default function TractorPage() {
                 horizon={overallMeta?.horizon}
                 graphId={graphId}
               />
+              
             )}
+            <DataAvailabilityHint points={overallData || []} />
           </ChartWrapper>
 
           {/* 3) Application + 4) HP Segment Distribution */}

@@ -16,6 +16,7 @@ import {
   generateSegmentData,
 } from "@/lib/mockData";
 import { ChartSummary } from "@/components/charts/ChartSummary";
+import { withCountry } from "@/lib/withCountry";
 
 const MONTHS_SHORT = [
   "jan",
@@ -199,6 +200,13 @@ function createCompareTooltip(computed: any) {
 
 export default function PassengerVehiclesPage() {
   const { region, month } = useAppContext();
+  const suffix = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (region) qs.set("country", region);
+    if (month) qs.set("month", month);
+    const s = qs.toString();
+    return s ? `?${s}` : "";
+  }, [region, month]);
   const [mounted, setMounted] = useState(false);
 
   // ---- Market OEM (PV) ----
@@ -208,7 +216,7 @@ export default function PassengerVehiclesPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setMarketCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [marketRaw, setMarketRaw] = useState<MarketBackendRow[]>([]);
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketError, setMarketError] = useState<string | null>(null);
@@ -220,7 +228,7 @@ export default function PassengerVehiclesPage() {
   // Sync chart-level month with global month when top MonthSelector changes
   useEffect(() => {
     setEvCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
   const [evRaw, setEvRaw] = useState<MarketBackendRow[]>([]);
   const [evLoading, setEvLoading] = useState(false);
   const [evError, setEvError] = useState<string | null>(null);
@@ -267,11 +275,14 @@ export default function PassengerVehiclesPage() {
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
-            "passenger vehicle",
-          )}&segmentType=market share&mode=${marketCompare}&baseMonth=${encodeURIComponent(
-            effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              "passenger vehicle",
+            )}&segmentType=market share&mode=${marketCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${shortMonth}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -301,7 +312,7 @@ export default function PassengerVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, [marketCompare, marketCurrentMonth, month]);
+  }, [marketCompare, marketCurrentMonth, month, region]);
 
   // ---------- FETCH EV OEM DATA (PV EV) ----------
   useEffect(() => {
@@ -316,11 +327,14 @@ export default function PassengerVehiclesPage() {
         const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
-            "passenger vehicle",
-          )}&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
-            effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              "passenger vehicle",
+            )}&segmentType=ev&mode=${evCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${shortMonth}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -348,7 +362,7 @@ export default function PassengerVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, [evCompare, evCurrentMonth, month]);
+  }, [evCompare, evCurrentMonth, month, region]);
 
   // ---------- PROCESS MARKET OEM DATA ----------
   const marketComputed = useMemo(
@@ -435,9 +449,12 @@ export default function PassengerVehiclesPage() {
         setOverallError(null);
 
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -467,7 +484,7 @@ export default function PassengerVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- FETCH APPLICATION DATA (PV) ----------
   useEffect(() => {
@@ -479,9 +496,12 @@ export default function PassengerVehiclesPage() {
         setAppError(null);
 
         const res = await fetch(
-          `/api/fetchAppData?segmentName=${encodeURIComponent(
-            "passenger vehicle",
-          )}&segmentType=app&baseMonth=${encodeURIComponent(month)}`,
+          withCountry(
+            `/api/fetchAppData?segmentName=${encodeURIComponent(
+              "passenger vehicle",
+            )}&segmentType=app&baseMonth=${encodeURIComponent(month)}`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -510,7 +530,7 @@ export default function PassengerVehiclesPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   const appAvailableMonths = useMemo(() => {
     if (!appRaw.length) return [] as string[];
@@ -550,7 +570,7 @@ export default function PassengerVehiclesPage() {
         : appAvailableMonths[appAvailableMonths.length - 1];
 
     setAppMonth(fallback);
-  }, [month, appAvailableMonths]);
+  }, [month, appAvailableMonths, region]);
 
   const appChartData = useMemo(() => {
     if (!appMonth || !appRaw.length) return [];
@@ -608,7 +628,7 @@ export default function PassengerVehiclesPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               { label: "Passenger Vehicles" },
             ]}
             className="mb-4"

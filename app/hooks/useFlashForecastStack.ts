@@ -198,10 +198,14 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const enabledTypes = useMemo(
-    () => normalizeForecastTypes(graph?.forecast_types),
-    [graph?.forecast_types],
-  );
+const enabledTypes = useMemo(() => {
+  const set = normalizeForecastTypes(graph?.forecast_types);
+
+  // ✅ Hard-disable Stats Forecast (Linear Regression) for Flash Reports everywhere
+  set.delete("linear");
+
+  return set;
+}, [graph?.forecast_types]);
 
   // Historical values and future months extracted from overallData
   const { histValues, futureMonths } = useMemo(() => {

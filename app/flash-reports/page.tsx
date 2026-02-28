@@ -20,6 +20,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { VehicleCategoryCard } from "@/components/ui/VehicleCategoryCard";
 import { useAppContext } from "@/components/providers/Providers";
 import { cn } from "@/lib/utils";
+import { withCountry } from "@/lib/withCountry";
 
 const CATEGORIES = [
   {
@@ -180,6 +181,14 @@ const OVERALL_OEM_SEGMENT_NAME = "overall";
 
 export default function FlashReportsPage() {
   const { region, month } = useAppContext();
+  const suffix = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (region) qs.set("country", region);
+    if (month) qs.set("month", month);
+    const s = qs.toString();
+    return s ? `?${s}` : "";
+  }, [region, month]);
+
   const [mounted, setMounted] = useState(false);
 
   const [overallData, setOverallData] = useState<OverallRow[]>([]);
@@ -219,20 +228,22 @@ export default function FlashReportsPage() {
         // Reset cached YoY row on month change (so UI doesn't show stale YoY while loading)
         setOverallLastYearRow(null);
 
+        const url1 = withCountry(
+          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=6&forceHistorical=1`,
+          region,
+        );
+
+        const url2 = lastYearKey
+          ? withCountry(
+              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(lastYearKey)}&horizon=6&forceHistorical=1`,
+              region,
+            )
+          : null;
+
         const [res, lastYearRes] = await Promise.all([
-          fetch(
-            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-              month,
-            )}&horizon=6&forceHistorical=1`,
-            { cache: "no-store" },
-          ),
-          lastYearKey
-            ? fetch(
-                `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-                  lastYearKey,
-                )}&horizon=6&forceHistorical=1`,
-                { cache: "no-store" },
-              )
+          fetch(url1, { cache: "no-store" }),
+          url2
+            ? fetch(url2, { cache: "no-store" })
             : Promise.resolve(null as any),
         ]);
 
@@ -302,7 +313,7 @@ export default function FlashReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // Fetch overall OEM market share for "Top OEM Performance" widget
   useEffect(() => {
@@ -314,12 +325,14 @@ export default function FlashReportsPage() {
         setTopOemError(null);
 
         const shortMonth = getShortMonthFromYyyyMm(month);
-        const res = await fetch(
+
+        const url = withCountry(
           `/api/fetchMarketData?segmentName=${encodeURIComponent(
             OVERALL_OEM_SEGMENT_NAME,
           )}&selectedMonth=${shortMonth}&mode=mom&segmentType=market share`,
+          region,
         );
-
+        const res = await fetch(url);
         if (!res.ok) {
           throw new Error(`Failed to fetch overall OEM data: ${res.status}`);
         }
@@ -365,7 +378,7 @@ export default function FlashReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // Derived: selected month row, previous row, last 6 months, etc.
   const {
@@ -434,7 +447,7 @@ export default function FlashReportsPage() {
       recentTotalSeries: recent,
       overallGrowthRate,
     };
-  }, [overallData, month]);
+  }, [overallData, month, region]);
 
   console.log("recentTotalSeries", recentTotalSeries);
 
@@ -545,7 +558,7 @@ export default function FlashReportsPage() {
     // ✅ REMOVE the special-case rank=0 block entirely
 
     return base;
-  }, [overallData, selectedRow, prevRow, lastYearRow, overallLastYearRow]);
+  }, [overallData, selectedRow, prevRow, lastYearRow, overallLastYearRow, region]);
 
   // Key Highlights should be fully dynamic. Use segment momentum (best MoM)
   // as the middle highlight so it updates with the global month selector.
@@ -636,7 +649,7 @@ export default function FlashReportsPage() {
         {/* Header */}
         <div className="mb-8">
           <Breadcrumbs
-            items={[{ label: "Flash Reports", href: "/flash-reports" }]}
+            items={[{ label: "Flash Reports", href: `/flash-reports${suffix}` }]}
             className="mb-4"
           />
 

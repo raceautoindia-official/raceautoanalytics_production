@@ -32,17 +32,12 @@ const MONTHS_LOWER = [
 ];
 
 function prevMonthRefIST() {
-  // Flash reporting month rolls over on the 5th (IST):
-  // - 1st–4th: treat "latest available" as two months ago
-  // - 5th onwards: treat "latest available" as previous calendar month
   const now = new Date();
-  const ist = new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
-  );
+  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 
   let y = ist.getFullYear();
-  let m = ist.getMonth() + 1; // 1..12 (current month)
-  const d = ist.getDate(); // 1..31
+  let m = ist.getMonth() + 1;
+  const d = ist.getDate();
 
   const cutoffDay = 5;
   const back = d >= cutoffDay ? 1 : 2;
@@ -70,44 +65,57 @@ function toUiMonthLabel(year, monthIndex) {
 }
 
 function mapAltFuelKey(k) {
-  const key = String(k || "")
-    .toLowerCase()
-    .trim();
-  if (key === "two wheeler" || key === "two-wheeler" || key === "2w")
-    return "2W";
-  if (key === "three wheeler" || key === "three-wheeler" || key === "3w")
-    return "3W";
-  if (key === "passenger" || key === "passenger vehicle" || key === "pv")
-    return "PV";
-  if (key === "tractor" || key === "agri tractor" || key === "trac")
-    return "Tractor";
+  const key = String(k || "").toLowerCase().trim();
+  if (key === "two wheeler" || key === "two-wheeler" || key === "2w") return "2W";
+  if (key === "three wheeler" || key === "three-wheeler" || key === "3w") return "3W";
+  if (key === "passenger" || key === "passenger vehicle" || key === "pv") return "PV";
+  if (key === "tractor" || key === "agri tractor" || key === "trac") return "Tractor";
   if (key === "cv" || key === "commercial vehicle") return "CV";
   return null;
+}
+
+// ✅ helpers
+function norm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[-_\s]+/g, "");
+}
+function sid(v) {
+  return String(v ?? "");
+}
+function eqId(a, b) {
+  return sid(a) === sid(b);
+}
+function normalizeCountry(raw) {
+  const k = norm(raw);
+  if (!k || k === "india" || k === "in") return "india";
+  if (k === "bazil") return "brazil";
+  return k;
 }
 
 function findNodeByName(nodes, parentId, nameLower) {
   return nodes.find(
     (n) =>
-      n?.parent_id === parentId &&
-      String(n?.name || "")
-        .toLowerCase()
-        .trim() === nameLower,
+      eqId(n?.parent_id, parentId) &&
+      String(n?.name || "").toLowerCase().trim() === nameLower,
   );
 }
 
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const segmentName = (searchParams.get("segmentName") || "")
-      .toLowerCase()
-      .trim();
+
+    const segmentName = (searchParams.get("segmentName") || "").toLowerCase().trim();
     const baseMonth = searchParams.get("baseMonth") || prevMonthRefIST();
 
+    // ✅ NEW
+    const rawCountry = searchParams.get("country");
+    const countryKey = normalizeCountry(rawCountry);
+    const wantsNonIndia = !!rawCountry && countryKey !== "india";
+
     if (!segmentName) {
-      return NextResponse.json(
-        { error: "Missing segmentName" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Missing segmentName" }, { status: 400 });
     }
 
     const parsed = parseBaseMonth(baseMonth);
@@ -148,15 +156,17 @@ export async function GET(req) {
         { status: 500 },
       );
 
+    const backendBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+
     const [hierarchyRes, volumeRes] = await Promise.all([
-      fetch(`${baseUrl}api/contentHierarchy`, {
+      fetch(`${backendBase}api/contentHierarchy`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         cache: "no-store",
       }),
-      fetch(`${baseUrl}api/volumeData`, {
+      fetch(`${backendBase}api/volumeData`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -175,27 +185,59 @@ export async function GET(req) {
     const hierarchyData = await hierarchyRes.json();
     const volumeData = await volumeRes.json();
 
+    // ✅ id-safe buildPath for correct stream (works for countries depth)
+    const buildPath = (id) => {
+      const path = [];
+      let current = hierarchyData.find((n) => eqId(n.id, id));
+      while (current) {
+        path.unshift(current.id);
+        const pid = current.parent_id;
+        if (pid == null) break;
+        current = hierarchyData.find((n) => eqId(n.id, pid));
+      }
+      return path.join(",");
+    };
+
     const mainRoot = hierarchyData.find(
-      (n) =>
-        String(n?.name || "")
-          .toLowerCase()
-          .trim() === "main root",
+      (n) => String(n?.name || "").toLowerCase().trim() === "main root",
     );
     if (!mainRoot) return NextResponse.json({});
 
     const flashReports = hierarchyData.find(
       (n) =>
-        String(n?.name || "")
-          .toLowerCase()
-          .trim() === "flash-reports" && n?.parent_id === mainRoot.id,
+        String(n?.name || "").toLowerCase().trim() === "flash-reports" &&
+        eqId(n?.parent_id, mainRoot.id),
     );
     if (!flashReports) return NextResponse.json({});
 
+    // ✅ choose segments root
+    let segmentsRoot = flashReports;
+
+    if (wantsNonIndia) {
+      const countriesNode = hierarchyData.find(
+        (n) => eqId(n.parent_id, flashReports.id) && norm(n.name) === "countries",
+      );
+
+      const countryNode = countriesNode
+        ? hierarchyData.find(
+            (n) =>
+              eqId(n.parent_id, countriesNode.id) &&
+              norm(n.name) === norm(countryKey),
+          )
+        : null;
+
+      if (!countryNode) {
+        // non-india requested but missing -> empty
+        return NextResponse.json({});
+      }
+
+      segmentsRoot = countryNode;
+    }
+
     const altFuel = hierarchyData.find(
       (n) =>
-        String(n?.name || "")
-          .toLowerCase()
-          .trim() === "alternative fuel" && n?.parent_id === flashReports.id,
+        String(n?.name || "").toLowerCase().trim() === "alternative fuel" &&
+        eqId(n?.parent_id, segmentsRoot.id),
     );
     if (!altFuel) return NextResponse.json({});
 
@@ -205,21 +247,12 @@ export async function GET(req) {
       const yearNode = findNodeByName(hierarchyData, altFuel.id, String(y));
       if (!yearNode) return;
 
-      const monthNode = findNodeByName(
-        hierarchyData,
-        yearNode.id,
-        MONTHS_LOWER[mIdx],
-      );
+      const monthNode = findNodeByName(hierarchyData, yearNode.id, MONTHS_LOWER[mIdx]);
       if (!monthNode) return;
 
-      const streamPath = [
-        mainRoot.id,
-        flashReports.id,
-        altFuel.id,
-        yearNode.id,
-        monthNode.id,
-      ].join(",");
-      const matched = volumeData.find((v) => v.stream === streamPath);
+      // ✅ stream derived from actual node ancestry (works for india + countries)
+      const streamPath = buildPath(monthNode.id);
+      const matched = volumeData.find((v) => String(v.stream) === String(streamPath));
       if (!matched?.data) return;
 
       const raw = matched.data?.data ?? matched.data;
@@ -242,9 +275,6 @@ export async function GET(req) {
     return NextResponse.json(hasAny ? out : {});
   } catch (err) {
     console.error("fetchMarketBarData error:", err);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

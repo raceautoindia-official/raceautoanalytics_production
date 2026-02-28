@@ -28,6 +28,37 @@ function StickyLikeHeader({ children }: React.PropsWithChildren) {
   );
 }
 
+function ForecastOutlineButton({
+  href,
+  children,
+}: React.PropsWithChildren<{ href: string }>) {
+  return (
+    <Link
+      id="forecast-btn"
+      href={href}
+      className="relative inline-flex h-11 items-center gap-2 rounded-2xl bg-[#081526] px-5 text-sm font-semibold text-white ring-1 ring-inset ring-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,.10)] transition hover:ring-white/35"
+      style={{ color: "#fff" }}
+    >
+      <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-b from-white/10 to-transparent opacity-15" />
+      <span className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-r from-sky-400/25 via-cyan-300/10 to-indigo-400/20 opacity-80" />
+      {/* small custom icon (no new imports required) */}
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        className="relative h-4 w-4 text-sky-300"
+        aria-hidden
+      >
+        <path
+          fill="currentColor"
+          d="M4 19h16v2H4zM6 17l4-6l4 4l4-8l2 1l-5 10l-4-4l-3 4z"
+        />
+      </svg>
+      {children}
+    </Link>
+  );
+}
+
 /* ---------- CTA buttons ---------- */
 function FlashOutlineButton({
   href,
@@ -112,6 +143,7 @@ export default function NavBar() {
                 <FlashOutlineButton href="/flash-reports">
                   Flash Report
                 </FlashOutlineButton>
+                 <ForecastOutlineButton href="/forecast">Forecast</ForecastOutlineButton>
                 <YellowButton href="https://raceautoindia.com/subscription">
                   Subscribe
                 </YellowButton>

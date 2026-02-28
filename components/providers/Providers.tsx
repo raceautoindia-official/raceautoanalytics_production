@@ -28,7 +28,15 @@ export function useAppContext() {
   return context;
 }
 
-const REGIONS = ["india", "apac", "emea", "americas", "global"];
+const sanitizeCountry = (s: string | null) => {
+  const v = String(s || "").toLowerCase().trim();
+  const clean = v
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 40);
+  return clean || "india";
+};
+
 
 // ✅ Cap earliest selectable month (locked requirement)
 const MIN_MONTH = "2024-01";
@@ -88,12 +96,10 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    const urlRegion = searchParams.get("region");
+    const urlCountry = searchParams.get("country") ?? searchParams.get("region");
     const urlMonth = searchParams.get("month");
 
-    if (urlRegion && REGIONS.includes(urlRegion)) {
-      setRegionState(urlRegion);
-    }
+if (urlCountry) setRegionState(sanitizeCountry(urlCountry));
 
     // ✅ If URL provides month, accept it ONLY within bounds
     if (urlMonth && isYYYYMM(urlMonth)) {
@@ -112,13 +118,13 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const setRegion = (newRegion: string) => {
     setRegionState(newRegion);
-    updateUrl({ region: newRegion, month });
+    updateUrl({ country: newRegion, month });
   };
 
   const setMonth = (newMonth: string) => {
     const clamped = clampYYYYMM(newMonth, minMonth, maxMonth);
     setMonthState(clamped);
-    updateUrl({ region, month: clamped });
+    updateUrl({ country: region, month: clamped });
   };
 
   const ctxValue = useMemo(

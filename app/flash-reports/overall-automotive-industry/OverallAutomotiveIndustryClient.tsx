@@ -12,7 +12,7 @@ import type {
   OverallChartPoint,
   MarketBarRawData,
 } from "@/lib/flashReportsServer";
-
+import { withCountry } from "@/lib/withCountry";
 interface OverallAutomotiveIndustryClientProps {
   initialOverallData: OverallChartPoint[];
   overAllText: any;
@@ -27,7 +27,13 @@ export function OverallAutomotiveIndustryClient({
   altFuelRaw,
 }: OverallAutomotiveIndustryClientProps) {
   const { region, month } = useAppContext();
-
+const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
   // ---- Line chart data (refetch on month change) ----
   const [overallData, setOverallData] = useState<OverallChartPoint[]>(
     initialOverallData ?? [],
@@ -69,11 +75,14 @@ export function OverallAutomotiveIndustryClient({
       try {
         setOverallLoading(true);
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
-          { cache: "no-store" },
-        );
+  withCountry(
+    `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+      month,
+    )}&horizon=6`,
+    region,
+  ),
+  { cache: "no-store" },
+);
 
         const json = await res.json();
         if (cancelled) return;
@@ -95,7 +104,7 @@ export function OverallAutomotiveIndustryClient({
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
@@ -120,7 +129,7 @@ export function OverallAutomotiveIndustryClient({
     } catch {
       return month;
     }
-  }, [month]);
+  }, [month, region]);
 
   // ---- Alt-fuel bar data (from backend) ----
   const altFuelComparison = useMemo(() => {
@@ -227,7 +236,7 @@ export function OverallAutomotiveIndustryClient({
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               { label: "Overall Automotive Industry" },
             ]}
             className="mb-4"

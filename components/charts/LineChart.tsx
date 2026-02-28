@@ -68,6 +68,20 @@ const forecastColors = {
   race: "#FFA500",
 };
 
+const legendHelp: Record<string, string> = {
+  Historical: "Actual historical volumes for the selected segment.",
+  "Forecast (Survey – ML Avg)":
+    "Forecast based on market survey inputs curated using a machine-learning blend.",
+  "Forecast (BYF)":
+    "Build your own forecast arrived user scoring",
+  "Forecast (AI)":
+    "Forecast produced by AI model using historical patterns and learned seasonality.",
+  "Forecast (Race)":
+    "Survey input based on expert opinion",
+  // If you ever re-enable:
+  "Forecast (Stats)": "Forecast based on statistical trend fitting from historical data.",
+};
+
 const abbreviate = (v: number) =>
   v >= 1e9
     ? `${(v / 1e9).toFixed(1)}B`
@@ -136,7 +150,7 @@ export function LineChart({
   horizon = 6,
   graphId = null,
   showSubmitScore = true,
-  submitScoreLabel = "Submit Score",
+  submitScoreLabel = "BYF Score",
 }: LineChartProps) {
   const selectedCat = category;
 
@@ -443,7 +457,7 @@ export function LineChart({
     if (enabled.has("score"))
       out.push({
         key: `${selectedCat}_forecast_score`,
-        name: "Forecast (Survey avg)",
+        name: "Forecast (Survey – ML Avg)",
         color: forecastColors.score,
         strokeDasharray: "2 2",
       });
@@ -451,9 +465,9 @@ export function LineChart({
     if (enabled.has("byof"))
       out.push({
         key: `${selectedCat}_forecast_byof`,
-        name: "Forecast (BYOF)",
+        name: "Forecast (BYF)",
         color: forecastColors.byof,
-        strokeDasharray: "3 2",
+        strokeDasharray: undefined,
       });
 
     if (enabled.has("ai"))
@@ -469,7 +483,7 @@ export function LineChart({
         key: `${selectedCat}_forecast_race`,
         name: "Forecast (Race)",
         color: forecastColors.race,
-        strokeDasharray: "2 4",
+        strokeDasharray: undefined,
       });
 
     return out;
@@ -501,7 +515,7 @@ export function LineChart({
 
             {allowForecastByData && (
               <>
-                <span
+                {/* <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
                   style={{ color: forecastColors.linear }}
                 >
@@ -509,7 +523,7 @@ export function LineChart({
                     {formatGrowth(growthRates.linear)}
                   </span>
                   <span className="opacity-80">Stats</span>
-                </span>
+                </span> */}
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
                   style={{ color: forecastColors.score }}
@@ -526,7 +540,7 @@ export function LineChart({
                   <span className="font-semibold">
                     {formatGrowth(growthRates.byof)}
                   </span>
-                  <span className="opacity-80">BYOF</span>
+                  <span className="opacity-80">BYF</span>
                 </span>
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
@@ -649,13 +663,50 @@ export function LineChart({
             <Tooltip content={<ForecastTooltip />} />
 
             <Legend
-              wrapperStyle={{
-                paddingTop: isMobile ? 8 : 20,
-                fontSize: isMobile ? 10 : 12,
-              }}
-              iconSize={isMobile ? 8 : 10}
-              iconType="line"
-            />
+  verticalAlign="bottom"
+  align="center"
+  content={({ payload }: any) => {
+    if (!payload?.length) return null;
+
+    return (
+      <div
+        className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
+        style={{ fontSize: isMobile ? 10 : 12 }}
+      >
+        {payload.map((item: any) => {
+          const name = String(item.value || item.dataKey);
+          const help = legendHelp[name] || "—";
+          const color = item.color;
+
+          return (
+            <div key={name} className="relative group inline-flex items-center">
+              {/* line icon */}
+              <span
+                className="mr-2 inline-block h-[2px] w-5 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+
+              {/* label */}
+              <span
+                className="cursor-help select-none"
+                style={{ color }}
+                aria-label={help}
+               
+              >
+                {name}
+              </span>
+
+              {/* custom hover tooltip */}
+              <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-max max-w-[280px] -translate-x-1/2 rounded-lg border border-border bg-popover/95 px-3 py-2 text-xs text-foreground opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100">
+                {help}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }}
+/>
 
             <Brush
               dataKey="month"
@@ -694,9 +745,27 @@ export function LineChart({
                     dataKey={line.key}
                     stroke={strokeColor}
                     strokeDasharray={line.strokeDasharray}
-                    strokeWidth={2}
-                    dot={{ r: 4, strokeWidth: 2 }}
-                    activeDot={{ r: 6, strokeWidth: 2 }}
+                    strokeWidth={
+                      line.key === selectedCat ||
+                      line.key === `${selectedCat}_forecast_byof` ||
+                      line.key === `${selectedCat}_forecast_race`
+                        ? 3
+                        : 2
+                    }
+                    dot={
+                      line.key === `${selectedCat}_forecast_byof` ||
+                      line.key === `${selectedCat}_forecast_race`
+                        ? false
+                        : { r: 4, strokeWidth: 2 }
+                    }
+                    activeDot={
+                      line.key === `${selectedCat}_forecast_byof` ||
+                      line.key === `${selectedCat}_forecast_race`
+                        ? false
+                        : { r: 6, strokeWidth: 2 }
+                    }
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     name={line.name}
                     isAnimationActive={animationConfig.isAnimationActive}
                     animationDuration={CHART_ANIMATION.duration.medium}

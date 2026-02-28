@@ -1,6 +1,6 @@
 import { getOverallChartData, getOverallText, getMarketBarRawData } from "@/lib/flashReportsServer";
 import { OverallAutomotiveIndustryClient } from "./OverallAutomotiveIndustryClient";
-
+import { withCountry } from "@/lib/withCountry";
 export const dynamic = "force-dynamic";
 
 export default async function OverallAutomotiveIndustryPage({

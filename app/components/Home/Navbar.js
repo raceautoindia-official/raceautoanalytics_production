@@ -14,6 +14,7 @@ const Navbar = () => {
   const linkMap = {
     NEWS: "https://raceautoindia.com/",
     "FLASH REPORT": "/flash-reports",
+    "FORECAST": "/forecast",
     MAGAZINE: "https://raceautoindia.com/magazine",
     "CONTACT US": "https://raceautoindia.com/page/contact",
   };
@@ -76,7 +77,19 @@ const Navbar = () => {
                   ⚡ Flash Report
                 </button>
               </Link>
-
+<Link href={linkMap["FORECAST"]}>
+  <button
+    className="btn fw-bold text-white forecast-thunder-btn"
+    style={{
+      borderRadius: "8px",
+      padding: "6px 14px",
+      fontSize: "0.9rem",
+      border: "none",
+    }}
+  >
+    📈 Forecast
+  </button>
+</Link>
               <Link href="https://raceautoindia.com/subscription">
                 <button
                   className="btn btn-warning fw-bold text-dark"
@@ -117,7 +130,7 @@ const Navbar = () => {
                     NEWS
                   </Link>
                 </li>
-                {["FLASH REPORT", "MAGAZINE", "CONTACT US"].map((item) => (
+                {["FLASH REPORT", "FORECAST", "MAGAZINE", "CONTACT US"].map((item) => (
                   <li
                     className={`nav-item ${
                       item === "FLASH REPORT" ? "flash-report" : ""
@@ -238,7 +251,7 @@ const Navbar = () => {
                 News
               </div>
             </li>
-            {["FLASH REPORT", "MAGAZINE", "CONTACT US"].map((item) => (
+            {["FLASH REPORT", "FORECAST", "MAGAZINE", "CONTACT US"].map((item) => (
               <li
                 className={`py-2 border-bottom ${
                   item === "FLASH REPORT" ? "flash-report" : ""
@@ -284,7 +297,7 @@ const Navbar = () => {
                     NEWS
                   </Link>
                 </li>
-                {["FLASH REPORT", "MAGAZINE", "CONTACT US"].map((item) => (
+                {["FLASH REPORT", "FORECAST", "MAGAZINE", "CONTACT US"].map((item) => (
                   <li
                     className={`nav-item ${
                       item === "FLASH REPORT" ? "flash-report" : ""
@@ -405,7 +418,7 @@ const Navbar = () => {
                 News
               </div>
             </li>
-            {["FLASH REPORT", "MAGAZINE", "CONTACT US"].map((item) => (
+            {["FLASH REPORT", "FORECAST", "MAGAZINE", "CONTACT US"].map((item) => (
               <li
                 className={`py-2 border-bottom ${
                   item === "FLASH REPORT" ? "flash-report" : ""
@@ -463,6 +476,25 @@ const Navbar = () => {
   .flash-thunder-btn:hover {
     transform: scale(1.05);
   }
+
+  .forecast-thunder-btn {
+  background: linear-gradient(135deg, #061a2b, #0b2a4a); /* deeper blue */
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.35); /* cyan glow */
+  animation: forecastThunder 3s infinite ease-in-out;
+  transition: transform 0.5s;
+}
+
+.forecast-thunder-btn:hover {
+  transform: scale(1.05);
+}
+
+@keyframes forecastThunder {
+  0%   { box-shadow: 0 0 4px rgba(34, 211, 238, 0.25); }
+  25%  { box-shadow: 0 0 16px rgba(56, 189, 248, 0.55); }
+  50%  { box-shadow: 0 0 6px rgba(34, 211, 238, 0.18); }
+  75%  { box-shadow: 0 0 20px rgba(56, 189, 248, 0.75); }
+  100% { box-shadow: 0 0 10px rgba(34, 211, 238, 0.35); }
+}
 
   @keyframes flashThunder {
     0% {

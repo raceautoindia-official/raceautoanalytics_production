@@ -62,7 +62,7 @@ export default function FlashReportsHelp() {
             description: (
               <span>
                 Go to <Text strong>Flash Questions</Text>. Add positive/negative
-                questions with weights. These power Survey Avg + BYOF lines.
+                questions with weights. These power Survey Avg + BYF lines.
               </span>
             ),
           },

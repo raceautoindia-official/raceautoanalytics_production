@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
+import { useAppContext } from "@/components/providers/Providers";
 import {
   TrendingUp,
   TrendingDown,
@@ -10,8 +12,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MiniSparkline } from "@/components/charts/MiniSparkline";
-import { MiniBarComparison } from "@/components/charts/MiniBarComparison";
-import { ProgressRing } from "@/components/charts/ProgressRing";
 import type { LucideIcon } from "lucide-react";
 
 interface VehicleCategoryCardProps {
@@ -38,6 +38,16 @@ interface VehicleCategoryCardProps {
   index: number;
 }
 
+function buildSuffix(country?: string, month?: string) {
+  const qs = new URLSearchParams();
+  const c = String(country || "").trim();
+  const m = String(month || "").trim();
+  if (c) qs.set("country", c);
+  if (m) qs.set("month", m);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
 export function VehicleCategoryCard({
   id,
   title,
@@ -49,7 +59,11 @@ export function VehicleCategoryCard({
   metrics,
   index,
 }: VehicleCategoryCardProps) {
-  // const isGrowing = metrics.momGrowth >= 0;
+  const { region, month } = useAppContext();
+
+  const suffix = useMemo(() => buildSuffix(region, month), [region, month]);
+  const href = useMemo(() => `/flash-reports/${id}${suffix}`, [id, suffix]);
+
   const sparklineData = metrics.trendData.map((value) => ({ value }));
 
   const colorMap: Record<string, string> = {
@@ -77,13 +91,9 @@ export function VehicleCategoryCard({
 
     const abs = Math.abs(value);
 
-    // ≥ 1,000,000 => M
     if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-
-    // ≥ 1,000 => K
     if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
 
-    // < 1,000 => plain number
     return `${Math.round(value)}`;
   };
 
@@ -94,7 +104,7 @@ export function VehicleCategoryCard({
 
   return (
     <Link
-      href={`/flash-reports/${id}`}
+      href={href}
       className="group block animate-fade-in hover-lift"
       style={{ animationDelay: `${index * 100}ms` }}
     >
@@ -157,6 +167,7 @@ export function VehicleCategoryCard({
                 Growth Rank –
               </span>
             )}
+
             {isTrending && (
               <span
                 className={cn(
@@ -275,19 +286,11 @@ export function VehicleCategoryCard({
 
           {/* Charts Section */}
           <div className="space-y-4 mb-4">
-            {/* Sparkline */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-muted-foreground">
                   6-Month Trend
                 </span>
-                {/* <ProgressRing
-                  percentage={Math.round(metrics.targetProgress)}
-                  size={40}
-                  strokeWidth={3}
-                  color={chartColor}
-                  label={`${Math.round(metrics.targetProgress)}%`}
-                /> */}
               </div>
               <MiniSparkline
                 data={sparklineData}
@@ -295,14 +298,6 @@ export function VehicleCategoryCard({
                 height={48}
               />
             </div>
-
-            {/* Mini Bar Comparison */}
-            {/* <MiniBarComparison
-              current={metrics.currentMonthSales}
-              previous={metrics.previousMonthSales}
-              color={chartColor}
-              height={28}
-            /> */}
           </div>
 
           {/* Optional EV Penetration */}
@@ -311,9 +306,7 @@ export function VehicleCategoryCard({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                  <span className="text-xs text-muted-foreground">
-                    EV Share
-                  </span>
+                  <span className="text-xs text-muted-foreground">EV Share</span>
                 </div>
                 <span className="text-sm font-semibold text-success">
                   {metrics.evPenetration.toFixed(1)}%

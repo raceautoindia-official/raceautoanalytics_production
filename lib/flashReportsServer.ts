@@ -1,5 +1,6 @@
 // lib/flashReportsServer.ts
 import "server-only";
+import { normalizeCountryKey } from "./flashReportCountry";
 
 const monthsList = [
   "jan",
@@ -72,9 +73,6 @@ function mapBackendKeyToCategory(normalizedKey: string): string | null {
 }
 
 function getPrevMonthIST(): string {
-  // Flash reporting month rolls over on the 5th (IST):
-  // - 1st–4th: treat "latest available" as two months ago
-  // - 5th onwards: treat "latest available" as previous calendar month
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
@@ -114,7 +112,7 @@ function monthsInclusive(startYYYYMM: string, endYYYYMM: string): string[] {
   while (cur <= endYYYYMM) {
     out.push(cur);
     cur = addMonths(cur, 1);
-    if (out.length > 240) break; // safety
+    if (out.length > 240) break;
   }
   return out;
 }
@@ -125,15 +123,32 @@ function buildWindowMonths(
   allowForecast: boolean,
 ): string[] {
   if (allowForecast) {
-    // 10 months total: baseMonth-3 ... baseMonth+horizon (horizon default 6)
     const start = addMonths(baseMonth, -3);
     const end = addMonths(baseMonth, horizon);
     return monthsInclusive(start, end);
   }
-  // old month view: strictly historical 10 months ending at baseMonth
   const start = addMonths(baseMonth, -9);
   const end = baseMonth;
   return monthsInclusive(start, end);
+}
+
+function normName(s: any) {
+  return String(s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[\s\-_]+/g, "");
+}
+
+function toNumLoose(v: any) {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const cleaned = v.replace(/,/g, "").trim();
+    if (!cleaned) return NaN;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 // ✅ main function with meta
@@ -141,12 +156,19 @@ export async function getOverallChartDataWithMeta(opts?: {
   baseMonth?: string;
   horizon?: number;
   forceHistorical?: boolean;
+  segmentName?: string;
+  country?: string;
+  debug?: boolean;
 }): Promise<OverallChartResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
   if (!baseUrl) throw new Error("NEXT_PUBLIC_BACKEND_URL is not set");
 
   const token = process.env.BACKEND_API_TOKEN;
   if (!token) throw new Error("BACKEND_API_TOKEN is not set");
+
+  const DBG = (...args: any[]) => {
+    if (opts?.debug) console.log("[overallChart-debug]", ...args);
+  };
 
   const horizon = Number.isFinite(opts?.horizon) ? Number(opts?.horizon) : 6;
 
@@ -155,128 +177,216 @@ export async function getOverallChartDataWithMeta(opts?: {
     ? String(opts?.baseMonth)
     : prevMonthIST;
 
-  // ✅ forecast only allowed when baseMonth == previous IST calendar month
   const allowForecast = !opts?.forceHistorical && baseMonth === prevMonthIST;
 
   const windowMonths = buildWindowMonths(baseMonth, horizon, allowForecast);
-  const targetMonthsSet = new Set(windowMonths);
 
-  const [hierarchyRes, volumeRes] = await Promise.all([
-    fetch(`${baseUrl}api/contentHierarchy`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-    }),
-    fetch(`${baseUrl}api/volumeData`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-    }),
-  ]);
+  // ✅ country flags (India behavior unchanged)
+  const countryKey = normalizeCountryKey(opts?.country);
+  const wantsNonIndia = !!opts?.country && countryKey !== "india";
 
-  if (!hierarchyRes.ok || !volumeRes.ok)
-    throw new Error("Failed to fetch content hierarchy or volume data");
+  const backendBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const siteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = siteUrlRaw.replace(/\/$/, "");
 
-  const hierarchyData = await hierarchyRes.json();
-  const volumeData = await volumeRes.json();
+  const loadBackend = async () => {
+    const [hierarchyRes, volumeRes] = await Promise.all([
+      fetch(`${backendBase}api/contentHierarchy`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }),
+      fetch(`${backendBase}api/volumeData`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }),
+    ]);
 
-  const mainRoot = hierarchyData.find(
-    (n: any) => n.name?.toLowerCase() === "main root",
-  );
-  if (!mainRoot) {
-    // Important: return nulls (empty data) not zeros.
-    // Zeros get treated as real observations and will corrupt regression and forecasts.
+    if (!hierarchyRes.ok || !volumeRes.ok)
+      throw new Error("Failed to fetch backend hierarchy/volume");
+
     return {
-      data: windowMonths.map((m) => ({ month: m, data: {} })),
-      meta: { baseMonth, allowForecast, horizon, windowMonths },
+      hierarchyData: await hierarchyRes.json(),
+      volumeData: await volumeRes.json(),
     };
-  }
+  };
 
-  const flashReports = hierarchyData.find(
-    (n: any) =>
-      n.name?.toLowerCase() === "flash-reports" && n.parent_id === mainRoot.id,
-  );
-  if (!flashReports) {
+  const loadLocal = async () => {
+    const [hierarchyRes, volumeRes] = await Promise.all([
+      fetch(`${siteUrl}/api/contentHierarchy`, { cache: "no-store" }),
+      fetch(`${siteUrl}/api/volumeData`, { cache: "no-store" }),
+    ]);
+
+    if (!hierarchyRes.ok || !volumeRes.ok)
+      throw new Error("Failed to fetch local hierarchy/volume");
+
     return {
-      data: windowMonths.map((m) => ({ month: m, data: {} })),
-      meta: { baseMonth, allowForecast, horizon, windowMonths },
+      hierarchyData: await hierarchyRes.json(),
+      volumeData: await volumeRes.json(),
     };
-  }
+  };
 
-  const overall = hierarchyData.find(
-    (n: any) =>
-      n.name?.toLowerCase() === "overall" && n.parent_id === flashReports.id,
-  );
-  if (!overall) {
-    return {
-      data: windowMonths.map((m) => ({ month: m, data: {} })),
-      meta: { baseMonth, allowForecast, horizon, windowMonths },
+  // ✅ compute using the SAME reliable path logic for India + all countries
+  const computeFrom = (hierarchyData: any[], volumeData: any[]): OverallChartResponse => {
+    const sid = (v: any) => String(v ?? "");
+    const eqId = (a: any, b: any) => sid(a) === sid(b);
+
+    // Build full stream path by walking parents
+    const buildPath = (id: number | string) => {
+      const path: Array<number | string> = [];
+      let cur = hierarchyData.find((n: any) => eqId(n.id, id));
+      while (cur) {
+        path.unshift(cur.id);
+        const pid = cur.parent_id;
+        if (pid == null) break;
+        cur = hierarchyData.find((n: any) => eqId(n.id, pid));
+      }
+      return path.join(",");
     };
-  }
 
-  const yearNodes = hierarchyData.filter(
-    (n: any) => n.parent_id === overall.id,
-  );
+    // Fast stream lookup
+    const volumeByStream = new Map<string, any>();
+    for (const v of volumeData || []) volumeByStream.set(String(v.stream), v);
 
-  // map month -> data
-  const byMonth = new Map<string, Record<string, number>>();
+    const mainRoot =
+      hierarchyData.find((n: any) => normName(n?.name) === "mainroot") ||
+      hierarchyData.find((n: any) => normName(n?.name) === "mainroot") ||
+      hierarchyData.find((n: any) => normName(n?.name) === "mainroot") ||
+      hierarchyData.find((n: any) => normName(n?.name) === "mainroot") ||
+      hierarchyData.find((n: any) => normName(n?.name) === "mainroot") ||
+      hierarchyData.find((n: any) => String(n.name || "").toLowerCase().trim() === "main root") ||
+      null;
 
-  for (const yearNode of yearNodes) {
-    const year = String(yearNode.name);
-    const monthNodes = hierarchyData.filter(
-      (n: any) => n.parent_id === yearNode.id,
-    );
+    if (!mainRoot) {
+      return {
+        data: windowMonths.map((m) => ({ month: m, data: {} })),
+        meta: { baseMonth, allowForecast, horizon, windowMonths },
+      };
+    }
 
-    for (const monthNode of monthNodes) {
-      const monthIndex = monthsList.indexOf(
-        String(monthNode.name).toLowerCase(),
-      );
-      if (monthIndex === -1) continue;
+    const flashReports =
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, mainRoot.id) && normName(n?.name) === "flashreports",
+      ) ||
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, mainRoot.id) &&
+          String(n.name || "").toLowerCase().trim() === "flash-reports",
+      ) ||
+      null;
 
-      const formattedMonth = `${year}-${String(monthIndex + 1).padStart(
-        2,
-        "0",
-      )}`;
-      if (!targetMonthsSet.has(formattedMonth)) continue;
+    if (!flashReports) {
+      return {
+        data: windowMonths.map((m) => ({ month: m, data: {} })),
+        meta: { baseMonth, allowForecast, horizon, windowMonths },
+      };
+    }
 
-      const streamPath = [
-        mainRoot.id,
-        flashReports.id,
-        overall.id,
-        yearNode.id,
-        monthNode.id,
-      ].join(",");
-      const matchedEntry = volumeData.find((v: any) => v.stream === streamPath);
+    // ✅ resolve root node exactly like your probe (this is the key fix)
+    let rootNode: any = flashReports;
+
+    if (wantsNonIndia) {
+      const countriesNode =
+        hierarchyData.find(
+          (n: any) =>
+            eqId(n.parent_id, flashReports.id) &&
+            normName(n?.name) === "countries",
+        ) || null;
+
+      const countryNode =
+        countriesNode
+          ? hierarchyData.find(
+              (n: any) =>
+                eqId(n.parent_id, countriesNode.id) &&
+                normName(n?.name) === normName(countryKey),
+            ) || null
+          : null;
+
+      if (!countryNode) {
+        // non-india requested but not present -> empty
+        return {
+          data: windowMonths.map((m) => ({ month: m, data: {} })),
+          meta: { baseMonth, allowForecast, horizon, windowMonths },
+        };
+      }
+
+      rootNode = countryNode;
+    }
+
+    const overall =
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, rootNode.id) &&
+          String(n.name || "").toLowerCase().trim() === "overall",
+      ) || null;
+
+    if (!overall) {
+      return {
+        data: windowMonths.map((m) => ({ month: m, data: {} })),
+        meta: { baseMonth, allowForecast, horizon, windowMonths },
+      };
+    }
+
+    DBG("country:", opts?.country, "rootNode:", rootNode?.id, rootNode?.name);
+    DBG("overall:", overall?.id, overall?.name);
+
+    const byMonth = new Map<string, Record<string, number>>();
+
+    // ✅ robust: drive traversal from windowMonths (YYYY-MM)
+    for (const yyyymm of windowMonths) {
+      const [yy, mmStr] = String(yyyymm).split("-");
+      const mm = Number(mmStr);
+      if (!yy || !Number.isFinite(mm) || mm < 1 || mm > 12) continue;
+
+      const yearNode =
+        hierarchyData.find(
+          (n: any) =>
+            eqId(n.parent_id, overall.id) &&
+            String(n.name || "").trim() === String(yy).trim(),
+        ) || null;
+
+      if (!yearNode) continue;
+
+      const monthShort = monthsList[mm - 1];
+      const monthNode =
+        hierarchyData.find(
+          (n: any) =>
+            eqId(n.parent_id, yearNode.id) &&
+            String(n.name || "").toLowerCase().trim() === monthShort,
+        ) || null;
+
+      if (!monthNode) continue;
+
+      const streamPath = buildPath(monthNode.id);
+      const matchedEntry = volumeByStream.get(String(streamPath));
       if (!matchedEntry?.data) continue;
 
-      const rawData = (matchedEntry.data as any).data ?? matchedEntry.data;
+      // handle both shapes: {data:{...}} and {...}
+      const raw1 = (matchedEntry.data as any).data ?? matchedEntry.data;
+      const rawData =
+        raw1 &&
+        typeof raw1 === "object" &&
+        (raw1 as any).data &&
+        typeof (raw1 as any).data === "object"
+          ? (raw1 as any).data
+          : raw1;
 
       const data: Record<string, number> = {};
-      for (const [key, value] of Object.entries(rawData)) {
-        const catKey = mapBackendKeyToCategory(
-          String(key).toLowerCase().trim(),
-        );
+      for (const [key, value] of Object.entries(rawData || {})) {
+        const catKey = mapBackendKeyToCategory(String(key).toLowerCase().trim());
         if (!catKey) continue;
-        const num = Number(value);
+        const num = toNumLoose(value);
         if (Number.isFinite(num)) data[catKey] = num;
       }
 
-      /**
-       * ✅ TOTAL RULE (locked requirement)
-       * - If Total exists in stored data, trust it.
-       * - Only compute Total as a fallback when Total is missing.
-       *
-       * ✅ Double-count protection
-       * - If CV exists, CV already represents Truck+Bus in most datasets.
-       *   So fallback Total = 2W + 3W + PV + TRAC + CV + CE (exclude Truck/Bus).
-       * - If CV does NOT exist, fallback Total = 2W + 3W + PV + TRAC + Truck + Bus + CE.
-       */
+      // ✅ TOTAL RULE unchanged
       if (!Number.isFinite(data["Total"])) {
-        console.log("Total data is not available ",data["Total"]);
         const baseKeys = ["2W", "3W", "PV", "TRAC", "CE"];
         const baseSum = baseKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
 
@@ -287,21 +397,37 @@ export async function getOverallChartDataWithMeta(opts?: {
         data["Total"] = cv > 0 ? baseSum + cv : baseSum + truck + bus;
       }
 
-      byMonth.set(formattedMonth, data);
+      byMonth.set(yyyymm, data);
     }
+
+    const points: OverallChartPoint[] = windowMonths.map((m) => ({
+      month: m,
+      data: byMonth.get(m) ?? {},
+    }));
+
+    return {
+      data: points,
+      meta: { baseMonth, allowForecast, horizon, windowMonths },
+    };
+  };
+
+  // ✅ INDIA: keep existing behavior (backend only)
+  if (!wantsNonIndia) {
+    const backend = await loadBackend();
+    return computeFrom(backend.hierarchyData, backend.volumeData);
   }
 
-  // Include all months for windowing, but do NOT invent zeros for missing months.
-  // Missing months must stay null so charts and regressions can ignore them.
-  const points: OverallChartPoint[] = windowMonths.map((m) => ({
-    month: m,
-    data: byMonth.get(m) ?? {},
-  }));
+  // ✅ NON-INDIA: backend first; if empty, fallback to local
+  const backend = await loadBackend();
+  const resBackend = computeFrom(backend.hierarchyData, backend.volumeData);
+  const hasAnyBackend = resBackend.data.some(
+    (p) => Object.keys(p.data || {}).length > 0,
+  );
 
-  return {
-    data: points,
-    meta: { baseMonth, allowForecast, horizon, windowMonths },
-  };
+  if (hasAnyBackend) return resBackend;
+
+  const local = await loadLocal();
+  return computeFrom(local.hierarchyData, local.volumeData);
 }
 
 // Backwards-compatible helper (if anything still calls it)
@@ -340,12 +466,9 @@ export async function getMarketBarRawData(
     ...(baseMonth ? { baseMonth } : {}),
   });
 
-  const res = await fetch(
-    `${siteUrl}/api/fetchMarketBarData?${qs.toString()}`,
-    {
-      cache: "no-store",
-    },
-  );
+  const res = await fetch(`${siteUrl}/api/fetchMarketBarData?${qs.toString()}`, {
+    cache: "no-store",
+  });
 
   if (!res.ok) return null;
   return (await res.json()) as MarketBarRawData;

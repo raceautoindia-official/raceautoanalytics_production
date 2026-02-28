@@ -11,7 +11,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { formatNumber } from "@/lib/mockData";
-
+import { withCountry } from "@/lib/withCountry";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -66,9 +66,9 @@ function pickSeries(row: any, keys: string[]): number {
   const lowerMap: Record<string, number> = {};
 
   for (const [k, v] of Object.entries(source)) {
-    if (typeof v === "number") {
-      lowerMap[k.toLowerCase()] = v;
-    }
+   const num =
+  typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+if (Number.isFinite(num)) lowerMap[k.toLowerCase()] = num;
   }
 
   for (const key of keys) {
@@ -144,7 +144,7 @@ export default function BusesPage() {
 
   useEffect(() => {
     setOemCurrentMonth(month);
-  }, [month]);
+  }, [month, region]);
 
   useEffect(() => {
     (async () => {
@@ -172,11 +172,14 @@ export default function BusesPage() {
         const segmentName = "bus";
 
         const res = await fetch(
-          `/api/fetchMarketData?segmentName=${encodeURIComponent(
-            segmentName,
-          )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
-            effectiveMonth,
-          )}&selectedMonth=${shortMonth}`,
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              segmentName,
+            )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${encodeURIComponent(shortMonth)}`,
+            region,
+          ),
         );
 
         if (!res.ok) {
@@ -204,7 +207,16 @@ export default function BusesPage() {
     return () => {
       cancelled = true;
     };
-  }, [oemCompare, oemCurrentMonth, month]);
+  }, [oemCompare, oemCurrentMonth, month, region]);
+
+useEffect(() => {
+  setSegmentRows([]);
+  setSegmentError(null);
+
+  setAppRaw([]);
+  setAppError(null);
+  setAppMonth("");
+}, [region]);
 
   // ---------- PROCESS OEM DATA ----------
   const oemComputed = useMemo(() => {
@@ -345,9 +357,12 @@ export default function BusesPage() {
         setOverallError(null);
 
         const res = await fetch(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-            month,
-          )}&horizon=6`,
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -377,7 +392,7 @@ export default function BusesPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- FETCH SEGMENT SPLIT (for buses) ----------
   useEffect(() => {
@@ -389,9 +404,12 @@ export default function BusesPage() {
         setSegmentError(null);
 
         const res = await fetch(
-          `/api/fetchCVSegmentSplit?segmentName=${encodeURIComponent(
-            "bus",
-          )}&baseMonth=${encodeURIComponent(month)}`,
+          withCountry(
+            `/api/fetchCVSegmentSplit?segmentName=${encodeURIComponent(
+              "bus",
+            )}&baseMonth=${encodeURIComponent(month)}`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -420,7 +438,7 @@ export default function BusesPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   // ---------- Segment donut data ----------
   const segmentDonutData = useMemo(() => {
@@ -465,9 +483,12 @@ export default function BusesPage() {
         setAppError(null);
 
         const res = await fetch(
-          `/api/fetchAppData?segmentName=${encodeURIComponent(
-            "bus",
-          )}&segmentType=app&baseMonth=${encodeURIComponent(month)}`,
+          withCountry(
+            `/api/fetchAppData?segmentName=${encodeURIComponent(
+              "bus",
+            )}&segmentType=app&baseMonth=${encodeURIComponent(month)}`,
+            region,
+          ),
           { cache: "no-store" },
         );
 
@@ -498,7 +519,7 @@ export default function BusesPage() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, region]);
 
   const appAvailableMonths = useMemo(() => {
     if (!appRaw.length) return [] as string[];
@@ -537,7 +558,7 @@ export default function BusesPage() {
         : appAvailableMonths[appAvailableMonths.length - 1];
 
     setAppMonth(fallback);
-  }, [month, appAvailableMonths]);
+  }, [month, region, appAvailableMonths]);
 
   const appChartData = useMemo(() => {
     if (!appMonth || !appRaw.length) return [];
@@ -572,6 +593,8 @@ export default function BusesPage() {
     year: "numeric",
   });
 
+
+
   if (!mounted) {
     return <PageSkeleton />;
   }
@@ -585,10 +608,10 @@ export default function BusesPage() {
         <div className="mb-8">
           <Breadcrumbs
             items={[
-              { label: "Flash Reports", href: "/flash-reports" },
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
               {
                 label: "Commercial Vehicles",
-                href: "/flash-reports/commercial-vehicles",
+                href: `/flash-reports/commercial-vehicles${suffix}`,
               },
               { label: "Buses" },
             ]}
