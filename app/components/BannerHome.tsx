@@ -127,7 +127,7 @@ function FlipInfoCard({
   return (
     <div className="group relative">
       <div
-        className="relative h-[360px] md:h-[380px] lg:h-[360px] w-full [perspective:1400px]"
+        className="relative h-[400px] md:h-[400px] lg:h-[360px] w-full [perspective:1400px]"
         aria-label={`${title} info card`}
       >
         <div
