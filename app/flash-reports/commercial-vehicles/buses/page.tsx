@@ -115,7 +115,13 @@ function sortMonthLabels(a: string, b: string) {
 export default function BusesPage() {
   const { region, month } = useAppContext();
   const [mounted, setMounted] = useState(false);
-
+ const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
   // ---- OEM chart (bus market share) ----
   const [oemCompare, setOemCompare] = useState<"mom" | "yoy">("mom");
   const [oemCurrentMonth, setOemCurrentMonth] = useState(month);
