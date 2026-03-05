@@ -8,6 +8,11 @@ import IndustryCategories from "@/app/components/IndustryCategories";
 import KeyMarketInsights from "@/app/components/KeyMarketInsights";
 import ExploreToolsInsights from "@/app/components/ExploreToolsInsights";
 import Footer from "@/app/components/Footer";
+import QuickGuidesSection from "./components/QuickGuidesSection";
+import NavBar from "./components/Navbar";
+import MarketKPIGridDark from "./components/MarketKPIGrid";
+import OEMLeaderboardAndSegmentsEqualized from "./components/OEMLeaderboardAndSegments";
+import ForecastPreview from "./components/ForecastPreview";
 
 export default function Page() {
   const jsonLd = {
@@ -33,14 +38,16 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <BannerHome />
-      {/* <MarketKPIGrid /> */}
-      <VehicleCategorySalesCard />
-      <IndustryCategories />
-      {/* <OEMLeaderboardAndSegments /> */}
-      {/* <ForecastPreview /> */}
-      <KeyMarketInsights />
-      <ExploreToolsInsights />
+      <NavBar/>
+      {/* <BannerHome /> */}
+      <QuickGuidesSection/>
+   {/* <MarketKPIGridDark /> 
+   <VehicleCategorySalesCard /> */}
+      {/* <IndustryCategories /> * */}
+      {/* <OEMLeaderboardAndSegmentsEqualized />  */}
+    {/* <ForecastPreview /> */}
+      {/* <KeyMarketInsights /> */}
+     
       <Footer />
     </>
   );
