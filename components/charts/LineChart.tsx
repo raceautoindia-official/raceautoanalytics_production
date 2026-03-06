@@ -49,23 +49,23 @@ const monthNames = [
 ];
 
 const catColors: Record<string, string> = {
-  "2W": "#ffffff",
+  "2W": "#545454",
   "3W": "#ff1f23",
   PV: "#FFCE56",
   TRAC: "#4BC0C0",
   Truck: "#00CED1",
   Bus: "#DC143C",
   CV: "#9966FF",
-  CE: "#22C55E",
+  CE: "#65f89b",
   Total: "#FF9F40",
 };
 
 const forecastColors = {
   linear: "#00BFFF",
   score: "#FF69B4",
-  byof: "#A78BFA",
-  ai: "#32CD32",
-  race: "#FFA500",
+  byof: "#4000ff",
+  ai: "#00d800",
+  race: "#ffffff",
 };
 
 const legendHelp: Record<string, string> = {
