@@ -159,7 +159,7 @@ function FlipInfoCard({
   return (
     <div className="group relative">
       <div
-        className="relative h-[490px] md:h-[470px] lg:h-[450px] w-full [perspective:1400px]"
+        className="relative h-[450px] md:h-[430px] lg:h-[380px] w-full [perspective:1400px]"
         aria-label={ariaLabel}
       >
         <div
@@ -329,11 +329,12 @@ function CountryBadge({
     <button
       type="button"
       onClick={() => onClick(country)}
-      className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/90 shadow-sm transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+      className="inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-white/90 shadow-sm transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1 sm:text-xs"
       aria-label={`Open ${country.name} info`}
+      title={country.name}
     >
       <FlagIcon code={country.code} alt={country.name} />
-      <span className="whitespace-nowrap">{country.name}</span>
+      <span className="truncate">{country.name}</span>
     </button>
   );
 }
@@ -511,15 +512,15 @@ export default function QuickGuidesSection() {
                       Primary countries (launching)
                     </div>
 
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {countries.map((c) => (
-                        <CountryBadge
-                          key={c.name}
-                          country={c}
-                          onClick={setActiveCountry}
-                        />
-                      ))}
-                    </div>
+                   <div className="mt-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+  {countries.map((c) => (
+    <CountryBadge
+      key={c.name}
+      country={c}
+      onClick={setActiveCountry}
+    />
+  ))}
+</div>
 
                     <div className="mt-2 text-[11px] text-white/55">
                       Tap a country to preview what’s coming.
