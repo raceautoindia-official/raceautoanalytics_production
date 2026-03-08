@@ -51,6 +51,26 @@
     --bs-link-hover-color-rgb: 255,255,255 !important;
   }
 
+:root {
+  /* Premium auth theme (dark blue) */
+  --auth-bg: #050B1A;          /* page overlay */
+  --auth-card: #0B1228;        /* modal surface */
+  --auth-card-2: #0E1833;      /* inner panel */
+  --auth-border: rgba(255,255,255,0.10);
+  --auth-border-2: rgba(255,255,255,0.14);
+
+  --auth-text: #EAF0FF;
+  --auth-muted: rgba(234,240,255,0.70);
+  --auth-muted-2: rgba(234,240,255,0.55);
+
+  --auth-primary: #4F67FF;     /* blue button */
+  --auth-primary-2: #3B55FF;   /* hover */
+  --auth-primary-ring: rgba(79,103,255,0.35);
+
+  --auth-input: rgba(255,255,255,0.05);
+  --auth-input-2: rgba(255,255,255,0.08);
+}
+
   * {
     box-sizing: border-box;
     padding: 0;

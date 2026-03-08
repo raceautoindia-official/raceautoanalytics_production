@@ -1,178 +1,159 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { usePathname } from "next/navigation";
+
 import LoginForm from "./LoginForm";
-import SignupForm from "@/app/components/register/signup";
+import Signup from "@/app/components/register/signup";
 
-export default function AuthModal({ show, onClose }) {
+type Props = {
+  open?: boolean;
+  show?: boolean;
+  onClose?: () => void;
+  onSuccess?: () => void;
+
+  // UI control
+  disableClose?: boolean; // if true: no X, no overlay close, no ESC
+  embedded?: boolean; // if true: no overlay shell
+};
+
+export default function AuthModal({
+  open,
+  show,
+  onClose,
+  onSuccess,
+  disableClose = false,
+  embedded = false,
+}: Props) {
+  const visible = typeof open === "boolean" ? open : !!show;
   const pathname = usePathname();
-  const isHome = pathname === "/";
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "signup">("login");
 
-  // useEffect(() => {
-  //   if (!show) return;
-  //   const original = document.body.style.overflow;
-  //   document.body.style.overflow = "hidden";
-  //   return () => {
-  //     document.body.style.overflow = original;
-  //   };
-  // }, [show]);
+  // Reset to login each time opens (pure UI behavior)
+  useEffect(() => {
+    if (visible) setMode("login");
+  }, [visible]);
 
+  // ESC close (only if allowed)
+  useEffect(() => {
+    if (!visible || disableClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visible, disableClose, onClose]);
 
+  const title = useMemo(() => {
+    if (pathname?.startsWith("/forecast")) return "Forecast Premium Access";
+    if (pathname?.startsWith("/flash-reports")) return "Flash Reports Premium Access";
+    return "RaceAutoAnalytics Premium";
+  }, [pathname]);
 
-  if (!show) return null;
+  if (!visible) return null;
 
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
+  const Shell = ({ children }: { children: React.ReactNode }) => {
+    if (embedded) return <>{children}</>;
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-[#050B1A]/80 backdrop-blur-[14px]"
+          onClick={() => {
+            if (!disableClose) onClose?.();
+          }}
+        />
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape") onClose();
+        {/* Modal */}
+        <div className="relative w-full max-w-[400px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)]">
+          {children}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex justify-center bg-black/40 backdrop-blur-sm"
-      onClick={handleOverlayClick}
-      onKeyDown={handleKeyDown}
-      tabIndex={-1}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl shadow-black/10">
-        <div className="relative px-6 pb-6 pt-5">
-          {/* Show close button only on home path (still optional) */}
-          {isHome && (
-            <button
-              type="button"
-              onClick={() => onClose()}
-              className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              aria-label="Close"
-            >
-              <span className="text-lg leading-none">&times;</span>
-            </button>
-          )}
+    <Shell>
+      {/* subtle top glow */}
+      <div className="pointer-events-none absolute -top-28 left-1/2 h-56 w-[860px] -translate-x-1/2 rounded-full bg-[#4F67FF]/18 blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/8 to-transparent" />
 
-          {/* Login / Signup toggle */}
-          <div className="mb-5 flex justify-center">
-            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-              <button
-                type="button"
-                onClick={() => setMode("login")}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${
-                  mode === "login"
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-white"
-                }`}
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("register")}
-                className={`ml-1 px-4 py-1.5 text-sm font-medium rounded-md transition ${
-                  mode === "register"
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-white"
-                }`}
-              >
-                Signup
-              </button>
-            </div>
+      {/* Header */}
+      <div className="relative flex items-start justify-between gap-4 px-8 pt-3">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-2xl " />
+          <div>
+          
           </div>
+        </div>
 
-          {mode === "login" ? (
-            <>
-              <div className="mb-4 flex justify-center">
-                <p className="mt-2 text-center text-xs text-gray-500">
-                  Please enter your Race Auto India login credentials below
-                </p>
-              </div>
-              <LoginForm onSuccess={onClose} />
-            </>
-          ) : (
-            <>
-              <div className="mb-4 flex justify-center">
-                <p className="mt-2 text-center text-xs text-gray-500">
-                  New to Race Auto India? Create an account below
-                </p>
-              </div>
-              <SignupForm onSuccess={onClose} />
-            </>
-          )}
+        {!disableClose && (
+          <button
+            type="button"
+            onClick={() => onClose?.()}
+            className="rounded-2xl border border-white/10 bg-white/5 p-2 text-[#EAF0FF]/80 transition hover:bg-white/10 hover:text-[#EAF0FF]"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="relative px-8 pt-6">
+        <div className="grid grid-cols-2 rounded-2xl border border-white/10 bg-white/5">
+          <button
+            type="button"
+            onClick={() => setMode("login")}
+            className={[
+              "h-8 rounded-xl text-sm font-semibold transition",
+              mode === "login"
+                ? "bg-[#4F67FF]/18 text-[#EAF0FF] border border-[#4F67FF]/30"
+                : "text-[#EAF0FF]/70 hover:bg-white/5 hover:text-[#EAF0FF]",
+            ].join(" ")}
+          >
+            Login
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMode("signup")}
+            className={[
+              "h-8 rounded-xl text-sm font-semibold transition",
+              mode === "signup"
+                ? "bg-[#4F67FF]/18 text-[#EAF0FF] border border-[#4F67FF]/30"
+                : "text-[#EAF0FF]/70 hover:bg-white/5 hover:text-[#EAF0FF]",
+            ].join(" ")}
+          >
+            Sign up
+          </button>
         </div>
       </div>
-    </div>
+
+      {/* Body */}
+      <div className="relative px-8 pb-8 pt-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0E1833]/70 p-6">
+          {mode === "login" ? (
+            <LoginForm
+              onSuccess={() => {
+                onSuccess?.();
+                onClose?.();
+              }}
+            />
+          ) : (
+            <Signup
+              onSuccess={() => {
+                onSuccess?.();
+                onClose?.();
+              }}
+            />
+          )}
+        </div>
+
+
+      
+      </div>
+    </Shell>
   );
 }
-
-// "use client";
-
-// import React, { useState } from "react";
-// import { Modal, CloseButton } from "react-bootstrap";
-// import LoginForm from "./LoginForm";
-// import { usePathname } from "next/navigation";
-// import SignupForm from '@/app/components/register/signup'
-
-// export default function AuthModal({ show, onClose }) {
-//   const pathname = usePathname();
-//   const isHome = pathname === "/";
-//   const [mode, setMode] = useState("login");
-
-//   return (
-//     <Modal show={show} onHide={isHome ? onClose : undefined} centered size="sm">
-//       <Modal.Body className="position-relative">
-//         {/* Show close button only on home path */}
-//         {isHome && (
-//           <div className="position-absolute top-0 end-0 m-2">
-//             <CloseButton onClick={onClose} />
-//           </div>
-//         )}
-// {/* {
-//         <CloseButton onClick={onClose} /> } */}
-//         <div className="d-flex justify-content-center mb-3 ">
-//           <div className="btn-group me-3" role="group" >
-//             <button
-
-//               className={`btn ${mode === 'login' ? 'btn-primary text-white' : 'btn-outline-secondary'}`}
-//               onClick={() => setMode('login')}
-//             >
-//               Login
-//             </button>
-//             <button
-//               className={`btn ${mode === 'register' ? 'btn-primary text-white' : 'btn-outline-secondary'}`}
-//               onClick={() => setMode('register')}
-//             >
-//               Signup
-//             </button>
-//           </div>
-//         </div>
-
-//         {/* Forms */}
-//         {mode === "login" ? (
-//           <>
-//             <div className="d-flex justify-content-center mb-3">
-//               <p className="p-0 m-0 text-center text-muted mt-2">
-//                 Please enter your Race Auto India login credentials below
-//               </p>
-//             </div>
-//             <LoginForm onSuccess={onClose} />
-//           </>
-//         ) : (
-//           <>
-//             <div className="d-flex justify-content-center mb-3">
-//               <p className="p-0 m-0 text-center text-muted mt-2">
-//                 New to Race Auto India? Create an account below
-//               </p>
-//             </div>
-
-//             <SignupForm onSuccess={onClose} />
-//           </>
-//         )}
-//       </Modal.Body>
-//     </Modal>
-//   );
-// }

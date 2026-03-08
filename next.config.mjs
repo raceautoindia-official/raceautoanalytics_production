@@ -2,7 +2,7 @@ import withPlaiceholder from "@plaiceholder/next";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false,
   env: {
     BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL,
   },

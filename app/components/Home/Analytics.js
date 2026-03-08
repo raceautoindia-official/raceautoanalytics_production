@@ -2,6 +2,7 @@ import React from "react";
 import Image from "next/image";
 import './home.css';
 import Link from "next/link";
+import SubscribeButton from "@/components/subscription/SubscribeButton";
 
 function Analytics() {
   return (
@@ -83,7 +84,11 @@ function Analytics() {
             opportunities for OEMs, suppliers, fleet operators, and industry
             analysts.
           </p>
-          <Link href='https://raceautoindia.com/subscription'><button style={{ background:"#001624",width:"100px",borderRadius:"7px" }} className="text-white p-2 mt-2">Subscribe</button></Link>
+          <SubscribeButton
+  className="p-2 rounded border-0 fw-bold"
+>
+  SUBSCRIBE
+</SubscribeButton>
         </div>
       </div>
     </div>
@@ -124,7 +129,11 @@ function Analytics() {
             opportunities for OEMs, suppliers, fleet operators, and industry
             analysts.
           </p>
-          <Link href='https://raceautoindia.com/subscription'><button style={{ background:"#001624",width:"100px",borderRadius:"7px" }} className="text-white p-2 mt-2 sub-but">Subscribe</button></Link>
+         <SubscribeButton
+  className="p-2 rounded border-0 fw-bold"
+>
+  SUBSCRIBE
+</SubscribeButton>
         </div>
       </div>
     </div>

@@ -332,7 +332,7 @@ export default function LandingHero() {
               title="Flash Reports"
               subtitle="Monthly market snapshots across categories with country-wise switching, segment splits, OEM share, and EV adoption insights."
               bullets={flashBullets}
-              ctaHref="/flash-reports"
+              ctaHref="/flash-reports-overview"
               ctaLabel="Open Flash Reports"
               theme="blue"
             />
@@ -340,7 +340,7 @@ export default function LandingHero() {
               title="Forecast"
               subtitle="Forecast volumes with analytics-driven methods and scenario comparisons. Designed for segment-level planning and trend validation."
               bullets={forecastBullets}
-              ctaHref="/forecast"
+              ctaHref="/forecast/overview"
               ctaLabel="Open Forecast"
               theme="indigo"
             />

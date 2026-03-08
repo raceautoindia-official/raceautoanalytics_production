@@ -6,8 +6,11 @@ import { Inter } from "next/font/google";
 // import BootstrapClient from "./BootstrapClient";
 import { AuthModalProvider } from "@/utils/AuthModalcontext";
 import { Providers } from "@/components/providers/Providers";
-import { Suspense } from "react"; // ⬅️ add this
+import { Suspense } from "react";
 import Script from "next/script";
+import RouteAuthGate from "@/components/auth/RouteAuthGate";
+import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
+import SubscriptionModal from "@/components/subscription/SubscriptionModal";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -15,13 +18,14 @@ const inter = Inter({
   display: "swap",
 });
 
-const siteUrl = "https://raceautoanalytics.com/"; // change
-const siteName = "Race Auto Analytics"; // change
-const title = "Race Auto Analytics | Automotive Sales Forecast & Market Analytics";
+const siteUrl = "https://raceautoanalytics.com/";
+const siteName = "Race Auto Analytics";
+const title =
+  "Race Auto Analytics | Automotive Sales Forecast & Market Analytics";
 const description =
   "Automotive market analytics and forecasting platform with segment-wise volumes, AI forecasts, trends, and country-wise flash reports for OEMs and industry teams.";
 
-  export const metadata= {
+export const metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     default: title,
@@ -72,7 +76,7 @@ const description =
     siteName,
     images: [
       {
-        url: "/", // create this image in /public/og/home.png
+        url: "/",
         width: 1200,
         height: 630,
         alt: "RACE Flash Forecast - Automotive Forecast & Analytics",
@@ -87,18 +91,24 @@ const description =
   },
   icons: {
     icon: "/favicon.ico",
-
   },
-}; 
+};
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {/* keep body simple; no inline style strings that mix CSS vars */}
-      <body className={`${inter.className} ${inter.variable} antialiased`} suppressHydrationWarning>
-         {GA_ID ? (
+      <body
+        className={`${inter.className} ${inter.variable} antialiased`}
+        suppressHydrationWarning
+      >
+        <Script
+          src="https://checkout.razorpay.com/v1/checkout.js"
+          strategy="lazyOnload"
+        />
+
+        {GA_ID ? (
           <>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
@@ -114,10 +124,17 @@ export default function RootLayout({ children }) {
             </Script>
           </>
         ) : null}
+
         <Suspense fallback={null}>
           <Providers>
             {/* <BootstrapClient /> */}
-            <AuthModalProvider>{children}</AuthModalProvider>
+            <AuthModalProvider>
+              <SubscriptionModalProvider>
+                <RouteAuthGate />
+                {children}
+                <SubscriptionModal />
+              </SubscriptionModalProvider>
+            </AuthModalProvider>
           </Providers>
         </Suspense>
       </body>

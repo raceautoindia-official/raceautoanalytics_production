@@ -1,5 +1,6 @@
 import Link from "next/link";
 import React from "react";
+import SubscribeButton from "@/components/subscription/SubscribeButton";
 
 function Last() {
   return (
@@ -49,17 +50,20 @@ function Last() {
               <br></br>Insights!
             </h1>
 
-            <Link href="https://raceautoindia.com/subscription">
-              <button
-                className="p-2 rounded border-0 fw-bold ms-5"
-                style={{
-                  fontSize: "19px",
-                  width: "200px",
-                }}
-              >
-                SUBSCRIBE
-              </button>
-            </Link>
+            <SubscribeButton
+  className="p-2 rounded border-0 fw-bold ms-5"
+>
+  <span
+    style={{
+      fontSize: "19px",
+      width: "200px",
+      display: "inline-block",
+      textAlign: "center",
+    }}
+  >
+    SUBSCRIBE
+  </span>
+</SubscribeButton>
           </div>
         </div>
       </div>
@@ -90,17 +94,20 @@ function Last() {
               Get Smarter Forecasts with Our Data and Your Strategic Insights!
             </h3>
 
-            <Link href="https://raceautoindia.com/subscription">
-              <button
-                className="p-2 rounded border-0 fw-bold ms-5"
-                style={{
-                  fontSize: "19px",
-                  width: "200px",
-                }}
-              >
-                SUBSCRIBE
-              </button>
-            </Link>
+           <SubscribeButton
+  className="p-2 rounded border-0 fw-bold ms-5"
+>
+  <span
+    style={{
+      fontSize: "19px",
+      width: "200px",
+      display: "inline-block",
+      textAlign: "center",
+    }}
+  >
+    SUBSCRIBE
+  </span>
+</SubscribeButton>
           </div>
         </div>
       </div>
@@ -130,17 +137,20 @@ function Last() {
               Get Smarter Forecasts with Our Data and Your Strategic Insights!
             </h3>
 
-            <Link href="https://raceautoindia.com/subscription">
-              <button
-                className="p-2 rounded border-0 fw-bold ms-5"
-                style={{
-                  fontSize: "19px",
-                  width: "200px",
-                }}
-              >
-                SUBSCRIBE
-              </button>
-            </Link>
+            <SubscribeButton
+  className="p-2 rounded border-0 fw-bold ms-5"
+>
+  <span
+    style={{
+      fontSize: "19px",
+      width: "200px",
+      display: "inline-block",
+      textAlign: "center",
+    }}
+  >
+    SUBSCRIBE
+  </span>
+</SubscribeButton>
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Search, Menu, X, ChevronDown } from "lucide-react";
 import LoginNavButton from "@/app/flash-reports/components/Login/LoginAuthButton";
+import SubscribeButton from "@/components/subscription/SubscribeButton";
 
 const Navbar = () => {
   const [tabNewsDropdown, setTabNewsDropdown] = useState(false);
@@ -90,18 +91,11 @@ const Navbar = () => {
     📈 Forecast
   </button>
 </Link>
-              <Link href="https://raceautoindia.com/subscription">
-                <button
-                  className="btn btn-warning fw-bold text-dark"
-                  style={{
-                    borderRadius: "8px",
-                    padding: "6px 14px",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Subscribe
-                </button>
-              </Link>
+              <SubscribeButton
+  className="btn fw-bold"
+>
+  SUBSCRIBE
+</SubscribeButton>
 
               <LoginNavButton />
             </div>

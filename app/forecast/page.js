@@ -898,7 +898,7 @@ export default function ForecastPage() {
       items.push({ value: "Forecast (AI)", type: "line", color: "#A17CFF" });
     }
     if (Object.keys(raceForecast).length) {
-      items.push({ value: "Forecast (Race)", type: "line", color: "#ffc107" });
+      items.push({ value: "Forecast (Race)", type: "line", color: "#ffffff" });
     }
 
     if (hasByf)
@@ -1886,7 +1886,7 @@ export default function ForecastPage() {
                               <Line
                                 dataKey="forecastRace"
                                 name="Forecast (Race)"
-                                stroke="#ffc107"
+                                stroke="#ffffff"
                                 type="monotone"
                                 strokeWidth={2}
                                 strokeDasharray="2 4"

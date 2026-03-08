@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
-import { ChevronRight, PlayCircle, ArrowLeftRight, BarChart3, Layers, Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
+import {
+  ChevronRight,
+  PlayCircle,
+  ArrowLeftRight,
+  BarChart3,
+  Layers,
+  Sparkles,
+  ShieldCheck,
+  ArrowRight,
+} from "lucide-react";
+import Link from "next/link";
 
 type CountryItem = {
   name: string;
@@ -33,6 +43,29 @@ function FlagIcon({
       className={`${dim} rounded-md shadow-sm ring-1 ring-white/20`}
     />
   );
+}
+
+function getYouTubeEmbedUrl(url: string) {
+  if (!url) return "";
+  if (url.includes("youtube.com/embed/")) return url;
+
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.hostname.includes("youtu.be")) {
+      const id = parsed.pathname.replace("/", "").trim();
+      return id ? `https://www.youtube.com/embed/${id}` : "";
+    }
+
+    if (parsed.hostname.includes("youtube.com")) {
+      const id = parsed.searchParams.get("v");
+      return id ? `https://www.youtube.com/embed/${id}` : "";
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
 }
 
 /** --- Country Modal --- */
@@ -86,43 +119,47 @@ function CountryModal({
         </div>
 
         <p className="relative mt-4 text-sm leading-relaxed text-white/70">
-          {country.description}
-        </p>
-
-        {/* <div className="relative mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-          <span className="inline-flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
+          {country.description}{" "}
+          <Link href="/flash-reports">
+            <span className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200">
+              Click to view full dataset
             </span>
-            Launching soon
-          </span>
-        </div> */}
+          </Link>
+        </p>
       </div>
     </div>
   );
 }
 
-/** --- Flip Card (no popup) --- */
+/** --- Flip Card (optional popup/back side) --- */
 function FlipInfoCard({
   ariaLabel,
   bullets,
   ctaHref,
   ctaLabel,
   extraFront,
+  enableReadMore = false,
+  videoUrl,
+  backTitle = "How to use this module",
+  backSubtitle = "Quick steps + video walkthrough",
 }: {
   ariaLabel: string;
   bullets: string[];
   ctaHref: string;
   ctaLabel: string;
   extraFront?: React.ReactNode;
+  enableReadMore?: boolean;
+  videoUrl?: string;
+  backTitle?: string;
+  backSubtitle?: string;
 }) {
   const [flipped, setFlipped] = useState(false);
+  const embedUrl = getYouTubeEmbedUrl(videoUrl || "");
 
   return (
     <div className="group relative">
       <div
-        className="relative h-[450px] md:h-[430px] lg:h-[380px] w-full [perspective:1400px]"
+        className="relative h-[460px] md:h-[440px] lg:h-[420px] w-full [perspective:1400px]"
         aria-label={ariaLabel}
       >
         <div
@@ -146,7 +183,9 @@ function FlipInfoCard({
                 <div className="flex items-start justify-between gap-4">
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/75">
                     <ArrowLeftRight className="h-3.5 w-3.5" />
-                    <span className="font-semibold text-blue-300">Interactive guide</span>
+                    <span className="font-semibold text-blue-300">
+                      Interactive guide
+                    </span>
                   </div>
 
                   <span className="relative mt-1 hidden sm:inline-flex h-2 w-2">
@@ -167,14 +206,16 @@ function FlipInfoCard({
                 {extraFront ? <div className="mt-4">{extraFront}</div> : null}
 
                 <div className="mt-auto flex flex-col sm:flex-row sm:items-center gap-3 pt-5">
-                  {/* <button
-                    type="button"
-                    onClick={() => setFlipped(true)}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-                  >
-                    Read more
-                    <ChevronRight className="h-4 w-4" />
-                  </button> */}
+                  {enableReadMore && (
+                    <button
+                      type="button"
+                      onClick={() => setFlipped(true)}
+                      className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                    >
+                      Read more
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  )}
 
                   <a
                     href={ctaHref}
@@ -203,11 +244,9 @@ function FlipInfoCard({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h4 className="text-lg font-semibold text-white/95">
-                      How to use this module
+                      {backTitle}
                     </h4>
-                    <p className="mt-1 text-sm text-white/70">
-                      Quick steps + video walkthrough
-                    </p>
+                    <p className="mt-1 text-sm text-white/70">{backSubtitle}</p>
                   </div>
 
                   <button
@@ -220,28 +259,55 @@ function FlipInfoCard({
                   </button>
                 </div>
 
-                <div className="mt-auto pt-5">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium text-white/90">
-                          Instruction Video
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-                      >
-                        <PlayCircle className="h-4 w-4" />
-                        Watch
-                      </button>
-                    </div>
+               <div className="mt-4 flex-1 min-h-0">
+  <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-black/20 p-3">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-sm font-medium text-white/90">
+          Instruction Video
+        </div>
+      </div>
 
-                    <div className="mt-3 h-20 rounded-xl border border-dashed border-white/15 bg-white/5 flex items-center justify-center text-xs text-white/50">
-                      Video coming soon
-                    </div>
-                  </div>
-                </div>
+      {embedUrl ? (
+        <a
+          href={videoUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+        >
+          <PlayCircle className="h-4 w-4" />
+          Watch on YouTube
+        </a>
+      ) : (
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+        >
+          <PlayCircle className="h-4 w-4" />
+          Watch
+        </button>
+      )}
+    </div>
+
+    <div className="mt-3 flex-1 min-h-0">
+      {embedUrl ? (
+        <div className="h-full overflow-hidden rounded-xl border border-white/10 bg-black">
+          <iframe
+            className="h-full w-full"
+            src={embedUrl}
+            title="Flash Report Quick Walkthrough"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
+      ) : (
+        <div className="flex h-full min-h-[150px] items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 text-xs text-white/50">
+          Video coming soon
+        </div>
+      )}
+    </div>
+  </div>
+</div>
               </div>
             </div>
           </div>
@@ -329,55 +395,67 @@ export default function QuickGuidesSection() {
   const countries: CountryItem[] = useMemo(
     () => [
       {
+        name: "India",
+        code: "in",
+        description:
+          "India flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Thailand",
+        code: "th",
+        description:
+          "Thailand flash report will include total market sales, EV sales, and application split.",
+      },
+      {
         name: "Brazil",
         code: "br",
         description:
-          "Brazil flash report will include total market sales, EV sales, and application split (launching soon).",
+          "Brazil flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "South Africa",
         code: "za",
         description:
-          "South Africa flash report will include total market sales, EV sales, and application split (launching soon).",
+          "South Africa flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Japan",
         code: "jp",
         description:
-          "Japan flash report will include total market sales, EV sales, and application split (launching soon).",
+          "Japan flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Vietnam",
         code: "vn",
         description:
-          "Vietnam flash report will include total market sales, EV sales, and application split (launching soon).",
+          "Vietnam flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Germany",
         code: "de",
         description:
-          "Germany flash report will include total market sales, EV sales, and application split (launching soon).",
+          "Germany flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Australia",
         code: "au",
         description:
-          "Australia flash report will include total market sales, EV sales, and application split (launching soon).",
+          "Australia flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Chile",
         code: "cl",
         description:
-          "Chile flash report will include total market sales, EV sales, and application split (launching soon).",
+          "Chile flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Sweden",
         code: "se",
         description:
-          "Sweden flash report will include total market sales, EV sales, and application split (launching soon).",
+          "Sweden flash report will include total market sales, EV sales, and application split.",
       },
     ],
-    [],
+    []
   );
 
   const flashBullets = useMemo(
@@ -386,7 +464,7 @@ export default function QuickGuidesSection() {
       "Compare MoM/YoY trends across segments and categories.",
       "Open category cards to drill into 2W / 3W / PV / CV / TRAC / CE.",
     ],
-    [],
+    []
   );
 
   const forecastBullets = useMemo(
@@ -399,7 +477,7 @@ export default function QuickGuidesSection() {
       "Export forecast view or share insights after finalizing.",
       "Save scenarios for future comparisons and monthly tracking.",
     ],
-    [],
+    []
   );
 
   return (
@@ -421,8 +499,12 @@ export default function QuickGuidesSection() {
               <FlipInfoCard
                 ariaLabel="Flash Reports info card"
                 bullets={flashBullets}
-                ctaHref="/flash-reports"
+                ctaHref="/flash-reports/overview"
                 ctaLabel="Open Flash Reports"
+                enableReadMore={true}
+                videoUrl="https://youtu.be/oP8wflTrc5E"
+                backTitle="Flash Report Quick Walkthrough"
+                backSubtitle="Quick steps and video guide for flash reports"
                 extraFront={
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                     <div className="text-xs font-medium text-white/75">
@@ -456,13 +538,11 @@ export default function QuickGuidesSection() {
               <FlipInfoCard
                 ariaLabel="Forecast info card"
                 bullets={forecastBullets}
-                ctaHref="/forecast"
+                ctaHref="/forecast/overview"
                 ctaLabel="Open Forecast"
               />
             </div>
           </div>
-
-
 
           {/* ===== NEW Section: Value props ===== */}
           <div className="mt-14">
@@ -547,13 +627,13 @@ export default function QuickGuidesSection() {
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <a
-                    href="/flash-reports"
+                    href="/flash-reports/overview"
                     className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/15 hover:bg-white/15"
                   >
                     Open Flash Reports
                   </a>
                   <a
-                    href="/forecast"
+                    href="/forecast/overview"
                     className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/15 hover:bg-white/15"
                   >
                     Open Forecast

@@ -2,24 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import Cookies from "js-cookie";
-import AuthModal from "./LoginModal";
-import { useAuthModal } from "@/utils/AuthModalcontext";
 import { useRouter } from "next/navigation";
 
 const LoginNavButton = () => {
   const [token, setToken] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const { show, open, close } = useAuthModal();
   const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
     const cookieToken = Cookies.get("authToken") || null;
     setToken(cookieToken);
-
-    if (!cookieToken) {
-      open(); // auto open modal if not logged in
-    }
   }, []);
 
   if (!isMounted) return null;
@@ -35,35 +28,18 @@ const LoginNavButton = () => {
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent " +
     "active:translate-y-0";
 
-  const loginBtnClasses =
-    baseBtnClasses +
-    " border-white/20 bg-white/10 text-white/90 " +
-    "shadow-[inset_0_0_0_1px_rgba(47,57,73,0.40),0_12px_30px_rgba(17,24,39,0.35)] " +
-    "hover:bg-white/15 hover:border-white/30 hover:text-white " +
-    "hover:shadow-[inset_0_0_0_1px_rgba(47,57,73,0.48),0_18px_40px_rgba(30,64,175,0.35)] " +
-    "active:shadow-[inset_0_0_0_1px_rgba(47,57,73,0.50),0_8px_18px_rgba(0,0,0,0.35)]";
-
   const logoutBtnClasses =
     baseBtnClasses +
     " border-white/20 bg-red-600 text-white " +
     "shadow-[inset_0_0_0_1px_rgba(47,57,73,0.35),0_14px_34px_rgba(220,38,38,0.35)] " +
     "hover:bg-red-500 hover:shadow-[inset_0_0_0_1px_rgba(47,57,73,0.45),0_20px_44px_rgba(220,38,38,0.45)]";
 
+  if (!token) return null;
+
   return (
-    <>
-      {!token ? (
-        <>
-          <button className={loginBtnClasses} onClick={open}>
-            Login
-          </button>
-          {show && <AuthModal show={show} onClose={close} />}
-        </>
-      ) : (
-        <button className={logoutBtnClasses} onClick={handleLogout}>
-          Logout
-        </button>
-      )}
-    </>
+    <button className={logoutBtnClasses} onClick={handleLogout}>
+      Logout
+    </button>
   );
 };
 

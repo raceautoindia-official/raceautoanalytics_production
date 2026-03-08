@@ -761,7 +761,7 @@ export default function PreviewPage() {
                         type="monotone"
                         dataKey="forecastRace"
                         name="Forecast (Race)"
-                        stroke="#FFC107"
+                        stroke="#ffffff"
                         strokeWidth={3}
                         dot={false}
                         connectNulls

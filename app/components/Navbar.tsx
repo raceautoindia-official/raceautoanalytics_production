@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Hexagon, Menu, X } from "lucide-react";
 import LoginNavButton from "@/app/flash-reports/components/Login/LoginAuthButton";
+import SubscribeButton from "@/components/subscription/SubscribeButton";
 
 /* ---------- Fixed header with static spacer ---------- */
 function StickyLikeHeader({ children }: React.PropsWithChildren) {
@@ -140,13 +141,16 @@ export default function NavBar() {
             <div className="flex items-center gap-2">
               {/* Desktop CTAs */}
               <div className="hidden items-center gap-3 md:flex">
-                <FlashOutlineButton href="/flash-reports">
+                <FlashOutlineButton href="/flash-reports/overview">
                   Flash Report
                 </FlashOutlineButton>
-                 <ForecastOutlineButton href="/forecast">Forecast</ForecastOutlineButton>
-                <YellowButton href="https://raceautoindia.com/subscription">
-                  Subscribe
-                </YellowButton>
+                 <ForecastOutlineButton href="/forecast/overview">Forecast</ForecastOutlineButton>
+             <SubscribeButton
+  className="inline-flex h-11 items-center justify-center rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-5 text-sm font-semibold text-slate-900 shadow-[0_16px_40px_rgba(245,158,11,.35)] transition hover:from-yellow-300 hover:to-amber-400"
+  onAfterClick={() => setMobileOpen(false)}
+>
+  Subscribe
+</SubscribeButton>
                 <LoginNavButton />
               </div>
 
@@ -157,7 +161,7 @@ export default function NavBar() {
 
                 {/* Compact Flash CTA on mobile */}
                 <Link
-                  href="/flash-reports"
+                  href="/flash-reports/overview"
                   className="inline-flex items-center rounded-full border border-white/40 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm"
                 >
                   <Hexagon className="mr-1 h-3 w-3 text-amber-300" />
@@ -207,9 +211,11 @@ export default function NavBar() {
                 >
                   CONTACT&nbsp;US
                 </Link>
-                <YellowButton href="https://raceautoindia.com/subscription">
-                  Subscribe
-                </YellowButton>
+                <SubscribeButton
+  className="inline-flex h-11 items-center rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-5 text-sm font-semibold text-slate-900 shadow-[0_16px_40px_rgba(245,158,11,.35)] transition hover:from-yellow-300 hover:to-amber-400"
+>
+  Subscribe
+</SubscribeButton>
               </nav>
             </div>
           )}

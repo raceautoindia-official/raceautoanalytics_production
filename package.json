@@ -11,6 +11,7 @@
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
     "@aws-sdk/client-s3": "^3.821.0",
+    "@aws-sdk/client-ses": "^3.1002.0",
     "@plaiceholder/next": "^3.0.0",
     "@radix-ui/react-slot": "^1.2.4",
     "antd": "^5.26.0",

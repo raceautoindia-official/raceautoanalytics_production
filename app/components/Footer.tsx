@@ -45,7 +45,7 @@ export default function Footer() {
             <ul className="mt-6 space-y-2 text-[13px] text-white/80">
               <li>
                 <Link
-                  href="flash-reports"
+                  href="/flash-reports/overview"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
                   Flash Reports
@@ -53,7 +53,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link
-                  href="/forecast"
+                  href="/forecast/overview"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
                    Forecast 
@@ -79,7 +79,7 @@ export default function Footer() {
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-white/60" />
                 <a
-                  href="mailto:info@raceanalytics.com"
+                  href="mailto:info@raceautoindia.com"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
                  info@raceautoindia.com
