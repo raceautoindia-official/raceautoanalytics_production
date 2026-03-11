@@ -458,18 +458,33 @@ export type MarketBarRawData = {
 
 export async function getMarketBarRawData(
   segmentName: string,
-  baseMonth?: string,
+  baseMonth: string,
+  country?: string,
 ): Promise<MarketBarRawData | null> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const qs = new URLSearchParams({
-    segmentName,
-    ...(baseMonth ? { baseMonth } : {}),
-  });
+  try {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.SITE_URL ||
+      "http://localhost:3000";
 
-  const res = await fetch(`${siteUrl}/api/fetchMarketBarData?${qs.toString()}`, {
-    cache: "no-store",
-  });
+    const qs = new URLSearchParams({
+      segmentName,
+      baseMonth,
+    });
 
-  if (!res.ok) return null;
-  return (await res.json()) as MarketBarRawData;
+    if (country) qs.set("country", String(country).trim().toLowerCase());
+
+    const res = await fetch(`${siteUrl}/api/fetchMarketBarData?${qs.toString()}`, {
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+
+    return json && typeof json === "object" && Object.keys(json).length
+      ? (json as MarketBarRawData)
+      : null;
+  } catch {
+    return null;
+  }
 }

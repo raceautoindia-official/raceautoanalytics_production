@@ -724,6 +724,15 @@ export default function ConstructionEquipmentPage() {
     year: "numeric",
   });
 
+  const showOemChartSection =
+  oemLoading || !!oemError || !!(oemComputed && oemComputed.chartData.length);
+
+const showEvChartSection =
+  evLoading || !!evError || !!(evComputed && evComputed.chartData.length);
+
+const showApplicationChartSection =
+  appLoading || !!appError || appBarData.length > 0;
+
   if (!mounted) {
     return <PageSkeleton />;
   }
@@ -795,101 +804,96 @@ export default function ConstructionEquipmentPage() {
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) OEM Performance – backend, market share */}
-          <ChartWrapper
-            title="Construction Equipment OEM Performance"
-            summary={oemSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle value={oemCompare} onChange={setOemCompare} />
-                <MonthSelector
-                  value={oemCurrentMonth}
-                  onChange={setOemCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {oemError ? (
-              <p className="text-sm text-destructive">{oemError}</p>
-            ) : oemLoading ? (
-              <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading OEM market share…
-              </div>
-            ) : oemComputed && oemComputed.chartData.length ? (
-              <BarChart
-                data={oemComputed.chartData}
-                bars={[
-                  {
-                    key: "current",
-                    name: "Current Period",
-                    color: "#007AFF",
-                  },
-                  {
-                    key: "previous",
-                    name:
-                      oemCompare === "mom" ? "Previous Month" : "Previous Year",
-                    color: "#6B7280",
-                  },
-                ]}
-                height={350}
-                layout="horizontal"
-                tooltipRenderer={renderOemTooltip}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No OEM market share data available for the selected period.
-              </p>
-            )}
-          </ChartWrapper>
+         {showOemChartSection && (
+  <ChartWrapper
+    title="Construction Equipment OEM Performance"
+    summary={oemSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle value={oemCompare} onChange={setOemCompare} />
+        <MonthSelector
+          value={oemCurrentMonth}
+          onChange={setOemCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {oemError ? (
+      <p className="text-sm text-destructive">{oemError}</p>
+    ) : oemLoading ? (
+      <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading OEM market share…
+      </div>
+    ) : oemComputed && oemComputed.chartData.length ? (
+      <BarChart
+        data={oemComputed.chartData}
+        bars={[
+          {
+            key: "current",
+            name: "Current Period",
+            color: "#007AFF",
+          },
+          {
+            key: "previous",
+            name:
+              oemCompare === "mom" ? "Previous Month" : "Previous Year",
+            color: "#6B7280",
+          },
+        ]}
+        height={350}
+        layout="horizontal"
+        tooltipRenderer={renderOemTooltip}
+      />
+    ) : null}
+  </ChartWrapper>
+)}
 
           {/* 2) EV / alternative fuel share comparison – backend, segmentType=ev */}
-          <ChartWrapper
-            title="Construction Equipment EV / Alternative Fuel Share Comparison"
-            summary={evSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle value={evCompare} onChange={setEvCompare} />
-                <MonthSelector
-                  value={evCurrentMonth}
-                  onChange={setEvCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {evError ? (
-              <p className="text-sm text-destructive">{evError}</p>
-            ) : evLoading ? (
-              <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading EV / alternative fuel share…
-              </div>
-            ) : evComputed && evComputed.chartData.length ? (
-              <BarChart
-                data={evComputed.chartData}
-                bars={[
-                  {
-                    key: "current",
-                    name: "Current Period",
-                    color: "#2ECC71",
-                  },
-                  {
-                    key: "previous",
-                    name:
-                      evCompare === "mom" ? "Previous Month" : "Previous Year",
-                    color: "#6B7280",
-                  },
-                ]}
-                height={300}
-                layout="vertical"
-                tooltipRenderer={renderEvTooltip}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No EV / alternative fuel share data available for this period.
-              </p>
-            )}
-          </ChartWrapper>
-
+      {showEvChartSection && (
+  <ChartWrapper
+    title="Construction Equipment EV / Alternative Fuel Share Comparison"
+    summary={evSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle value={evCompare} onChange={setEvCompare} />
+        <MonthSelector
+          value={evCurrentMonth}
+          onChange={setEvCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {evError ? (
+      <p className="text-sm text-destructive">{evError}</p>
+    ) : evLoading ? (
+      <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading EV / alternative fuel share…
+      </div>
+    ) : evComputed && evComputed.chartData.length ? (
+      <BarChart
+        data={evComputed.chartData}
+        bars={[
+          {
+            key: "current",
+            name: "Current Period",
+            color: "#2ECC71",
+          },
+          {
+            key: "previous",
+            name:
+              evCompare === "mom" ? "Previous Month" : "Previous Year",
+            color: "#6B7280",
+          },
+        ]}
+        height={300}
+        layout="vertical"
+        tooltipRenderer={renderEvTooltip}
+      />
+    ) : null}
+  </ChartWrapper>
+)}
           {/* 3) CE Sales Forecast – backend timeseries via contentHierarchy + volumeData */}
           <ChartWrapper
             title="Construction Equipment Sales Forecast"
@@ -909,6 +913,7 @@ export default function ConstructionEquipmentPage() {
                 category="CE"
                 height={350}
                 allowForecast={!!overallMeta?.allowForecast}
+                country={region}
                 baseMonth={overallMeta?.baseMonth}
                 horizon={overallMeta?.horizon}
                 graphId={graphId}

@@ -20,6 +20,8 @@ import {
 const { Text } = Typography;
 
 export default function ManageQuestions({ context } = {}) {
+  const isFlash = String(context || "").toLowerCase() === "flash";
+
   const [contentHierarchy, setContentHierarchy] = useState([]);
   const [datasets, setDatasets] = useState([]);
   const [expandedKeys, setExpandedKeys] = useState([]);
@@ -33,6 +35,10 @@ export default function ManageQuestions({ context } = {}) {
 
   // filter state: 'all' | 'positive' | 'negative'
   const [filterType, setFilterType] = useState("all");
+
+  // ✅ Flash country support
+  const [countries, setCountries] = useState([{ value: "india", label: "India" }]);
+  const [activeCountry, setActiveCountry] = useState("india");
 
   // load datasets + hierarchy
   useEffect(() => {
@@ -55,23 +61,61 @@ export default function ManageQuestions({ context } = {}) {
           .map((n) => n.id.toString());
         setExpandedKeys(roots);
       } catch (err) {
-        message.error("Failed to load dataset filter: ", err.message);
+        message.error("Failed to load dataset filter: " + err.message);
       }
     }
     load();
   }, []);
 
+  // ✅ Load countries list (Flash only)
+  useEffect(() => {
+    if (!isFlash) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/flash-reports/countries", { cache: "no-store" });
+        const json = await res.json().catch(() => []);
+        const opts = Array.isArray(json)
+          ? json
+              .map((c) => {
+                const v = String(c?.value || c?.code || c?.name || "").trim().toLowerCase();
+                const label = c?.label || c?.name || c?.value || v;
+                return v ? { value: v, label } : null;
+              })
+              .filter(Boolean)
+          : [];
+
+        const merged = [
+          { value: "india", label: "India" },
+          ...opts.filter((x) => x.value !== "india"),
+        ];
+
+        if (!cancelled) setCountries(merged);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isFlash]);
+
   const fetchQuestions = async () => {
     if (!selectedGraph) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/questions?graphId=${selectedGraph}`, {
+      const qs = isFlash
+        ? `&country=${encodeURIComponent(activeCountry)}`
+        : "";
+      const res = await fetch(`/api/questions?graphId=${selectedGraph}${qs}`, {
         headers: {
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
         },
       });
       const data = await res.json();
-      setQuestions(data);
+      setQuestions(Array.isArray(data) ? data : []);
     } catch {
       message.error("Could not load questions");
     } finally {
@@ -116,23 +160,13 @@ export default function ManageQuestions({ context } = {}) {
     );
   }, [graphs, selectedStreamPath, filteredDatasetIds]);
 
-  // useEffect(() => {
-  //   if (filteredGraphs.length === 0) {
-  //     setSelectedGraph(null);
-  //   } else if (!filteredGraphs.some((g) => g.id === selectedGraph)) {
-  //     setSelectedGraph(filteredGraphs[0].id);
-  //   }
-  // }, [filteredGraphs, selectedGraph]);
-
   // whenever filteredGraphs changes, pick a new selectedGraph (or none)
   useEffect(() => {
     if (filteredGraphs.length > 0) {
-      // if our old selection isn’t in the new list, pick the first
       if (!filteredGraphs.some((g) => g.id === selectedGraph)) {
         setSelectedGraph(filteredGraphs[0].id);
       }
     } else {
-      // no graphs → clear selection & questions
       setSelectedGraph(null);
       setQuestions([]);
     }
@@ -140,7 +174,8 @@ export default function ManageQuestions({ context } = {}) {
 
   useEffect(() => {
     fetchQuestions();
-  }, [selectedGraph]);
+    // ✅ re-fetch when country changes (Flash only)
+  }, [selectedGraph, activeCountry]);
 
   useEffect(() => {
     const url = context
@@ -153,24 +188,16 @@ export default function ManageQuestions({ context } = {}) {
         const parsed = data.map((g) => {
           let ids = [];
 
-          // 1) If it's already an array, use it:
           if (Array.isArray(g.dataset_ids)) {
             ids = g.dataset_ids;
-
-            // 2) If it's a string, try to JSON.parse:
           } else if (typeof g.dataset_ids === "string") {
             try {
               const maybe = JSON.parse(g.dataset_ids);
-              if (Array.isArray(maybe)) {
-                ids = maybe;
-              } else if (typeof maybe === "number") {
-                ids = [maybe];
-              }
+              if (Array.isArray(maybe)) ids = maybe;
+              else if (typeof maybe === "number") ids = [maybe];
             } catch {
               ids = [];
             }
-
-            // 3) If it's already a number, wrap it:
           } else if (typeof g.dataset_ids === "number") {
             ids = [g.dataset_ids];
           }
@@ -201,7 +228,11 @@ export default function ManageQuestions({ context } = {}) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
         },
-        body: JSON.stringify({ ...values, graphId: selectedGraph }),
+        body: JSON.stringify({
+          ...values,
+          graphId: selectedGraph,
+          ...(isFlash ? { country: activeCountry } : {}),
+        }),
       });
       message.success("Question added");
       form.resetFields();
@@ -257,6 +288,16 @@ export default function ManageQuestions({ context } = {}) {
       dataIndex: "created_at",
       render: (dt) => new Date(dt).toLocaleString(),
     },
+    ...(isFlash
+      ? [
+          {
+            title: "Country",
+            dataIndex: "country",
+            width: 110,
+            render: (c) => (c ? String(c).toUpperCase() : "—"),
+          },
+        ]
+      : []),
     {
       title: "Action",
       render: (_, record) => (
@@ -276,7 +317,7 @@ export default function ManageQuestions({ context } = {}) {
         <Col span={12}>
           <Text strong>Graphs Filter:</Text>
           <TreeSelect
-            style={{ width: "100%" /* removed marginTop */ }}
+            style={{ width: "100%" }}
             value={selectedStreamPath.slice(-1)[0] || null}
             treeData={treeData}
             treeExpandedKeys={expandedKeys}
@@ -295,21 +336,41 @@ export default function ManageQuestions({ context } = {}) {
           />
         </Col>
 
-        <Col span={12}>
-          <Text strong>Graph:</Text>{" "}
-          <Select
-            value={selectedGraph}
-            onChange={setSelectedGraph}
-            style={{ width: 200 }}
-            placeholder={filteredGraphs.length ? undefined : "No graphs match"}
-            disabled={filteredGraphs.length === 0}
-          >
-            {filteredGraphs.map((g) => (
-              <Select.Option key={g.id} value={g.id}>
-                {g.name}
-              </Select.Option>
-            ))}
-          </Select>
+        <Col span={12} style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+          <div>
+            <Text strong>Graph:</Text>{" "}
+            <Select
+              value={selectedGraph}
+              onChange={setSelectedGraph}
+              style={{ width: 220 }}
+              placeholder={filteredGraphs.length ? undefined : "No graphs match"}
+              disabled={filteredGraphs.length === 0}
+            >
+              {filteredGraphs.map((g) => (
+                <Select.Option key={g.id} value={g.id}>
+                  {g.name}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
+
+          {/* ✅ Flash only: Country */}
+          {isFlash && (
+            <div>
+              <Text strong>Country:</Text>{" "}
+              <Select
+                value={activeCountry}
+                onChange={setActiveCountry}
+                style={{ width: 180 }}
+              >
+                {countries.map((c) => (
+                  <Select.Option key={c.value} value={c.value}>
+                    {c.label}
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
+          )}
         </Col>
       </Row>
 

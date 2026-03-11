@@ -16,6 +16,7 @@ type QuestionRow = {
   weight: number;
   type: "positive" | "negative" | string;
   graph_id: number;
+  country?: string | null;
 };
 
 type GraphRow = {
@@ -36,6 +37,7 @@ export type FlashForecastStackArgs = {
   overallData: OverallPoint[];
   category: string; // e.g. "2W","PV","Total"
   userEmail?: string | null; // BYOF
+  country?: string | null; // Flash only
 };
 
 function safeJson(v: any) {
@@ -188,7 +190,16 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
     overallData,
     category,
     userEmail,
+    country,
   } = args;
+
+  const countryKey = String(country || "india")
+    .trim()
+    .toLowerCase();
+  const countryQs = country ? `&country=${encodeURIComponent(countryKey)}` : "";
+
+  const [aiOverride, setAiOverride] = useState<any>(null);
+  const [raceOverride, setRaceOverride] = useState<any>(null);
 
   const [graph, setGraph] = useState<GraphRow | null>(null);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
@@ -198,14 +209,14 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-const enabledTypes = useMemo(() => {
-  const set = normalizeForecastTypes(graph?.forecast_types);
+  const enabledTypes = useMemo(() => {
+    const set = normalizeForecastTypes(graph?.forecast_types);
 
-  // ✅ Hard-disable Stats Forecast (Linear Regression) for Flash Reports everywhere
-  set.delete("linear");
+    // ✅ Hard-disable Stats Forecast (Linear Regression) for Flash Reports everywhere
+    set.delete("linear");
 
-  return set;
-}, [graph?.forecast_types]);
+    return set;
+  }, [graph?.forecast_types]);
 
   // Historical values and future months extracted from overallData
   const { histValues, futureMonths } = useMemo(() => {
@@ -237,7 +248,6 @@ const enabledTypes = useMemo(() => {
       }
     });
 
-    // clamp future months to horizon if given
     const h = Number.isFinite(horizon as any) ? Number(horizon) : 6;
     return { histValues: hist, futureMonths: fut.slice(0, Math.max(0, h)) };
   }, [overallData, baseMonth, horizon, category]);
@@ -252,6 +262,8 @@ const enabledTypes = useMemo(() => {
         setYearNames([]);
         setAllSubs([]);
         setUserSubs([]);
+        setAiOverride(null);
+        setRaceOverride(null);
         setError(null);
         setLoading(false);
         return;
@@ -261,32 +273,42 @@ const enabledTypes = useMemo(() => {
         setLoading(true);
         setError(null);
 
+        // 1) graph
         const gdata = await fetchJson(`/api/graphs?id=${graphId}`);
         const g: GraphRow | null = (gdata?.graph ?? null) as any;
+        const ctx = String(g?.context || "forecast").toLowerCase();
 
-        const qdata = await fetchJson(`/api/questions?graphId=${graphId}`);
+        // 2) questions (Flash = country-scoped; Forecast = old behavior)
+        const qUrl =
+          ctx === "flash"
+            ? `/api/questions?graphId=${graphId}${countryQs}`
+            : `/api/questions?graphId=${graphId}`;
+
+        const qdata = await fetchJson(qUrl);
         const q: QuestionRow[] = Array.isArray(qdata)
           ? qdata
           : Array.isArray(qdata?.questions)
             ? qdata.questions
             : [];
 
+        // 3) score settings (already country-aware)
         const key = g?.score_settings_key || "scoreSettings";
         const ssdata = await fetchJson(
           `/api/scoreSettings?key=${encodeURIComponent(
             key,
           )}&baseMonth=${encodeURIComponent(String(baseMonth))}&horizon=${
             Number.isFinite(horizon as any) ? Number(horizon) : 6
-          }`,
+          }${countryQs}`,
         );
         const yn: string[] = Array.isArray(ssdata?.yearNames)
           ? ssdata.yearNames
           : [];
 
+        // 4) submissions (already country-aware)
         const subsAllData = await fetchJson(
           `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(
             String(baseMonth),
-          )}`,
+          )}${countryQs}`,
         );
         const all: any[] = Array.isArray(subsAllData)
           ? subsAllData
@@ -299,7 +321,9 @@ const enabledTypes = useMemo(() => {
             ? await fetchJson(
                 `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(
                   String(baseMonth),
-                )}&email=${encodeURIComponent(String(userEmail).trim())}`,
+                )}&email=${encodeURIComponent(
+                  String(userEmail).trim(),
+                )}${countryQs}`,
               )
             : null;
 
@@ -312,7 +336,17 @@ const enabledTypes = useMemo(() => {
                 ? subsUserData.submissions
                 : [];
 
+        // 5) AI/Race overrides (country-aware)
+        const fdata = await fetchJson(
+          `/api/flash-reports/graph-forecasts?graphId=${graphId}&country=${encodeURIComponent(
+            countryKey,
+          )}`,
+        );
+
         if (cancelled) return;
+
+        setAiOverride(fdata?.aiForecast ?? null);
+        setRaceOverride(fdata?.raceForecast ?? null);
 
         setGraph(g);
         setQuestions(q);
@@ -331,7 +365,7 @@ const enabledTypes = useMemo(() => {
     return () => {
       cancelled = true;
     };
-  }, [enabled, graphId, baseMonth, horizon, userEmail]);
+  }, [enabled, graphId, baseMonth, horizon, userEmail, country]); // country included
 
   const enrichedAll = useMemo(
     () => enrichSubmissions(allSubs, questions, yearNames),
@@ -369,8 +403,8 @@ const enabledTypes = useMemo(() => {
   const byofForecastData = useForecastGrowth(histValues, byofAvgScores as any);
 
   const forecastByMonth = useMemo(() => {
-    const ai = safeJson(graph?.ai_forecast) || {};
-    const race = safeJson(graph?.race_forecast) || {};
+    const ai = safeJson(aiOverride) || {};
+    const race = safeJson(raceOverride) || {};
 
     const linear = enabledTypes.has("linear")
       ? linearForecastVolumes(histValues, futureMonths)
@@ -403,14 +437,14 @@ const enabledTypes = useMemo(() => {
 
     return { linear, score, byof, ai, race, enabledTypes };
   }, [
-    graph?.ai_forecast,
-    graph?.race_forecast,
     enabledTypes,
     histValues,
     futureMonths,
     yearNames,
     scoreForecastData,
     byofForecastData,
+    aiOverride,
+    raceOverride,
   ]);
 
   return { forecastByMonth, loading, error };

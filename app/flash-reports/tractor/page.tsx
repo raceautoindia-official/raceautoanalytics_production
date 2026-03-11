@@ -491,6 +491,12 @@ export default function TractorPage() {
     year: "numeric",
   });
 
+  const showOemChartSection =
+  oemLoading || !!oemError || oemChartData.length > 0;
+
+const showApplicationChartSection =
+  appLoading || !!appError || appChartData.length > 0;
+
   const segmentTotal = segmentData.reduce((sum, item) => sum + item.value, 0);
   const leadingSegment = segmentData[0];
 
@@ -574,54 +580,51 @@ useEffect(() => {
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) Tractor OEM Performance */}
-          <ChartWrapper
-            title="Tractor OEM Performance"
-            summary={oemSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle value={oemCompare} onChange={setOemCompare} />
-                <MonthSelector
-                  value={oemCurrentMonth}
-                  onChange={setOemCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {oemError ? (
-              <p className="text-sm text-destructive">{oemError}</p>
-            ) : oemLoading ? (
-              <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading tractor OEM market share…
-              </div>
-            ) : oemChartData.length ? (
-              <BarChart
-                data={oemChartData}
-                bars={[
-                  {
-                    key: "current",
-                    name: "Current Period",
-                    color: "#007AFF",
-                    useGradient: true,
-                  },
-                  {
-                    key: "previous",
-                    name:
-                      oemCompare === "mom" ? "Previous Month" : "Previous Year",
-                    color: "#6B7280",
-                  },
-                ]}
-                height={350}
-                layout="horizontal"
-                tooltipRenderer={renderOemTooltip}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No tractor OEM market share data available for the selected
-                period.
-              </p>
-            )}
-          </ChartWrapper>
+         {showOemChartSection && (
+  <ChartWrapper
+    title="Tractor OEM Performance"
+    summary={oemSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle value={oemCompare} onChange={setOemCompare} />
+        <MonthSelector
+          value={oemCurrentMonth}
+          onChange={setOemCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {oemError ? (
+      <p className="text-sm text-destructive">{oemError}</p>
+    ) : oemLoading ? (
+      <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading tractor OEM market share…
+      </div>
+    ) : oemChartData.length ? (
+      <BarChart
+        data={oemChartData}
+        bars={[
+          {
+            key: "current",
+            name: "Current Period",
+            color: "#007AFF",
+            useGradient: true,
+          },
+          {
+            key: "previous",
+            name:
+              oemCompare === "mom" ? "Previous Month" : "Previous Year",
+            color: "#6B7280",
+          },
+        ]}
+        height={350}
+        layout="horizontal"
+        tooltipRenderer={renderOemTooltip}
+      />
+    ) : null}
+  </ChartWrapper>
+)}
 
           {/* 2) Tractor Sales Forecast (TRAC series from overallData) */}
           <ChartWrapper
@@ -642,6 +645,7 @@ useEffect(() => {
                 category="TRAC"
                 height={350}
                 allowForecast={!!overallMeta?.allowForecast}
+                country={region}
                 baseMonth={overallMeta?.baseMonth}
                 horizon={overallMeta?.horizon}
                 graphId={graphId}
@@ -652,80 +656,50 @@ useEffect(() => {
           </ChartWrapper>
 
           {/* 3) Application + 4) HP Segment Distribution */}
-          <div className="grid gap-8">
-            <ChartWrapper
-              title="Tractor Application Chart"
-              summary={
-                leadingApp && appTotal
-                  ? `${
-                      leadingApp.name
-                    } remains the primary application at ${Math.round(
-                      (leadingApp.value / appTotal) * 100,
-                    )}% of tractor usage, with ${
-                      secondApp?.name ?? "other uses"
-                    } gaining traction in non-agri markets.`
-                  : appError
-                    ? appError
-                    : "No tractor application distribution data available."
-              }
-              // controls={
-              //   appAvailableMonths.length > 1 && (
-              //     <select
-              //       value={appMonth}
-              //       onChange={(e) => setAppMonth(e.target.value)}
-              //       className="border border-border bg-background rounded-md px-3 py-1 text-xs sm:text-sm"
-              //     >
-              //       {appAvailableMonths.map((m) => (
-              //         <option key={m} value={m}>
-              //           {m.toUpperCase()}
-              //         </option>
-              //       ))}
-              //     </select>
-              //   )
-              // }
-            >
-              {appError ? (
-                <p className="text-sm text-destructive">{appError}</p>
-              ) : appLoading ? (
-                <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                  Loading tractor application data…
-                </div>
-              ) : appChartData.length ? (
-                <BarChart
-                  data={appChartData}
-                  bars={[
-                    {
-                      key: "value",
-                      name: "Usage",
-                      color: "#007AFF",
-                      useGradient: true,
-                    },
-                  ]}
-                  height={300}
-                  layout="horizontal"
-                  showLegend={false}
-                  valueSuffix="%"
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No tractor application distribution data available.
-                </p>
-              )}
-            </ChartWrapper>
-
-            {/* <ChartWrapper
-              title="Tractor Horsepower Segment Distribution"
-              summary={
-                leadingSegment
-                  ? `${leadingSegment.name} category leads with ${Math.round(
-                      ((leadingSegment.value ?? 0) / (segmentTotal || 1)) * 100,
-                    )}% market share, driven by mechanisation in small and medium holdings.`
-                  : "No tractor segment distribution data available."
-              }
-            >
-              <DonutChart data={segmentData} height={300} showLegend={true} />
-            </ChartWrapper> */}
-          </div>
+          {showApplicationChartSection && (
+  <div className="grid gap-8">
+    <ChartWrapper
+      title="Tractor Application Chart"
+      summary={
+        leadingApp && appTotal
+          ? `${
+              leadingApp.name
+            } remains the primary application at ${Math.round(
+              (leadingApp.value / appTotal) * 100,
+            )}% of tractor usage, with ${
+              secondApp?.name ?? "other uses"
+            } gaining traction in non-agri markets.`
+          : appError
+            ? appError
+            : "No tractor application distribution data available."
+      }
+    >
+      {appError ? (
+        <p className="text-sm text-destructive">{appError}</p>
+      ) : appLoading ? (
+        <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+          Loading tractor application data…
+        </div>
+      ) : appChartData.length ? (
+        <BarChart
+          data={appChartData}
+          bars={[
+            {
+              key: "value",
+              name: "Usage",
+              color: "#007AFF",
+              useGradient: true,
+            },
+          ]}
+          height={300}
+          layout="horizontal"
+          showLegend={false}
+          valueSuffix="%"
+        />
+      ) : null}
+    </ChartWrapper>
+  </div>
+)}
         </div>
       </div>
     </div>

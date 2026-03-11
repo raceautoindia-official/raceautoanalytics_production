@@ -129,7 +129,7 @@ interface LineChartProps {
   category: string;
   height?: number;
   className?: string;
-
+country?: string | null;
   allowForecast?: boolean; // meta.allowForecast
   baseMonth?: string | null; // meta.baseMonth (YYYY-MM)
   horizon?: number | null; // meta.horizon
@@ -149,6 +149,7 @@ export function LineChart({
   baseMonth = null,
   horizon = 6,
   graphId = null,
+    country = null,
   showSubmitScore = true,
   submitScoreLabel = "BYF Score",
 }: LineChartProps) {
@@ -230,8 +231,10 @@ export function LineChart({
       String(Number.isFinite(Number(horizon)) ? (horizon ?? 6) : 6),
     );
     if (returnTo) params.set("returnTo", returnTo);
+    const c = String(country || "").trim();
+    if (c) params.set("country", c);
     return `/score-card?${params.toString()}`;
-  }, [graphId, baseMonth, horizon, returnTo]);
+  }, [graphId, baseMonth, horizon, returnTo, country]);
 
   const { forecastByMonth, loading: forecastLoading } = useFlashForecastStack({
     enabled: allowForecastByData,
@@ -241,6 +244,7 @@ export function LineChart({
     overallData: normalized as any,
     category: selectedCat,
     userEmail,
+    country
   });
 
   const enabledTypes = forecastByMonth?.enabledTypes;

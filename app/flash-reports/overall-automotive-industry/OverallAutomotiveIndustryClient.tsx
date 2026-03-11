@@ -304,6 +304,7 @@ const suffix = useMemo(() => {
               category="Total"
               height={350}
               allowForecast={!!overallMeta?.allowForecast}
+              country={region}
               baseMonth={overallMeta?.baseMonth}
               horizon={overallMeta?.horizon}
               graphId={graphId}

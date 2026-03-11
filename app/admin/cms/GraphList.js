@@ -17,6 +17,7 @@ import {
   Row,
   Col,
   Input,
+  Select, // ✅ added
 } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 
@@ -34,7 +35,14 @@ export default function GraphList({ context = "forecast" } = {}) {
   const [summary, setSummary] = useState("");
   const [visibleCount, setVisibleCount] = useState(0);
 
+  // ✅ Flash country support (page + modal)
+  const [countries, setCountries] = useState([{ value: "india", label: "India" }]);
+  const [activeCountry, setActiveCountry] = useState("india");
+  const [countryForecasts, setCountryForecasts] = useState({}); // graphId -> {exists, source, updatedAt, aiForecast, raceForecast}
+  const [countryForecastsLoading, setCountryForecastsLoading] = useState(false);
+
   const isFlashGraph = (editGraph?.context || context) === "flash";
+  const isFlashList = context === "flash";
 
   // Fetch all three endpoints in parallel
   const loadAll = useCallback(async () => {
@@ -135,6 +143,92 @@ export default function GraphList({ context = "forecast" } = {}) {
     loadAll();
   }, [loadAll]);
 
+  // ✅ Load countries for Flash list
+  useEffect(() => {
+    if (!isFlashList) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/flash-reports/countries", { cache: "no-store" });
+        const json = await res.json().catch(() => []);
+        const opts = Array.isArray(json)
+          ? json
+              .map((c) => {
+                const v = String(c?.value || c?.code || c?.name || "").trim().toLowerCase();
+                const label = c?.label || c?.name || c?.value || v;
+                return v ? { value: v, label } : null;
+              })
+              .filter(Boolean)
+          : [];
+
+        const merged = [
+          { value: "india", label: "India" },
+          ...opts.filter((x) => x.value !== "india"),
+        ];
+
+        if (!cancelled) setCountries(merged);
+      } catch (e) {
+        console.error(e);
+        // keep default India
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isFlashList]);
+
+  // ✅ Load country-wise AI/Race forecasts for Flash table (for selected country)
+  useEffect(() => {
+    if (!isFlashList) return;
+    if (!graphs?.length) {
+      setCountryForecasts({});
+      return;
+    }
+
+    let cancelled = false;
+    setCountryForecastsLoading(true);
+
+    (async () => {
+      const ids = graphs.map((g) => g.id).filter(Boolean);
+      const settled = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(
+            `/api/flash-reports/graph-forecasts?graphId=${encodeURIComponent(
+              id
+            )}&country=${encodeURIComponent(activeCountry)}`,
+            { cache: "no-store" }
+          )
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        )
+      );
+
+      const map = {};
+      ids.forEach((id, idx) => {
+        const v = settled[idx].status === "fulfilled" ? settled[idx].value : null;
+        map[id] = {
+          exists: !!v?.exists,
+          source: v?.source || "none",
+          updatedAt: v?.updatedAt || null,
+          aiForecast: v?.aiForecast ?? null,
+          raceForecast: v?.raceForecast ?? null,
+        };
+      });
+
+      if (!cancelled) setCountryForecasts(map);
+    })()
+      .catch((e) => console.error(e))
+      .finally(() => {
+        if (!cancelled) setCountryForecastsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isFlashList, graphs, activeCountry]);
+
   // Delete a graph and remove it from local state (no full reload)
   const handleDelete = useCallback(async (id) => {
     try {
@@ -156,20 +250,63 @@ export default function GraphList({ context = "forecast" } = {}) {
     setEditGraph(record);
     setDescription(record.description || "");
     setSummary(record.summary || "");
-    setAiForecastRows(
-      Object.entries(record.ai_forecast || {}).map(([year, value]) => ({
-        year,
-        value,
-      })),
-    );
-    setRaceForecastRows(
-      Object.entries(record.race_forecast || {}).map(([year, value]) => ({
-        year,
-        value,
-      })),
-    );
+
+    // ✅ For flash: load from selected country forecasts (fallback is already handled by API for India)
+    if ((record?.context || context) === "flash") {
+      const cf = countryForecasts?.[record.id];
+      const aiObj = cf?.aiForecast || {};
+      const raceObj = cf?.raceForecast || {};
+      setAiForecastRows(Object.entries(aiObj).map(([year, value]) => ({ year, value })));
+      setRaceForecastRows(Object.entries(raceObj).map(([year, value]) => ({ year, value })));
+    } else {
+      setAiForecastRows(
+        Object.entries(record.ai_forecast || {}).map(([year, value]) => ({
+          year,
+          value,
+        })),
+      );
+      setRaceForecastRows(
+        Object.entries(record.race_forecast || {}).map(([year, value]) => ({
+          year,
+          value,
+        })),
+      );
+    }
+
     setEditModalVisible(true);
   };
+
+  // ✅ When modal is open and country changes (flash), refresh rows for this graph+country
+  useEffect(() => {
+    if (!editModalVisible) return;
+    if (!isFlashGraph) return;
+    if (!editGraph?.id) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/flash-reports/graph-forecasts?graphId=${encodeURIComponent(
+            editGraph.id
+          )}&country=${encodeURIComponent(activeCountry)}`,
+          { cache: "no-store" }
+        );
+        const json = await res.json().catch(() => null);
+        if (cancelled) return;
+
+        const aiObj = json?.aiForecast || {};
+        const raceObj = json?.raceForecast || {};
+        setAiForecastRows(Object.entries(aiObj).map(([year, value]) => ({ year, value })));
+        setRaceForecastRows(Object.entries(raceObj).map(([year, value]) => ({ year, value })));
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editModalVisible, isFlashGraph, editGraph?.id, activeCountry]);
 
   const handleForecastChange = (setter, index, key, value) => {
     setter((prev) => {
@@ -219,9 +356,11 @@ export default function GraphList({ context = "forecast" } = {}) {
       .map((v) => ({ text: v, value: v }));
   }, [graphs, volumeDataMap, nodeNameById]);
 
+  const sortMonthKeys = (obj) => Object.keys(obj || {}).sort((a, b) => String(a).localeCompare(String(b)));
+
   // Column definitions (memoized so they don’t recreate unnecessarily)
   const columns = useMemo(() => {
-    const isFlashList = context === "flash";
+    const isFlash = context === "flash";
 
     const cols = [
       { title: "ID", dataIndex: "id", width: 60 },
@@ -230,7 +369,7 @@ export default function GraphList({ context = "forecast" } = {}) {
 
     // Category/Region are derived from historical datasets; they confuse Flash Graphs (Flash uses segment mapping),
     // so we hide them only for the Flash Graphs table.
-    if (!isFlashList) {
+    if (!isFlash) {
       cols.push(
         {
           title: "Category",
@@ -269,7 +408,6 @@ export default function GraphList({ context = "forecast" } = {}) {
 
     // Core columns
     cols.push(
-      // Chart type unchanged (renamed title for clarity)
       {
         title: "Chart Type",
         dataIndex: "chart_type",
@@ -284,36 +422,52 @@ export default function GraphList({ context = "forecast" } = {}) {
         width: 120,
       },
 
-      // Keep your existing Forecasts column as-is
+      // ✅ Forecasts column becomes country-aware only for Flash list
       {
-        title: "Forecasts",
+        title: isFlash ? `Forecasts (${String(activeCountry).toUpperCase()})` : "Forecasts",
         key: "forecast_summary",
         render: (_, record) => {
-          const { ai_forecast, race_forecast } = record;
+          const cf = isFlash ? countryForecasts?.[record.id] : null;
+
+          const ai_forecast = isFlash ? (cf?.aiForecast || {}) : (record.ai_forecast || {});
+          const race_forecast = isFlash ? (cf?.raceForecast || {}) : (record.race_forecast || {});
 
           const formatTooltip = (forecast) =>
             Object.entries(forecast || {})
               .map(([year, val]) => `${year}: ${val}`)
               .join("\n");
 
-          const yearRange = (forecast) => {
-            const years = Object.keys(forecast || {});
-            return years.length
-              ? `${years[0]}–${years[years.length - 1]}`
-              : "null";
+          const yearRange = (forecast, emptyLabel = "—") => {
+            const years = sortMonthKeys(forecast);
+            return years.length ? `${years[0]}–${years[years.length - 1]}` : emptyLabel;
           };
+
+          let statusColor = "default";
+          let statusText = "Not set";
+
+          if (isFlash) {
+            if (cf?.source === "flash_graph_forecasts") {
+              statusColor = "green";
+              statusText = "Override";
+            } else if (String(activeCountry).toLowerCase() === "india") {
+              statusColor = "blue";
+              statusText = "India base";
+            } else {
+              statusColor = "default";
+              statusText = "Not set";
+            }
+          }
 
           return (
             <Space size="small" direction="vertical">
-              <Tooltip
-                title={ai_forecast ? formatTooltip(ai_forecast) : "null"}
-              >
-                <Tag color="blue">AI: {yearRange(ai_forecast)}</Tag>
+              {isFlash ? <Tag color={statusColor}>{statusText}</Tag> : null}
+
+              <Tooltip title={ai_forecast ? formatTooltip(ai_forecast) : "—"}>
+                <Tag color="blue">AI: {yearRange(ai_forecast, isFlash ? "—" : "null")}</Tag>
               </Tooltip>
-              <Tooltip
-                title={race_forecast ? formatTooltip(race_forecast) : "null"}
-              >
-                <Tag color="geekblue">Race: {yearRange(race_forecast)}</Tag>
+
+              <Tooltip title={race_forecast ? formatTooltip(race_forecast) : "—"}>
+                <Tag color="geekblue">Race: {yearRange(race_forecast, isFlash ? "—" : "null")}</Tag>
               </Tooltip>
             </Space>
           );
@@ -322,7 +476,7 @@ export default function GraphList({ context = "forecast" } = {}) {
     );
 
     // Flash graphs don't use Summary/Description, so hide writeups column in Flash Graphs table
-    if (!isFlashList) {
+    if (!isFlash) {
       cols.push({
         title: "Writeups",
         key: "writeups",
@@ -399,7 +553,6 @@ export default function GraphList({ context = "forecast" } = {}) {
     );
 
     return cols;
-    // 🔁 Dependencies: we derive Category/Region from volumeDataMap + nodeNameById
   }, [
     context,
     volumeDataMap,
@@ -407,6 +560,8 @@ export default function GraphList({ context = "forecast" } = {}) {
     handleDelete,
     categoryFilters,
     regionFilters,
+    activeCountry,      // ✅ added
+    countryForecasts,   // ✅ added
   ]);
 
   if (loading) {
@@ -458,6 +613,45 @@ export default function GraphList({ context = "forecast" } = {}) {
             );
           }
 
+          // ✅ Flash + non-India: save to country override table (do not touch graphs)
+          if (isFlashGraph && String(activeCountry).toLowerCase() !== "india") {
+            try {
+              const res = await fetch("/api/flash-reports/graph-forecasts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  graphId: editGraph.id,
+                  country: String(activeCountry).toLowerCase(),
+                  aiForecast: ai,
+                  raceForecast: race,
+                }),
+              });
+
+              const j = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(j?.error || "Update failed");
+
+              message.success(`Forecast updated (${String(activeCountry).toUpperCase()})`);
+              setEditModalVisible(false);
+
+              // Update local cache so table updates immediately
+              setCountryForecasts((prev) => ({
+                ...prev,
+                [editGraph.id]: {
+                  exists: true,
+                  source: "flash_graph_forecasts",
+                  updatedAt: new Date().toISOString(),
+                  aiForecast: ai,
+                  raceForecast: race,
+                },
+              }));
+              return;
+            } catch (e) {
+              message.error(e?.message || "Update failed");
+              return;
+            }
+          }
+
+          // ✅ Default behavior (Forecast context OR India flash) remains unchanged: save to graphs
           try {
             const res = await fetch("/api/graphs", {
               method: "PUT",
@@ -521,6 +715,26 @@ export default function GraphList({ context = "forecast" } = {}) {
               />
             </Form.Item>
           </Form>
+        )}
+
+        {/* ✅ Flash: show country selector (page + modal share same activeCountry) */}
+        {isFlashGraph && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>Editing Country:</div>
+            <Select
+              style={{ width: 220 }}
+              value={activeCountry}
+              options={countries}
+              onChange={(v) => setActiveCountry(String(v))}
+            />
+          </div>
         )}
 
         <h4>AI Forecast</h4>
@@ -631,6 +845,8 @@ export default function GraphList({ context = "forecast" } = {}) {
           + Add Race Forecast
         </Button>
       </Modal>
+
+      {/* Header row with country selector for Flash Graphs */}
       <div
         style={{
           display: "flex",
@@ -640,6 +856,19 @@ export default function GraphList({ context = "forecast" } = {}) {
         }}
       >
         <div style={{ fontWeight: 600 }}>Total graphs: {visibleCount}</div>
+
+        {isFlashList && (
+          <Space size="middle">
+            <span style={{ fontWeight: 600 }}>Country:</span>
+            <Select
+              style={{ width: 200 }}
+              value={activeCountry}
+              options={countries}
+              onChange={(v) => setActiveCountry(String(v))}
+            />
+            {countryForecastsLoading ? <Spin size="small" /> : null}
+          </Space>
+        )}
       </div>
 
       <Table

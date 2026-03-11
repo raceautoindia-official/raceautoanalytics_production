@@ -597,11 +597,22 @@ useEffect(() => {
     year: "numeric",
   });
 
+ 
+
   if (!mounted) {
     return <PageSkeleton />;
   }
 
   const oemChartData = oemComputed?.chartData.slice(0, 6) ?? [];
+
+   const showOemChartSection =
+  oemLoading || !!oemError || oemChartData.length > 0;
+
+const showSegmentChartSection =
+  segmentLoading || !!segmentError || segmentDonutData.length > 0;
+
+const showApplicationChartSection =
+  appLoading || !!appError || appChartData.length > 0;
 
   return (
     <div className="min-h-screen py-0">
@@ -670,138 +681,118 @@ useEffect(() => {
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) OEM Performance – backend market share */}
-          <ChartWrapper
-            title="Truck OEM Performance"
-            summary={oemSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle value={oemCompare} onChange={setOemCompare} />
-                <MonthSelector
-                  value={oemCurrentMonth}
-                  onChange={setOemCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {oemError ? (
-              <p className="text-sm text-destructive">{oemError}</p>
-            ) : oemLoading ? (
-              <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading truck OEM market share…
-              </div>
-            ) : oemChartData.length ? (
-              <BarChart
-                data={oemChartData}
-                bars={[
-                  { key: "current", name: "Current Period", color: "#007AFF" },
-                  {
-                    key: "previous",
-                    name:
-                      oemCompare === "mom" ? "Previous Month" : "Previous Year",
-                    color: "#6B7280",
-                  },
-                ]}
-                height={350}
-                layout="horizontal"
-                tooltipRenderer={renderOemTooltip}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No truck OEM market share data available for the selected
-                period.
-              </p>
-            )}
-          </ChartWrapper>
+         {showOemChartSection && (
+  <ChartWrapper
+    title="Truck OEM Performance"
+    summary={oemSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle value={oemCompare} onChange={setOemCompare} />
+        <MonthSelector
+          value={oemCurrentMonth}
+          onChange={setOemCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {oemError ? (
+      <p className="text-sm text-destructive">{oemError}</p>
+    ) : oemLoading ? (
+      <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading truck OEM market share…
+      </div>
+    ) : oemChartData.length ? (
+      <BarChart
+        data={oemChartData}
+        bars={[
+          { key: "current", name: "Current Period", color: "#007AFF" },
+          {
+            key: "previous",
+            name:
+              oemCompare === "mom" ? "Previous Month" : "Previous Year",
+            color: "#6B7280",
+          },
+        ]}
+        height={350}
+        layout="horizontal"
+        tooltipRenderer={renderOemTooltip}
+      />
+    ) : null}
+  </ChartWrapper>
+)}
 
           {/* 2) Segment split (backend) + 3) Application Chart (backend) */}
-          <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1">
-              <ChartWrapper
-                title="Trucks Segment Contribution"
-                summary={
-                  leadingSegment
-                    ? `${leadingSegment.name} accounts for ${Math.round(
-                        ((leadingSegment.value ?? 0) / (segmentTotal || 1)) *
-                          100,
-                      )}% of truck sales, with other segments supporting freight and construction demand.`
-                    : segmentError
-                      ? segmentError
-                      : "No truck segment distribution data available."
-                }
-              >
-                {segmentError ? (
-                  <p className="text-sm text-destructive">{segmentError}</p>
-                ) : segmentLoading ? (
-                  <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                    Loading truck segment split…
-                  </div>
-                ) : segmentDonutData.length ? (
-                  <DonutChart
-                    data={segmentDonutData}
-                    height={330}
-                    showLegend={true}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No truck segment distribution data available.
-                  </p>
-                )}
-              </ChartWrapper>
+        {(showSegmentChartSection || showApplicationChartSection) && (
+  <div className="grid lg:grid-cols-3 gap-8">
+    {showSegmentChartSection && (
+      <div className={showApplicationChartSection ? "lg:col-span-1" : "lg:col-span-3"}>
+        <ChartWrapper
+          title="Trucks Segment Contribution"
+          summary={
+            leadingSegment
+              ? `${leadingSegment.name} accounts for ${Math.round(
+                  ((leadingSegment.value ?? 0) / (segmentTotal || 1)) * 100,
+                )}% of truck sales, with other segments supporting freight and construction demand.`
+              : segmentError
+                ? segmentError
+                : "No truck segment distribution data available."
+          }
+        >
+          {segmentError ? (
+            <p className="text-sm text-destructive">{segmentError}</p>
+          ) : segmentLoading ? (
+            <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+              Loading truck segment split…
             </div>
-            <div className="lg:col-span-2">
-              <ChartWrapper
-                title="Trucks Application Chart"
-                summary={
-                  leadingApp && appTotal
-                    ? `${leadingApp.name} dominates at ${Math.round(
-                        (leadingApp.value / appTotal) * 100,
-                      )}% share, with other applications supporting logistics and construction growth.`
-                    : appError
-                      ? appError
-                      : "No application distribution data available."
-                }
-                // controls={
-                //   appAvailableMonths.length > 1 && (
-                //     <select
-                //       value={appMonth}
-                //       onChange={(e) => setAppMonth(e.target.value)}
-                //       className="border border-border bg-background rounded-md px-3 py-1 text-xs sm:text-sm"
-                //     >
-                //       {appAvailableMonths.map((m) => (
-                //         <option key={m} value={m}>
-                //           {m.toUpperCase()}
-                //         </option>
-                //       ))}
-                //     </select>
-                //   )
-                // }
-              >
-                {appError ? (
-                  <p className="text-sm text-destructive">{appError}</p>
-                ) : appLoading ? (
-                  <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                    Loading truck application data…
-                  </div>
-                ) : appChartData.length ? (
-                  <BarChart
-                    data={appChartData}
-                    bars={[
-                      { key: "value", name: "Applications", color: "#007AFF" },
-                    ]}
-                    height={350}
-                    layout="horizontal"
-                    showLegend={false}
-                    valueSuffix="%"
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No application distribution data available.
-                  </p>
-                )}
-              </ChartWrapper>
+          ) : segmentDonutData.length ? (
+            <DonutChart
+              data={segmentDonutData}
+              height={330}
+              showLegend={true}
+            />
+          ) : null}
+        </ChartWrapper>
+      </div>
+    )}
+
+    {showApplicationChartSection && (
+      <div className={showSegmentChartSection ? "lg:col-span-2" : "lg:col-span-3"}>
+        <ChartWrapper
+          title="Trucks Application Chart"
+          summary={
+            leadingApp && appTotal
+              ? `${leadingApp.name} dominates at ${Math.round(
+                  (leadingApp.value / appTotal) * 100,
+                )}% share, with other applications supporting logistics and construction growth.`
+              : appError
+                ? appError
+                : "No application distribution data available."
+          }
+        >
+          {appError ? (
+            <p className="text-sm text-destructive">{appError}</p>
+          ) : appLoading ? (
+            <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+              Loading truck application data…
             </div>
-          </div>
+          ) : appChartData.length ? (
+            <BarChart
+              data={appChartData}
+              bars={[
+                { key: "value", name: "Applications", color: "#007AFF" },
+              ]}
+              height={350}
+              layout="horizontal"
+              showLegend={false}
+              valueSuffix="%"
+            />
+          ) : null}
+        </ChartWrapper>
+      </div>
+    )}
+  </div>
+)}
 
           {/* 4) Forecast (backend) */}
           <ChartWrapper
@@ -822,6 +813,7 @@ useEffect(() => {
                 category="Truck"
                 height={300}
                 allowForecast={!!overallMeta?.allowForecast}
+                country={region}
                 baseMonth={overallMeta?.baseMonth}
                 horizon={overallMeta?.horizon}
                 graphId={graphId}

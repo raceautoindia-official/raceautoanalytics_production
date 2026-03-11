@@ -11,6 +11,11 @@ function normalizeBasePeriod(v) {
   return s ? s : null;
 }
 
+function normalizeCountry(v) {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return s ? s : null;
+}
+
 /**
  * Accepts BOTH payload formats:
  * A) New (flat)
@@ -74,6 +79,8 @@ export async function GET(request) {
     const graphId = toInt(searchParams.get("graphId"));
     const email = searchParams.get("email");
     const basePeriod = normalizeBasePeriod(searchParams.get("basePeriod"));
+const countryParam = normalizeCountry(searchParams.get("country"));
+const effectiveCountry = basePeriod ? (countryParam || "india") : null;
 
     const where = [];
     const params = [];
@@ -91,6 +98,11 @@ export async function GET(request) {
       params.push(basePeriod);
     }
 
+    if (effectiveCountry) {
+  where.push("s.country = ?");
+  params.push(effectiveCountry);
+}
+
     const sql = `
       SELECT
         s.id AS submission_id,
@@ -98,6 +110,7 @@ export async function GET(request) {
         s.graph_id,
         s.base_period,
         s.created_at,
+        s.country,
         sc.id AS score_id,
         sc.question_id,
         sc.year_index,
@@ -122,6 +135,7 @@ export async function GET(request) {
           graphId: r.graph_id,
           basePeriod: r.base_period,
           createdAt: r.created_at,
+          country: r.country,
           scores: [],
         });
       }
@@ -163,11 +177,13 @@ export async function POST(request) {
 
     const basePeriod = normalizeBasePeriod(body.basePeriod);
 
+    const countryBody = normalizeCountry(body.country);
+const effectiveCountry = basePeriod ? (countryBody || "india") : "india";
     // For Flash cycle submissions: enforce one submission per (graphId, user, basePeriod)
     if (basePeriod) {
       const [oldRows] = await db.query(
-        "SELECT id FROM submissions WHERE graph_id = ? AND user_email = ? AND base_period = ?",
-        [graphId, userEmail, basePeriod]
+        "SELECT id FROM submissions WHERE graph_id = ? AND user_email = ? AND base_period = ? AND country = ?",
+        [graphId, userEmail, basePeriod, effectiveCountry]
       );
       const ids = (oldRows || []).map((x) => x.id);
       if (ids.length) {
@@ -184,8 +200,8 @@ export async function POST(request) {
     }
 
     const [insertRes] = await db.query(
-      "INSERT INTO submissions (user_email, graph_id, base_period) VALUES (?, ?, ?)",
-      [userEmail, graphId, basePeriod]
+      "INSERT INTO submissions (user_email, graph_id, base_period, country) VALUES (?, ?, ?, ?)",
+      [userEmail, graphId, basePeriod, effectiveCountry]
     );
 
     const submissionId = insertRes.insertId;
@@ -249,14 +265,17 @@ export async function DELETE(request) {
 
       // If basePeriod is not provided, treat as forecast-mode delete (base_period IS NULL)
       const [rows] = await db.query(
-        `
-        SELECT id FROM submissions
-        WHERE graph_id = ?
-          AND user_email = ?
-          AND ${basePeriod ? "base_period = ?" : "base_period IS NULL"}
-        `,
-        basePeriod ? [graphId, email, basePeriod] : [graphId, email]
-      );
+  `
+  SELECT id FROM submissions
+  WHERE graph_id = ?
+    AND user_email = ?
+    AND ${basePeriod ? "base_period = ?" : "base_period IS NULL"}
+    ${basePeriod ? "AND country = ?" : ""}
+  `,
+  basePeriod
+    ? [graphId, email, basePeriod, effectiveCountry]
+    : [graphId, email]
+);
 
       ids = (rows || []).map((x) => x.id);
     }

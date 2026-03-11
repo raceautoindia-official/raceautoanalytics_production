@@ -610,12 +610,24 @@ export default function PassengerVehiclesPage() {
 
   const pageMonthLabel = formatMonthForDisplay(month);
 
+  
+
+
   const segmentTotal = segmentData.reduce((sum, item) => sum + item.value, 0);
   const leadingSegment = segmentData[0];
 
   const topEvHeaderLabel = evTop
     ? `${evTop.name} (${evTop.current.toFixed(1)}%)`
     : "—";
+
+    const showMarketChartSection =
+  marketLoading || !!marketError || marketChartData.length > 0;
+
+const showEvChartSection =
+  evLoading || !!evError || evChartData.length > 0;
+
+const showApplicationChartSection =
+  appLoading || !!appError || appChartData.length > 0;
 
   if (!mounted) {
     return <PageSkeleton />;
@@ -686,123 +698,109 @@ export default function PassengerVehiclesPage() {
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) PV Market OEM Performance */}
-          <ChartWrapper
-            title="Passenger Vehicle Market Performance"
-            summary={marketSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle
-                  value={marketCompare}
-                  onChange={setMarketCompare}
-                />
-                <MonthSelector
-                  value={marketCurrentMonth}
-                  onChange={setMarketCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {marketError ? (
-              <p className="text-sm text-destructive">{marketError}</p>
-            ) : marketLoading ? (
-              <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading passenger vehicle OEM market share…
-              </div>
-            ) : marketChartData.length ? (
-              <>
-                <BarChart
-                  data={marketChartData}
-                  bars={[
-                    {
-                      key: "current",
-                      name: "Current Period",
-                      color: "#007AFF",
-                      useGradient: true,
-                    },
-                    {
-                      key: "previous",
-                      name:
-                        marketCompare === "mom"
-                          ? "Previous Month"
-                          : "Previous Year",
-                      color: "#6B7280",
-                    },
-                  ]}
-                  height={350}
-                  layout="horizontal"
-                  tooltipRenderer={renderMarketTooltip}
-                />
-                {/* <ChartSummary
-                  summary={marketSummary}
-                  trend={marketTopDelta >= 0 ? "up" : "down"}
-                /> */}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No passenger vehicle OEM market share data available for the
-                selected period.
-              </p>
-            )}
-          </ChartWrapper>
+         {showMarketChartSection && (
+  <ChartWrapper
+    title="Passenger Vehicle Market Performance"
+    summary={marketSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle
+          value={marketCompare}
+          onChange={setMarketCompare}
+        />
+        <MonthSelector
+          value={marketCurrentMonth}
+          onChange={setMarketCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {marketError ? (
+      <p className="text-sm text-destructive">{marketError}</p>
+    ) : marketLoading ? (
+      <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading passenger vehicle OEM market share…
+      </div>
+    ) : marketChartData.length ? (
+      <>
+        <BarChart
+          data={marketChartData}
+          bars={[
+            {
+              key: "current",
+              name: "Current Period",
+              color: "#007AFF",
+              useGradient: true,
+            },
+            {
+              key: "previous",
+              name:
+                marketCompare === "mom"
+                  ? "Previous Month"
+                  : "Previous Year",
+              color: "#6B7280",
+            },
+          ]}
+          height={350}
+          layout="horizontal"
+          tooltipRenderer={renderMarketTooltip}
+        />
+      </>
+    ) : null}
+  </ChartWrapper>
+)}
 
           {/* 2) PV EV OEM Share Comparison */}
-          <ChartWrapper
-            title="Passenger Vehicle EV Electric Share Comparison"
-            summary={evSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle value={evCompare} onChange={setEvCompare} />
-                <MonthSelector
-                  value={evCurrentMonth}
-                  onChange={setEvCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {evError ? (
-              <p className="text-sm text-destructive">{evError}</p>
-            ) : evLoading ? (
-              <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading passenger vehicle EV share…
-              </div>
-            ) : evChartData.length ? (
-              <>
-                <BarChart
-                  data={evChartData}
-                  bars={[
-                    {
-                      key: "current",
-                      name: "Current EV Share",
-                      color: "#22C55E",
-                      useGradient: true,
-                    },
-                    {
-                      key: "previous",
-                      name:
-                        evCompare === "mom"
-                          ? "Previous Month"
-                          : "Previous Year",
-                      color: "#6B7280",
-                    },
-                  ]}
-                  height={350}
-                  layout="horizontal"
-                  tooltipRenderer={renderEvTooltip}
-                />
-                {/* <ChartSummary
-                  summary={evSummary}
-                  trend={evTopDelta >= 0 ? "up" : "down"}
-                /> */}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No passenger vehicle EV share data available for the selected
-                period.
-              </p>
-            )}
-          </ChartWrapper>
+         {showEvChartSection && (
+  <ChartWrapper
+    title="Passenger Vehicle EV Electric Share Comparison"
+    summary={evSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle value={evCompare} onChange={setEvCompare} />
+        <MonthSelector
+          value={evCurrentMonth}
+          onChange={setEvCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {evError ? (
+      <p className="text-sm text-destructive">{evError}</p>
+    ) : evLoading ? (
+      <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading passenger vehicle EV share…
+      </div>
+    ) : evChartData.length ? (
+      <>
+        <BarChart
+          data={evChartData}
+          bars={[
+            {
+              key: "current",
+              name: "Current EV Share",
+              color: "#22C55E",
+              useGradient: true,
+            },
+            {
+              key: "previous",
+              name:
+                evCompare === "mom"
+                  ? "Previous Month"
+                  : "Previous Year",
+              color: "#6B7280",
+            },
+          ]}
+          height={350}
+          layout="horizontal"
+          tooltipRenderer={renderEvTooltip}
+        />
+      </>
+    ) : null}
+  </ChartWrapper>
+)}
 
           {/* 3) PV Sales Forecast (from overallData) */}
           <ChartWrapper
@@ -824,6 +822,7 @@ export default function PassengerVehiclesPage() {
                   category="PV"
                   height={350}
                   allowForecast={!!overallMeta?.allowForecast}
+                  country={region}
                   baseMonth={overallMeta?.baseMonth}
                   horizon={overallMeta?.horizon}
                   graphId={graphId}
@@ -837,98 +836,50 @@ export default function PassengerVehiclesPage() {
           </ChartWrapper>
 
           {/* 4) Application + 5) Segment Distribution */}
-          <div className="grid">
-            <ChartWrapper
-              title="Passenger Vehicle Application Chart"
-              summary={
-                leadingApp && appTotal
-                  ? `${leadingApp.name} dominates at ${Math.round(
-                      (leadingApp.value / appTotal) * 100,
-                    )}% of passenger vehicle applications, with ${
-                      secondApp?.name ?? "other uses"
-                    } gaining traction.`
-                  : appError
-                    ? appError
-                    : "No passenger vehicle application distribution data available."
-              }
-              // controls={
-              //   appAvailableMonths.length > 1 && (
-              //     <select
-              //       value={appMonth}
-              //       onChange={(e) => setAppMonth(e.target.value)}
-              //       className="border border-border bg-background rounded-md px-3 py-1 text-xs sm:text-sm"
-              //     >
-              //       {appAvailableMonths.map((m) => (
-              //         <option key={m} value={m}>
-              //           {m.toUpperCase()}
-              //         </option>
-              //       ))}
-              //     </select>
-              //   )
-              // }
-            >
-              {appError ? (
-                <p className="text-sm text-destructive">{appError}</p>
-              ) : appLoading ? (
-                <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                  Loading passenger vehicle application data…
-                </div>
-              ) : appChartData.length ? (
-                <>
-                  <BarChart
-                    data={appChartData}
-                    bars={[
-                      {
-                        key: "value",
-                        name: "Applications",
-                        color: "#007AFF",
-                        useGradient: true,
-                      },
-                    ]}
-                    height={300}
-                    layout="horizontal"
-                    showLegend={false}
-                    valueSuffix="%"
-                  />
-                  {/* <ChartSummary
-                    summary={
-                      leadingApp && appTotal
-                        ? `${leadingApp.name} remains the primary use case, while ${
-                            secondApp?.name ?? "other segments"
-                          } show emerging growth opportunities.`
-                        : "Application mix remains stable across key use cases."
-                    }
-                    trend="flat"
-                  /> */}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No passenger vehicle application distribution data available.
-                </p>
-              )}
-            </ChartWrapper>
-
-            {/* <ChartWrapper
-              title="Passenger Vehicle Segment Distribution"
-              summary={
-                leadingSegment
-                  ? `${leadingSegment.name} leads with ${Math.round(
-                      ((leadingSegment.value ?? 0) / (segmentTotal || 1)) * 100
-                    )}% share, with SUV-oriented body styles showing the strongest growth momentum.`
-                  : "No passenger vehicle segment distribution data available."
-              }
-            >
-              <DonutChart data={segmentData} height={300} showLegend={true} />
-              <ChartSummary
-                summary={
-                  leadingSegment
-                    ? "Body-style mix continues to skew toward SUVs and crossovers, while entry hatchbacks remain under pressure."
-                    : "Awaiting segment distribution data for deeper mix analysis."
-                }
-                trend="up"
-              />
-            </ChartWrapper> */}
-          </div>
+        {showApplicationChartSection && (
+  <div className="grid">
+    <ChartWrapper
+      title="Passenger Vehicle Application Chart"
+      summary={
+        leadingApp && appTotal
+          ? `${leadingApp.name} dominates at ${Math.round(
+              (leadingApp.value / appTotal) * 100,
+            )}% of passenger vehicle applications, with ${
+              secondApp?.name ?? "other uses"
+            } gaining traction.`
+          : appError
+            ? appError
+            : "No passenger vehicle application distribution data available."
+      }
+    >
+      {appError ? (
+        <p className="text-sm text-destructive">{appError}</p>
+      ) : appLoading ? (
+        <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+          Loading passenger vehicle application data…
+        </div>
+      ) : appChartData.length ? (
+        <>
+          <BarChart
+            data={appChartData}
+            bars={[
+              {
+                key: "value",
+                name: "Applications",
+                color: "#007AFF",
+                useGradient: true,
+              },
+            ]}
+            height={300}
+            layout="horizontal"
+            showLegend={false}
+            valueSuffix="%"
+          />
+        </>
+      ) : null}
+    </ChartWrapper>
+  </div>
+)}
         </div>
       </div>
     </div>

@@ -718,6 +718,15 @@ const res = await fetch(
     month: "long",
     year: "numeric",
   });
+
+  const showOemChartSection =
+  oemLoading || !!oemError || !!(oemComputed && oemComputed.chartData.length);
+
+const showEvChartSection =
+  evLoading || !!evError || !!(evComputed && evComputed.chartData.length);
+
+const showApplicationChartSection =
+  appLoading || !!appError || appBarData.length > 0;
   
   useEffect(() => {
   setAppRaw([]);
@@ -797,100 +806,96 @@ const res = await fetch(
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) OEM Performance – backend, market share */}
-          <ChartWrapper
-            title="Two-Wheeler OEM Performance"
-            summary={oemSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle value={oemCompare} onChange={setOemCompare} />
-                <MonthSelector
-                  value={oemCurrentMonth}
-                  onChange={setOemCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {oemError ? (
-              <p className="text-sm text-destructive">{oemError}</p>
-            ) : oemLoading ? (
-              <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading OEM market share…
-              </div>
-            ) : oemComputed && oemComputed.chartData.length ? (
-              <BarChart
-                data={oemComputed.chartData}
-                bars={[
-                  {
-                    key: "current",
-                    name: "Current Period",
-                    color: "#007AFF",
-                  },
-                  {
-                    key: "previous",
-                    name:
-                      oemCompare === "mom" ? "Previous Month" : "Previous Year",
-                    color: "#6B7280",
-                  },
-                ]}
-                height={350}
-                layout="horizontal"
-                tooltipRenderer={renderOemTooltip}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No OEM market share data available for the selected period.
-              </p>
-            )}
-          </ChartWrapper>
+          {showOemChartSection && (
+  <ChartWrapper
+    title="Two-Wheeler OEM Performance"
+    summary={oemSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle value={oemCompare} onChange={setOemCompare} />
+        <MonthSelector
+          value={oemCurrentMonth}
+          onChange={setOemCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {oemError ? (
+      <p className="text-sm text-destructive">{oemError}</p>
+    ) : oemLoading ? (
+      <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading OEM market share…
+      </div>
+    ) : oemComputed && oemComputed.chartData.length ? (
+      <BarChart
+        data={oemComputed.chartData}
+        bars={[
+          {
+            key: "current",
+            name: "Current Period",
+            color: "#007AFF",
+          },
+          {
+            key: "previous",
+            name:
+              oemCompare === "mom" ? "Previous Month" : "Previous Year",
+            color: "#6B7280",
+          },
+        ]}
+        height={350}
+        layout="horizontal"
+        tooltipRenderer={renderOemTooltip}
+      />
+    ) : null}
+  </ChartWrapper>
+)}
 
           {/* 2) EV / alternative fuel share comparison – backend, segmentType=ev */}
-          <ChartWrapper
-            title="Two-Wheeler EV Electric Share Comparison"
-            summary={evSummary}
-            controls={
-              <div className="flex items-center space-x-3">
-                <CompareToggle value={evCompare} onChange={setEvCompare} />
-                <MonthSelector
-                  value={evCurrentMonth}
-                  onChange={setEvCurrentMonth}
-                  label="Current Month"
-                />
-              </div>
-            }
-          >
-            {evError ? (
-              <p className="text-sm text-destructive">{evError}</p>
-            ) : evLoading ? (
-              <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                Loading EV / alternative fuel share…
-              </div>
-            ) : evComputed && evComputed.chartData.length ? (
-              <BarChart
-                data={evComputed.chartData}
-                bars={[
-                  {
-                    key: "current",
-                    name: "Current Period",
-                    color: "#2ECC71",
-                  },
-                  {
-                    key: "previous",
-                    name:
-                      evCompare === "mom" ? "Previous Month" : "Previous Year",
-                    color: "#6B7280",
-                  },
-                ]}
-                height={300}
-                layout="vertical"
-                tooltipRenderer={renderEvTooltip}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No EV / alternative fuel share data available for this period.
-              </p>
-            )}
-          </ChartWrapper>
+          {showEvChartSection && (
+  <ChartWrapper
+    title="Two-Wheeler EV Electric Share Comparison"
+    summary={evSummary}
+    controls={
+      <div className="flex items-center space-x-3">
+        <CompareToggle value={evCompare} onChange={setEvCompare} />
+        <MonthSelector
+          value={evCurrentMonth}
+          onChange={setEvCurrentMonth}
+          label="Current Month"
+        />
+      </div>
+    }
+  >
+    {evError ? (
+      <p className="text-sm text-destructive">{evError}</p>
+    ) : evLoading ? (
+      <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+        Loading EV / alternative fuel share…
+      </div>
+    ) : evComputed && evComputed.chartData.length ? (
+      <BarChart
+        data={evComputed.chartData}
+        bars={[
+          {
+            key: "current",
+            name: "Current Period",
+            color: "#2ECC71",
+          },
+          {
+            key: "previous",
+            name:
+              evCompare === "mom" ? "Previous Month" : "Previous Year",
+            color: "#6B7280",
+          },
+        ]}
+        height={300}
+        layout="vertical"
+        tooltipRenderer={renderEvTooltip}
+      />
+    ) : null}
+  </ChartWrapper>
+)}
 
           {/* 3) 2W Sales Forecast – backend timeseries via contentHierarchy + volumeData */}
           <ChartWrapper
@@ -911,6 +916,7 @@ const res = await fetch(
                 category="2W"
                 height={350}
                 allowForecast={!!overallMeta?.allowForecast}
+                country={region}
                 baseMonth={overallMeta?.baseMonth}
                 horizon={overallMeta?.horizon}
                 graphId={graphId}
@@ -919,45 +925,45 @@ const res = await fetch(
           </ChartWrapper>
 
           {/* 4) Application + segment charts */}
-          <div className="grid">
-            <ChartWrapper
-              title="Two-Wheeler Application Chart"
-              summary={appSummary}
-              controls={
-                <MonthSelector
-                  value={appMonth}
-                  onChange={setAppMonth}
-                  label="Application Month"
-                />
-              }
-            >
-              {appError ? (
-                <p className="text-sm text-destructive">{appError}</p>
-              ) : appLoading ? (
-                <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                  Loading application split…
-                </div>
-              ) : appBarData.length ? (
-                <BarChart
-                  data={appBarData}
-                  bars={[
-                    {
-                      key: "value",
-                      name: "Usage",
-                      color: "#007AFF",
-                    },
-                  ]}
-                  height={300}
-                  layout="horizontal"
-                  showLegend={false}
-                  valueSuffix="%"
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No application data available for this period.
-                </p>
-              )}
-            </ChartWrapper>
+          
+  {showApplicationChartSection && (
+    <div className="grid">
+    <ChartWrapper
+      title="Two-Wheeler Application Chart"
+      summary={appSummary}
+      controls={
+        <MonthSelector
+          value={appMonth}
+          onChange={setAppMonth}
+          label="Application Month"
+        />
+      }
+    >
+      {appError ? (
+        <p className="text-sm text-destructive">{appError}</p>
+      ) : appLoading ? (
+        <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+          Loading application split…
+        </div>
+      ) : appBarData.length ? (
+        <BarChart
+          data={appBarData}
+          bars={[
+            {
+              key: "value",
+              name: "Usage",
+              color: "#007AFF",
+            },
+          ]}
+          height={300}
+          layout="horizontal"
+          showLegend={false}
+          valueSuffix="%"
+        />
+      ) : null}
+    </ChartWrapper>
+     </div>
+  )}
 
             {/* <ChartWrapper
               title="Two-Wheeler Segment Distribution"
@@ -971,7 +977,7 @@ const res = await fetch(
             >
               <DonutChart data={segmentData} height={300} showLegend={true} />
             </ChartWrapper> */}
-          </div>
+         
         </div>
       </div>
     </div>

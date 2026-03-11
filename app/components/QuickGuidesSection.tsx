@@ -16,6 +16,7 @@ import Link from "next/link";
 type CountryItem = {
   name: string;
   code: string; // ISO 2 (lowercase)
+  slug: string;
   description: string;
 };
 
@@ -68,6 +69,13 @@ function getYouTubeEmbedUrl(url: string) {
   return "";
 }
 
+function getPreviousMonthYyyyMm() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
 /** --- Country Modal --- */
 function CountryModal({
   country,
@@ -76,6 +84,7 @@ function CountryModal({
   country: CountryItem | null;
   onClose: () => void;
 }) {
+  const targetMonth = getPreviousMonthYyyyMm();
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -120,7 +129,11 @@ function CountryModal({
 
         <p className="relative mt-4 text-sm leading-relaxed text-white/70">
           {country.description}{" "}
-          <Link href="/flash-reports">
+          <Link
+            href={`/flash-reports?country=${encodeURIComponent(
+              country.slug,
+            )}&month=${encodeURIComponent(targetMonth)}`}
+          >
             <span className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200">
               Click to view full dataset
             </span>
@@ -159,18 +172,20 @@ function FlipInfoCard({
   return (
     <div className="group relative">
       <div
-        className="relative h-[500px] md:h-[480px] lg:h-[430px] w-full [perspective:1400px]"
+        className="relative min-h-[460px] sm:min-h-[420px] md:h-[480px] lg:h-[430px] w-full [perspective:1400px]"
         aria-label={ariaLabel}
       >
         <div
           className={[
             "absolute inset-0 transition-transform duration-700 [transform-style:preserve-3d]",
-            flipped ? "[transform:rotateY(180deg)]" : "[transform:rotateY(0deg)]",
+            flipped
+              ? "[transform:rotateY(180deg)]"
+              : "[transform:rotateY(0deg)]",
           ].join(" ")}
         >
           {/* FRONT */}
           <div className="absolute inset-0 [backface-visibility:hidden]">
-            <div className="relative h-full rounded-2xl border border-white/10 bg-[#0b141f]/70 p-5 md:p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl overflow-hidden transition-transform duration-300 group-hover:-translate-y-1">
+            <div className="relative h-full rounded-2xl border border-white/10 bg-[#0b141f]/70 p-4 sm:p-5 md:p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl overflow-hidden transition-transform duration-300 group-hover:-translate-y-1">
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.06]"
                 style={{
@@ -231,7 +246,7 @@ function FlipInfoCard({
 
           {/* BACK */}
           <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-            <div className="relative h-full rounded-2xl border border-white/10 bg-[#0b141f]/70 p-5 md:p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl overflow-hidden transition-transform duration-300 group-hover:-translate-y-1">
+            <div className="relative h-full rounded-2xl border border-white/10 bg-[#0b141f]/70 p-4 sm:p-5 md:p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl overflow-hidden transition-transform duration-300 group-hover:-translate-y-1">
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.06]"
                 style={{
@@ -259,55 +274,55 @@ function FlipInfoCard({
                   </button>
                 </div>
 
-               <div className="mt-4 flex-1 min-h-0">
-  <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-black/20 p-3">
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <div className="text-sm font-medium text-white/90">
-          Instruction Video
-        </div>
-      </div>
+                <div className="mt-4 flex-1 min-h-0">
+                  <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-white/90">
+                          Instruction Video
+                        </div>
+                      </div>
 
-      {embedUrl ? (
-        <a
-          href={videoUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-        >
-          <PlayCircle className="h-4 w-4" />
-          Watch on YouTube
-        </a>
-      ) : (
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-        >
-          <PlayCircle className="h-4 w-4" />
-          Watch
-        </button>
-      )}
-    </div>
+                      {embedUrl ? (
+                        <a
+                          href={videoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          Watch on YouTube
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          Watch
+                        </button>
+                      )}
+                    </div>
 
-    <div className="mt-3 flex-1 min-h-0">
-      {embedUrl ? (
-        <div className="h-full overflow-hidden rounded-xl border border-white/10 bg-black">
-          <iframe
-            className="h-full w-full"
-            src={embedUrl}
-            title="Flash Report Quick Walkthrough"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
-        </div>
-      ) : (
-        <div className="flex h-full min-h-[150px] items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 text-xs text-white/50">
-          Video coming soon
-        </div>
-      )}
-    </div>
-  </div>
-</div>
+                    <div className="mt-3 flex-1 min-h-0">
+                      {embedUrl ? (
+                        <div className="h-full overflow-hidden rounded-xl border border-white/10 bg-black">
+                          <iframe
+                            className="h-full w-full"
+                            src={embedUrl}
+                            title="Flash Report Quick Walkthrough"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-full min-h-[150px] items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 text-xs text-white/50">
+                          Video coming soon
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -341,12 +356,42 @@ function CountryBadge({
 
 /* ---------- NEW: polished sections data ---------- */
 const CATEGORY_PREVIEW = [
-  { name: "2W", hint: "Two Wheeler", value: "—", accent: "bg-blue-500/15 text-blue-200" },
-  { name: "3W", hint: "Three Wheeler", value: "—", accent: "bg-indigo-500/15 text-indigo-200" },
-  { name: "PV", hint: "Passenger Vehicles", value: "—", accent: "bg-emerald-500/15 text-emerald-200" },
-  { name: "CV", hint: "Commercial Vehicles", value: "—", accent: "bg-amber-500/15 text-amber-200" },
-  { name: "TRAC", hint: "Tractors", value: "—", accent: "bg-sky-500/15 text-sky-200" },
-  { name: "CE", hint: "Construction Equip.", value: "—", accent: "bg-rose-500/15 text-rose-200" },
+  {
+    name: "2W",
+    hint: "Two Wheeler",
+    value: "—",
+    accent: "bg-blue-500/15 text-blue-200",
+  },
+  {
+    name: "3W",
+    hint: "Three Wheeler",
+    value: "—",
+    accent: "bg-indigo-500/15 text-indigo-200",
+  },
+  {
+    name: "PV",
+    hint: "Passenger Vehicles",
+    value: "—",
+    accent: "bg-emerald-500/15 text-emerald-200",
+  },
+  {
+    name: "CV",
+    hint: "Commercial Vehicles",
+    value: "—",
+    accent: "bg-amber-500/15 text-amber-200",
+  },
+  {
+    name: "TRAC",
+    hint: "Tractors",
+    value: "—",
+    accent: "bg-sky-500/15 text-sky-200",
+  },
+  {
+    name: "CE",
+    hint: "Construction Equip.",
+    value: "—",
+    accent: "bg-rose-500/15 text-rose-200",
+  },
 ];
 
 const VALUE_PROPS = [
@@ -398,65 +443,75 @@ export default function QuickGuidesSection() {
       {
         name: "India",
         code: "in",
+        slug: "india",
         description:
           "India flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Thailand",
         code: "th",
+        slug: "thailand",
         description:
           "Thailand flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Brazil",
         code: "br",
+        slug: "brazil",
         description:
           "Brazil flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "South Africa",
         code: "za",
+        slug: "south-africa",
         description:
           "South Africa flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Japan",
         code: "jp",
+        slug: "japan",
         description:
           "Japan flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Vietnam",
         code: "vn",
+        slug: "vietnam",
         description:
           "Vietnam flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Germany",
         code: "de",
+        slug: "germany",
         description:
           "Germany flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Australia",
         code: "au",
+        slug: "australia",
         description:
           "Australia flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Chile",
         code: "cl",
+        slug: "chile",
         description:
           "Chile flash report will include total market sales, EV sales, and application split.",
       },
       {
         name: "Sweden",
         code: "se",
+        slug: "sweden",
         description:
           "Sweden flash report will include total market sales, EV sales, and application split.",
       },
     ],
-    []
+    [],
   );
 
   const flashBullets = useMemo(
@@ -465,7 +520,7 @@ export default function QuickGuidesSection() {
       "Compare MoM/YoY trends across segments and categories.",
       "Open category cards to drill into 2W / 3W / PV / CV / TRAC / CE.",
     ],
-    []
+    [],
   );
 
   const forecastBullets = useMemo(
@@ -478,7 +533,7 @@ export default function QuickGuidesSection() {
       "Export forecast view or share insights after finalizing.",
       "Save scenarios for future comparisons and monthly tracking.",
     ],
-    []
+    [],
   );
 
   return (
@@ -512,15 +567,15 @@ export default function QuickGuidesSection() {
                       Primary countries (launching)
                     </div>
 
-                   <div className="mt-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-  {countries.map((c) => (
-    <CountryBadge
-      key={c.name}
-      country={c}
-      onClick={setActiveCountry}
-    />
-  ))}
-</div>
+                    <div className="mt-2 grid grid-cols-4 gap-2 hidden md:grid">
+                      {countries.map((c) => (
+                        <CountryBadge
+                          key={c.name}
+                          country={c}
+                          onClick={setActiveCountry}
+                        />
+                      ))}
+                    </div>
 
                     <div className="mt-2 text-[11px] text-white/55">
                       Tap a country to preview what’s coming.
@@ -551,7 +606,8 @@ export default function QuickGuidesSection() {
               What you get in one place
             </h3>
             <p className="mt-2 max-w-3xl text-white/70">
-              Designed for fast monthly review: data, splits, trend checks, and forecast validation.
+              Designed for fast monthly review: data, splits, trend checks, and
+              forecast validation.
             </p>
 
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -622,7 +678,8 @@ export default function QuickGuidesSection() {
                     Ready to explore markets?
                   </h3>
                   <p className="mt-2 max-w-2xl text-white/70">
-                    Start with Flash Reports to see the latest month, then validate direction in Forecast.
+                    Start with Flash Reports to see the latest month, then
+                    validate direction in Forecast.
                   </p>
                 </div>
 
@@ -646,7 +703,10 @@ export default function QuickGuidesSection() {
         </div>
       </section>
 
-      <CountryModal country={activeCountry} onClose={() => setActiveCountry(null)} />
+      <CountryModal
+        country={activeCountry}
+        onClose={() => setActiveCountry(null)}
+      />
     </>
   );
 }

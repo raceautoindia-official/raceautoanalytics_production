@@ -706,6 +706,7 @@ export default function FlashReportsPage() {
                     category="Total"
                     height={300}
                     allowForecast={!!overallMeta?.allowForecast}
+                    country={region}
                   />
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">

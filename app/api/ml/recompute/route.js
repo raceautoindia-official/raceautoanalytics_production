@@ -10,6 +10,11 @@ const MODEL_VERSION = process.env.ML_MODEL_VERSION || "kmeans-v1";
 const DEFAULT_CLUSTERS = Number(process.env.ML_DEFAULT_CLUSTERS || "3");
 const ADMIN_TOKEN = process.env.ML_ADMIN_TOKEN || null;
 
+function normalizeCountry(v) {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return s || null;
+}
+
 // --- small helpers ----------------------------------------------------------
 async function logStart({ requestId, graphId, clusters, modelVersion, source }) {
   const conn = await db.getConnection();
@@ -51,17 +56,19 @@ async function logFinish({
   }
 }
 
-async function upsertMlResults({ graphId, payload }) {
+
+
+async function upsertMlResults({ graphId, country, payload }) {
   const conn = await db.getConnection();
   try {
     await conn.query(
-      `INSERT INTO ml_results (graph_id, model_version, output_json)
-       VALUES (?, ?, ?)
+      `INSERT INTO ml_results (graph_id, country, model_version, output_json)
+       VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          model_version = VALUES(model_version),
          output_json   = VALUES(output_json),
          updated_at    = CURRENT_TIMESTAMP`,
-      [graphId, MODEL_VERSION, JSON.stringify(payload)]
+      [graphId, country, MODEL_VERSION, JSON.stringify(payload)]
     );
   } finally {
     conn.release();
@@ -81,6 +88,8 @@ export async function POST(request) {
   const body = await request.json();
   const graphId = body?.graphId;
   const clusters = body?.clusters;
+  const rawCountry = normalizeCountry(body?.country);
+const country = rawCountry || "india";
   const source =
     (body?.source ||
       request.headers.get("x-trigger") ||
@@ -111,9 +120,10 @@ export async function POST(request) {
   const started = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 60_000);
-  const url = `${PY_ML_BASE}/calculate_ranges?graphId=${encodeURIComponent(
-    graphId
-  )}&clusters=${nClusters}&cache=0`;
+const countryQs = rawCountry ? `&country=${encodeURIComponent(country)}` : "";
+const url = `${PY_ML_BASE}/calculate_ranges?graphId=${encodeURIComponent(
+  graphId
+)}&clusters=${nClusters}${countryQs}&cache=0`;
 
   let payload = null;
   let pyStatus = null;
@@ -137,7 +147,7 @@ export async function POST(request) {
   // --- On success: upsert ml_results
   if (finalStatus === "success") {
     try {
-      await upsertMlResults({ graphId, payload });
+      await upsertMlResults({ graphId, country, payload });
     } catch (e) {
       finalStatus = "error";
       finalError = `Upsert failed: ${e.message || String(e)}`;
@@ -175,6 +185,7 @@ export async function POST(request) {
         clusters: nClusters,
         requestId,
         outputCountGroups: outCount,
+        country
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

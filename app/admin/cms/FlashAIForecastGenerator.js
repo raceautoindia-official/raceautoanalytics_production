@@ -11,14 +11,12 @@ import {
   Space,
   Table,
   Typography,
+  Select,
 } from "antd";
 
 const { Text } = Typography;
 
 function getPrevMonthIST() {
-  // Flash reporting month rolls over on the 5th (IST):
-  // - 1st–4th: treat "latest available" as two months ago
-  // - 5th onwards: treat "latest available" as previous calendar month
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
@@ -70,9 +68,8 @@ function normalizeSeg(s) {
 function guessFlashSegment(graph) {
   const segRaw = graph?.flash_segment || "";
   const seg = normalizeSeg(segRaw);
-  // direct match
   if (SEGMENT_TO_CAT[seg]) return seg;
-  // common short keys
+
   const compact = seg.replace(/\s+/g, "");
   if (SEGMENT_TO_CAT[compact]) return compact;
 
@@ -85,7 +82,6 @@ function guessFlashSegment(graph) {
   if (name.includes("tractor") || name.includes("trac")) return "tractor";
   if (name.includes("truck")) return "truck";
   if (name.includes("bus")) return "bus";
-  // ✅ Construction Equipment (CE)
   if (
     name.includes("construction") ||
     name.includes("equipment") ||
@@ -101,9 +97,16 @@ function asNumber(v) {
 }
 
 export default function FlashAIForecastGenerator() {
+  const [countries, setCountries] = useState([{ value: "india", label: "India" }]);
+  const [selectedCountry, setSelectedCountry] = useState("india");
+
+  // per graph id: {exists, aiForecast, source}
+  const [forecastMap, setForecastMap] = useState({});
+
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+
   const [graphs, setGraphs] = useState([]);
   const [questionsMap, setQuestionsMap] = useState({});
   const [chartPoints, setChartPoints] = useState([]);
@@ -115,52 +118,108 @@ export default function FlashAIForecastGenerator() {
   const load = async () => {
     setLoading(true);
     try {
-      const [graphsRes, chartRes, periodsRes] = await Promise.all([
+      const [graphsRes, chartRes, periodsRes, countriesRes] = await Promise.all([
         fetch("/api/graphs?context=flash", {
           headers: {
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
           },
+          cache: "no-store",
         }),
         fetch(
-          `/api/flash-reports/overall-chart-data?month=${baseMonth}&horizon=6`,
+          `/api/flash-reports/overall-chart-data?month=${baseMonth}&horizon=6&country=${encodeURIComponent(
+            selectedCountry
+          )}`,
+          { cache: "no-store" }
         ),
         fetch(
           `/api/scoreSettings?key=flashScoreSettings&baseMonth=${baseMonth}&horizon=6`,
+          { cache: "no-store" }
         ),
+        fetch("/api/flash-reports/countries", { cache: "no-store" }),
       ]);
 
       if (!graphsRes.ok) throw new Error("Failed to load Flash graphs");
-      if (!chartRes.ok)
-        throw new Error("Failed to load Flash overall chart data");
+      if (!chartRes.ok) throw new Error("Failed to load Flash overall chart data");
       if (!periodsRes.ok) throw new Error("Failed to load Flash month labels");
 
-      const [graphsJson, chartJson, periodsJson] = await Promise.all([
+      const [graphsJson, chartJson, periodsJson, countriesJson] = await Promise.all([
         graphsRes.json(),
         chartRes.json(),
         periodsRes.json(),
+        countriesRes.json(),
       ]);
+
+      const opts = Array.isArray(countriesJson)
+        ? countriesJson
+            .map((c) => {
+              const v = String(c.value || c.code || c.name || "")
+                .trim()
+                .toLowerCase();
+              const label = c.label || c.name || c.value || v;
+              return v ? { value: v, label } : null;
+            })
+            .filter(Boolean)
+        : [];
+
+      const merged = [
+        { value: "india", label: "India" },
+        ...opts.filter((x) => x.value !== "india"),
+      ];
+      setCountries(merged);
 
       const g = graphsJson || [];
       setGraphs(g);
       setChartPoints(chartJson?.data || []);
       setPeriods(periodsJson?.yearNames || []);
 
-      // questions per graph
+      // ✅ Fetch questions per graph with country
       const qPairs = await Promise.all(
         g.map(async (gr) => {
           try {
-            const res = await fetch(`/api/questions?graphId=${gr.id}`);
+            const url = `/api/questions?graphId=${gr.id}&country=${encodeURIComponent(
+              selectedCountry
+            )}`;
+            const res = await fetch(url, { cache: "no-store" });
             if (!res.ok) return [gr.id, []];
             const qs = await res.json();
             return [gr.id, Array.isArray(qs) ? qs : []];
           } catch {
             return [gr.id, []];
           }
-        }),
+        })
       );
+
       const qMap = {};
       for (const [id, qs] of qPairs) qMap[id] = qs;
       setQuestionsMap(qMap);
+
+      // ✅ Fetch country AI forecast presence for table display
+      const fPairs = await Promise.all(
+        g.map(async (gr) => {
+          try {
+            const res = await fetch(
+              `/api/flash-reports/graph-forecasts?graphId=${gr.id}&country=${encodeURIComponent(
+                selectedCountry
+              )}`,
+              { cache: "no-store" }
+            );
+            const json = await res.json().catch(() => ({}));
+            return [gr.id, json];
+          } catch {
+            return [gr.id, { exists: false }];
+          }
+        })
+      );
+
+      const fMap = {};
+      for (const [id, f] of fPairs) {
+        fMap[id] = {
+          exists: !!f?.exists,
+          source: f?.source || "none",
+          aiForecast: f?.aiForecast || null,
+        };
+      }
+      setForecastMap(fMap);
     } catch (e) {
       message.error(e?.message || "Failed to load Flash AI generator data");
     } finally {
@@ -171,7 +230,7 @@ export default function FlashAIForecastGenerator() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedCountry]);
 
   const buildVolumeDataForGraph = (graph) => {
     const seg = guessFlashSegment(graph);
@@ -181,7 +240,6 @@ export default function FlashAIForecastGenerator() {
     for (const p of chartPoints || []) {
       const month = p?.month;
       if (!month) continue;
-      // only treat months <= baseMonth as historical input
       if (String(month) > String(baseMonth)) continue;
 
       const v = p?.data?.[catKey];
@@ -196,29 +254,20 @@ export default function FlashAIForecastGenerator() {
     };
   };
 
-  const updateGraphAIForecast = async (graph, aiForecast) => {
-    const res = await fetch("/api/graphs", {
-      method: "PUT",
+  const saveCountryAIForecast = async (graphId, country, aiForecast) => {
+    const res = await fetch("/api/flash-reports/graph-forecasts", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id: graph.id,
-        name: graph.name,
-        description: graph.description,
-        summary: graph.summary,
-        datasetIds: graph.dataset_ids,
-        forecastTypes: graph.forecast_types,
-        chartType: graph.chart_type,
+        graphId,
+        country,
         aiForecast,
-        raceForecast: graph.race_forecast,
-        context: graph.context,
-        scoreSettingsKey: graph.score_settings_key,
-        flashSegment: graph.flash_segment,
       }),
     });
 
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      throw new Error(j?.error || "Failed to update graph AI forecast");
+      throw new Error(j?.error || "Failed to save AI forecast for country");
     }
   };
 
@@ -242,14 +291,22 @@ export default function FlashAIForecastGenerator() {
         if (!graph) continue;
 
         const qs = questionsMap[graphId] || [];
-        const { segment, categoryKey, volumeData } =
-          buildVolumeDataForGraph(graph);
+
+        // ✅ Safety: for non-India, require questions
+        if (String(selectedCountry).toLowerCase() !== "india" && qs.length === 0) {
+          message.warning(
+            `No questions configured for ${selectedCountry.toUpperCase()} for graph #${graphId}. Add them in Flash Questions first.`
+          );
+          continue;
+        }
+
+        const { segment, categoryKey, volumeData } = buildVolumeDataForGraph(graph);
 
         const categoryName = `Flash Reports — ${segment.toUpperCase()} (${categoryKey})`;
         const categoryDefinition = `Monthly Flash Reports forecast for segment ${segment}. Values are total volumes for ${categoryKey}.`;
 
         // Region is a human label used only in prompt
-        const region = "India";
+        const region = selectedCountry.toUpperCase();
 
         const payload = {
           graphId,
@@ -258,7 +315,7 @@ export default function FlashAIForecastGenerator() {
           graphName: graph.name,
           region,
           volumeData,
-          years: periods, // API still uses "years" but we treat them as future month periods
+          years: periods,
           questions: (qs || []).map((q) => ({
             text: q.text,
             weight: q.weight,
@@ -277,12 +334,10 @@ export default function FlashAIForecastGenerator() {
 
         const aiJson = await aiRes.json().catch(() => ({}));
         if (!aiRes.ok) {
-          throw new Error(
-            aiJson?.error || `AI forecast failed for graph #${graphId}`,
-          );
+          throw new Error(aiJson?.error || `AI forecast failed for graph #${graphId}`);
         }
 
-        await updateGraphAIForecast(graph, aiJson);
+        await saveCountryAIForecast(graphId, selectedCountry, aiJson);
       }
 
       message.success("Flash AI forecast generation completed.");
@@ -326,7 +381,8 @@ export default function FlashAIForecastGenerator() {
       key: "ai",
       width: 140,
       render: (_, r) => {
-        const has = r.ai_forecast && Object.keys(r.ai_forecast).length > 0;
+        const f = forecastMap?.[r.id];
+        const has = !!(f?.aiForecast && Object.keys(f.aiForecast).length > 0);
         return <span>{has ? "✅" : "—"}</span>;
       },
     },
@@ -342,12 +398,12 @@ export default function FlashAIForecastGenerator() {
       <Space direction="vertical" size={10} style={{ width: "100%" }}>
         <Text type="secondary">
           This tool generates <b>monthly AI forecasts</b> for Flash graphs and
-          saves them into
-          <code> graphs.ai_forecast </code> (keys like <code>YYYY-MM</code>).
+          saves them into the country override table via{" "}
+          <code>/api/flash-reports/graph-forecasts</code> (keys like <code>YYYY-MM</code>).
           <br />
           Base month is fixed to the <b>previous IST month</b>:{" "}
-          <b>{baseMonth}</b>, and the future months are taken from
-          <code> flashScoreSettings </code>.
+          <b>{baseMonth}</b>, and the future months are taken from{" "}
+          <code>flashScoreSettings</code>.
         </Text>
 
         <Alert
@@ -356,16 +412,13 @@ export default function FlashAIForecastGenerator() {
           message="Requirements"
           description={
             <div style={{ fontSize: 12 }}>
+              <div>1) Ensure <code>OPENAI_API_KEY</code> is set on the server.</div>
               <div>
-                1) Ensure <code>OPENAI_API_KEY</code> is set on the server.
+                2) Ensure each Flash graph has relevant questions (recommended).
+                For non-India countries, questions are required.
               </div>
               <div>
-                2) Ensure each Flash graph has relevant questions (optional, but
-                recommended).
-              </div>
-              <div>
-                3) Ensure Flash segment mapping is set; otherwise the segment is
-                guessed from the graph name.
+                3) Ensure Flash segment mapping is set; otherwise the segment is guessed from the graph name.
               </div>
             </div>
           }
@@ -381,6 +434,17 @@ export default function FlashAIForecastGenerator() {
             />
           </div>
         )}
+
+        <Space wrap align="center">
+          <Text strong>Country:</Text>
+          <Select
+            value={selectedCountry}
+            style={{ width: 220 }}
+            options={countries}
+            onChange={(v) => setSelectedCountry(String(v))}
+            disabled={generating}
+          />
+        </Space>
 
         <Space wrap>
           <Button

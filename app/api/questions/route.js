@@ -4,18 +4,51 @@ import db from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+function normCountry(v) {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return s || null;
+}
+
+async function getGraphContext(graphId) {
+  const [rows] = await db.query(
+    "SELECT context FROM graphs WHERE id = ? LIMIT 1",
+    [Number(graphId)]
+  );
+  return String(rows?.[0]?.context || "forecast").toLowerCase();
+}
+
 export async function GET(req) {
   try {
     const url = new URL(req.url);
-    const graphId = url.searchParams.get("graphId");
+    const graphIdRaw = url.searchParams.get("graphId");
+    const countryParam = normCountry(url.searchParams.get("country"));
 
+    // If no graphId -> keep old behavior (return all questions)
+    if (!graphIdRaw) {
+      const [rows] = await db.query(
+        "SELECT * FROM questions ORDER BY graph_id ASC, id ASC"
+      );
+      return NextResponse.json(rows || []);
+    }
+
+    const graphId = Number(graphIdRaw);
+    const ctx = await getGraphContext(graphId);
+
+    // Flash: filter by country (default india)
+    if (ctx === "flash") {
+      const country = countryParam || "india";
+      const [rows] = await db.query(
+        "SELECT * FROM questions WHERE graph_id = ? AND country = ? ORDER BY id ASC",
+        [graphId, country]
+      );
+      return NextResponse.json(rows || []);
+    }
+
+    // Forecast: old behavior (ignore country)
     const [rows] = await db.query(
-      graphId
-        ? "SELECT * FROM questions WHERE graph_id = ? ORDER BY id ASC"
-        : "SELECT * FROM questions ORDER BY graph_id ASC, id ASC",
-      graphId ? [Number(graphId)] : []
+      "SELECT * FROM questions WHERE graph_id = ? ORDER BY id ASC",
+      [graphId]
     );
-
     return NextResponse.json(rows || []);
   } catch (err) {
     console.error("GET /api/questions error:", err);
@@ -28,7 +61,9 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    const { text, weight, type, graphId } = await req.json();
+    const body = await req.json();
+    const { text, weight, type, graphId } = body;
+    const countryParam = normCountry(body?.country);
 
     if (!text || weight == null || !type || !graphId) {
       return NextResponse.json(
@@ -37,8 +72,27 @@ export async function POST(req) {
       );
     }
 
+    const ctx = await getGraphContext(graphId);
+
+    // Flash: store country (default india)
+    if (ctx === "flash") {
+      const country = countryParam || "india";
+
+      const [result] = await db.query(
+        "INSERT INTO questions (text, weight, type, graph_id, country) VALUES (?, ?, ?, ?, ?)",
+        [text, Number(weight), String(type), Number(graphId), country]
+      );
+
+      const [newRow] = await db.query("SELECT * FROM questions WHERE id = ?", [
+        result.insertId,
+      ]);
+
+      return NextResponse.json(newRow?.[0] ?? null, { status: 201 });
+    }
+
+    // Forecast: keep old behavior, store country as NULL
     const [result] = await db.query(
-      "INSERT INTO questions (text, weight, type, graph_id) VALUES (?, ?, ?, ?)",
+      "INSERT INTO questions (text, weight, type, graph_id, country) VALUES (?, ?, ?, ?, NULL)",
       [text, Number(weight), String(type), Number(graphId)]
     );
 

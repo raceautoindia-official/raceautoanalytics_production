@@ -5,9 +5,6 @@ import { Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 
-// ❌ remove this
-// import "./score.css";
-
 import { notification, Button, Tag, Tooltip } from "antd";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import Image from "next/image";
@@ -42,9 +39,6 @@ const prettyYYYYMM = (yyyymm) => {
 
 // Previous calendar month based on Asia/Kolkata (IST) — returns YYYY-MM
 const getPrevMonthIST = () => {
-  // Flash reporting month rolls over on the 5th (IST):
-  // - 1st–4th: treat "latest available" as two months ago
-  // - 5th onwards: treat "latest available" as previous calendar month
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
@@ -68,6 +62,23 @@ const getPrevMonthIST = () => {
   return `${year}-${String(month).padStart(2, "0")}`;
 };
 
+// ✅ Country helpers (Flash only)
+const normalizeCountry = (v) => {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return s || null;
+};
+
+const extractCountryFromReturnTo = (returnTo) => {
+  try {
+    if (!returnTo) return null;
+    if (typeof window === "undefined") return null;
+    const u = new URL(returnTo, window.location.origin);
+    return normalizeCountry(u.searchParams.get("country"));
+  } catch {
+    return null;
+  }
+};
+
 export default function ScoreCard() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,6 +86,15 @@ export default function ScoreCard() {
   const baseMonthParam = searchParams.get("baseMonth");
   const horizonParam = searchParams.get("horizon");
   const returnToParam = searchParams.get("returnTo");
+
+  // ✅ Flash country resolution:
+  // 1) score-card?country=peru
+  // 2) else from returnTo (flash page url has ?country=peru)
+  // 3) else india
+  const countryParamRaw = normalizeCountry(searchParams.get("country"));
+  const countryFromReturnTo = extractCountryFromReturnTo(returnToParam);
+  const flashCountry = countryParamRaw || countryFromReturnTo || "india";
+
   const { email } = useCurrentPlan();
 
   const [value, setValue] = useState(1);
@@ -109,9 +129,7 @@ export default function ScoreCard() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // Tailwind sm breakpoint is 640px => mobile = < 640
     const mq = window.matchMedia("(max-width: 639px)");
-
     const apply = () => setIsMobile(mq.matches);
     apply();
 
@@ -210,8 +228,16 @@ export default function ScoreCard() {
             )}&horizon=6`
           : `/api/scoreSettings?key=${encodeURIComponent(key)}`;
 
+      // ✅ Questions URL: Flash uses country, Forecast doesn't
+      const qUrl =
+        context === "flash"
+          ? `/api/questions?graphId=${graphId}&country=${encodeURIComponent(
+              flashCountry,
+            )}`
+          : `/api/questions?graphId=${graphId}`;
+
       const [qRes, sRes] = await Promise.all([
-        fetch(`/api/questions?graphId=${graphId}`, {
+        fetch(qUrl, {
           headers: {
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
           },
@@ -225,7 +251,9 @@ export default function ScoreCard() {
         }),
       ]);
 
-      const qList = await qRes.json();
+      const qListRaw = await qRes.json();
+      const qList = Array.isArray(qListRaw) ? qListRaw : [];
+
       const { yearNames, scoreLabels } = await sRes.json();
 
       setQuestions(qList);
@@ -245,7 +273,7 @@ export default function ScoreCard() {
       notification.error({ message: err.message });
       setLoading(false);
     });
-  }, [graphId]);
+  }, [graphId, flashCountry]);
 
   // 2) Split positive vs negative and chunk into slides
   const chunkSize = isMobile ? 1 : 4;
@@ -341,6 +369,7 @@ export default function ScoreCard() {
           user: email,
           graphId,
           basePeriod: basePeriod,
+          ...(graphContext === "flash" ? { country: flashCountry } : {}),
           results: payload,
         }),
       });
@@ -463,20 +492,22 @@ export default function ScoreCard() {
     return v >= r.lo - 1e-6 && v <= r.hi + 1e-6;
   };
 
-  const suggestLabel = (qid, yIdx) => {
-    const r = rangeMap?.[qid]?.[yIdx];
-    if (!r) return "Select";
-    return scoreToNearestLabel((r.lo + r.hi) / 2);
-  };
-
   const mlUsable = useMemo(
     () => mlEnabled && Object.keys(rangeMap).length > 0,
     [mlEnabled, rangeMap],
   );
 
-  // enable ML when >=2 non-skipped submissions
+  // ✅ ML guidance: OFF for Flash, ON for Forecast (unchanged)
   useEffect(() => {
     if (!graphId) return;
+
+    // Flash: disable ML guidance completely
+    if (graphContext === "flash") {
+      setMlEnabled(false);
+      setRangeMap({});
+      setMlLoaded(true);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
@@ -558,7 +589,7 @@ export default function ScoreCard() {
     return () => {
       cancelled = true;
     };
-  }, [graphId]);
+  }, [graphId, graphContext]);
 
   const getOptionVisuals = (qid, yIdx, optLabel, currentSelectedLabel) => {
     if (optLabel === "Select") {
@@ -582,7 +613,7 @@ export default function ScoreCard() {
     const optionInRange = v >= r.lo - 1e-6 && v <= r.hi + 1e-6;
 
     return {
-      style: { color: optionInRange ? "#34D399" : "#F87171" }, // green/red on dark
+      style: { color: optionInRange ? "#34D399" : "#F87171" },
       title: optionInRange ? "In suggested range" : "Out of suggested range",
     };
   };
@@ -620,7 +651,6 @@ export default function ScoreCard() {
   const yearColMin = 96;
   const yearColMax = 110;
 
-  // ✅ Desktop/tablet: years + Skip column
   const yearGridWithSkipStyle = {
     gridTemplateColumns: `repeat(${years.length}, minmax(${yearColMin}px, ${yearColMax}px)) minmax(${yearColMin}px, ${yearColMax}px)`,
   };
@@ -629,16 +659,13 @@ export default function ScoreCard() {
 
   return (
     <div className="min-h-screen bg-[#0B1220] text-slate-100">
-      {/* Login logic (kept, hidden) */}
       <div className="hidden">
         <LoginNavButton />
       </div>
 
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-slate-800/80 bg-[#0F1A2B] shadow-[0_10px_30px_-15px_rgba(0,0,0,0.6)]">
-          {/* Header */}
           <div className="p-4 sm:p-6">
-            {/* Desktop: all in one line */}
             <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3">
               <Image
                 src="/images/Ri-Logo-Graph-White.webp"
@@ -648,7 +675,6 @@ export default function ScoreCard() {
                 className="h-15 w-11 rounded-md shadow-sm"
               />
 
-              {/* Desktop title in middle */}
               <div className="hidden sm:block text-center">
                 <h1 className="text-xl font-bold leading-tight text-slate-50 lg:text-3xl">
                   {graphContext === "flash" ? (
@@ -691,7 +717,6 @@ export default function ScoreCard() {
               </button>
             </div>
 
-            {/* Mobile title below */}
             <div className="mt-2 text-center sm:hidden">
               <h1 className="text-lg font-bold leading-tight text-slate-50">
                 {graphContext === "flash" ? (
@@ -722,7 +747,7 @@ export default function ScoreCard() {
               ) : null}
             </div>
 
-            {/* ML status */}
+            {/* ML status (will show Inactive for Flash) */}
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               <Tag
                 color={mlUsable ? "green" : "default"}
@@ -781,7 +806,6 @@ export default function ScoreCard() {
                   {isBarrierHeader ? "KEY BARRIERS" : "KEY DRIVERS"}
                 </h3>
 
-                {/* Desktop/Tablet Year header aligned with dropdown columns */}
                 <div className="hidden sm:block w-full overflow-x-auto">
                   <div
                     className={[yearGridWithSkipClass, "min-w-max pb-1"].join(
@@ -802,8 +826,6 @@ export default function ScoreCard() {
                         {yr}
                       </div>
                     ))}
-
-                    {/* Placeholder for Skip column to keep perfect alignment */}
                     <div className="text-center text-xs font-semibold opacity-0 sm:text-sm">
                       Skip
                     </div>
@@ -828,7 +850,6 @@ export default function ScoreCard() {
                         const gIdx = item.originalIndex;
                         const isBarrier = sIdx >= driversCount;
 
-                        // Dark theme cards with subtle accent tint
                         const cardBg = isBarrier
                           ? "bg-[#121B2D] ring-1 ring-red-400/15"
                           : "bg-[#121B2D] ring-1 ring-emerald-400/15";
@@ -913,7 +934,6 @@ export default function ScoreCard() {
                                           return copy;
                                         });
 
-                                        // your ML warning logic 그대로
                                         if (
                                           newLabel !== "Select" &&
                                           mlEnabled
@@ -976,7 +996,6 @@ export default function ScoreCard() {
                                   );
                                 })}
 
-                                {/* Skip */}
                                 <button
                                   className={[
                                     "inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold",
@@ -1032,8 +1051,6 @@ export default function ScoreCard() {
                                             copy[gIdx][yIdx] = newLabel;
                                             return copy;
                                           });
-
-                                          // ✅ optional: keep your ML warning logic here too if you want
                                         }}
                                       >
                                         <option
@@ -1042,7 +1059,6 @@ export default function ScoreCard() {
                                         >
                                           Select
                                         </option>
-
                                         {dropdownOpts.map((opt, oIdx) => (
                                           <option key={oIdx} value={opt}>
                                             {opt}
@@ -1188,7 +1204,6 @@ export default function ScoreCard() {
           </div>
         </div>
 
-        {/* subtle bottom spacing */}
         <div className="h-6" />
       </div>
     </div>

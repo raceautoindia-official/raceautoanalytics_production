@@ -69,9 +69,18 @@ function FlagIcon({
   );
 }
 
+function getPreviousMonthYyyyMm() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
 type CountryItem = {
   name: string;
   code: string; // ISO-2 lowercase
+  slug: string;
   scheduleLabel: string; // only shown in modal
   description: string; // only shown in modal
 };
@@ -83,6 +92,7 @@ function CountryModal({
   country: CountryItem | null;
   onClose: () => void;
 }) {
+  const targetMonth = getPreviousMonthYyyyMm();
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -135,7 +145,15 @@ function CountryModal({
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
             {/* <span className="text-white/60">Release schedule:</span>{" "} */}
-            <Link href='/flash-reports'><span className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200">Click to view full dataset</span></Link>
+           <Link
+  href={`/flash-reports?country=${encodeURIComponent(
+    country.slug,
+  )}&month=${encodeURIComponent(targetMonth)}`}
+>
+  <span className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200">
+    Click to view full dataset
+  </span>
+</Link>
           </div>
         </div>
       </div>
@@ -170,95 +188,107 @@ function CountryChip({
 export default function MarketHeroSection() {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
 
-  const countries = useMemo<CountryItem[]>(
-    () => [
-      {
-        name: "India",
-        code: "in",
-        scheduleLabel: "Every month on 3rd",
-        description:
-          "India flash report includes total market sales, EV sales, and application split. This will be launched every month on the 3rd.",
-      },
-      {
-        name: "Brazil",
-        code: "br",
-        scheduleLabel: "Every month on 5th",
-        description:
-          "Brazil flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "South Africa",
-        code: "za",
-        scheduleLabel: "Every month on 6th",
-        description:
-          "South Africa flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Japan",
-        code: "jp",
-        scheduleLabel: "Every month on 7th",
-        description:
-          "Japan flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Sweden",
-        code: "se",
-        scheduleLabel: "Every month on 8th",
-        description:
-          "Sweden flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Vietnam",
-        code: "vn",
-        scheduleLabel: "Every month on 9th",
-        description:
-          "Vietnam flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Chile",
-        code: "cl",
-        scheduleLabel: "Every month on 10th",
-        description:
-          "Chile flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Pakistan",
-        code: "pk",
-        scheduleLabel: "Every month on 11th",
-        description:
-          "Pakistan flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Colombia",
-        code: "co",
-        scheduleLabel: "Every month on 12th",
-        description:
-          "Colombia flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Australia",
-        code: "au",
-        scheduleLabel: "Every month on 13th",
-        description:
-          "Australia flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Germany",
-        code: "de",
-        scheduleLabel: "Every month on 14th",
-        description:
-          "Germany flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Peru",
-        code: "pe",
-        scheduleLabel: "Every month on 15th",
-        description:
-          "Peru flash report includes total market sales, EV sales, and application split.",
-      },
-    ],
-    []
-  );
+const countries = useMemo<CountryItem[]>(
+  () => [
+    {
+      name: "India",
+      code: "in",
+      slug: "india",
+      scheduleLabel: "Every month on 3rd",
+      description:
+        "India flash report includes total market sales, EV sales, and application split. This will be launched every month on the 3rd.",
+    },
+    {
+      name: "Brazil",
+      code: "br",
+      slug: "brazil",
+      scheduleLabel: "Every month on 5th",
+      description:
+        "Brazil flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "South Africa",
+      code: "za",
+      slug: "south-africa",
+      scheduleLabel: "Every month on 6th",
+      description:
+        "South Africa flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Japan",
+      code: "jp",
+      slug: "japan",
+      scheduleLabel: "Every month on 7th",
+      description:
+        "Japan flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Sweden",
+      code: "se",
+      slug: "sweden",
+      scheduleLabel: "Every month on 8th",
+      description:
+        "Sweden flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Vietnam",
+      code: "vn",
+      slug: "vietnam",
+      scheduleLabel: "Every month on 9th",
+      description:
+        "Vietnam flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Chile",
+      code: "cl",
+      slug: "chile",
+      scheduleLabel: "Every month on 10th",
+      description:
+        "Chile flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Pakistan",
+      code: "pk",
+      slug: "pakistan",
+      scheduleLabel: "Every month on 11th",
+      description:
+        "Pakistan flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Colombia",
+      code: "co",
+      slug: "colombia",
+      scheduleLabel: "Every month on 12th",
+      description:
+        "Colombia flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Australia",
+      code: "au",
+      slug: "australia",
+      scheduleLabel: "Every month on 13th",
+      description:
+        "Australia flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Germany",
+      code: "de",
+      slug: "germany",
+      scheduleLabel: "Every month on 14th",
+      description:
+        "Germany flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Peru",
+      code: "pe",
+      slug: "peru",
+      scheduleLabel: "Every month on 15th",
+      description:
+        "Peru flash report includes total market sales, EV sales, and application split.",
+    },
+  ],
+  []
+);
 
   return (
     <>
