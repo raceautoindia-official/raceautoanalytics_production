@@ -614,7 +614,7 @@ export default function GraphList({ context = "forecast" } = {}) {
           }
 
           // ✅ Flash + non-India: save to country override table (do not touch graphs)
-          if (isFlashGraph && String(activeCountry).toLowerCase() !== "india") {
+          if (isFlashGraph) {
             try {
               const res = await fetch("/api/flash-reports/graph-forecasts", {
                 method: "POST",
