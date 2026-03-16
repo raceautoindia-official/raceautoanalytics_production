@@ -8,6 +8,7 @@ import transformPricing from "./transformPricing";
 
 type BillingCycle = "monthly" | "annual";
 type PlanKey = "silver" | "gold" | "platinum";
+type CurrencyMode = "INR" | "USD";
 
 type FeatureItem = {
   label: string;
@@ -34,7 +35,20 @@ const PLAN_RANK: Record<PlanKey, number> = {
   platinum: 3,
 };
 
-const PLATINUM_VISUAL_DISCOUNT_PERCENT = 30;
+const USD_RATE = 90.2;
+
+/**
+ * Visual display-only discount mapping.
+ * Payment amount is NOT changed by this.
+ *
+ * Means:
+ * - Gold actual shown as 50% OFF from compare/original price
+ * - Platinum actual shown as 67% OFF from compare/original price
+ */
+const VISUAL_DISCOUNT_PERCENT: Partial<Record<PlanKey, number>> = {
+  gold: 50,
+  platinum: 67,
+};
 
 function getPlanRank(plan?: string | null) {
   const key = String(plan || "silver").toLowerCase() as PlanKey;
@@ -71,26 +85,58 @@ async function syncLocal(url: string, payload: any) {
   }
 }
 
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-IN").format(value || 0);
-}
-
 function smartRound(value: number) {
-  if (value >= 10000) return Math.round(value / 5000) * 5000;
+  if (value >= 100000) return Math.round(value / 5000) * 5000;
+  if (value >= 10000) return Math.round(value / 1000) * 1000;
   if (value >= 1000) return Math.round(value / 500) * 500;
   return Math.round(value / 50) * 50;
 }
 
+function convertPrice(value: number, currencyMode: CurrencyMode) {
+  if (!value || value <= 0) return 0;
+  return currencyMode === "USD" ? value / USD_RATE : value;
+}
+
+function formatDisplayPrice(value: number, currencyMode: CurrencyMode) {
+  const converted = convertPrice(value, currencyMode);
+
+  if (currencyMode === "USD") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: converted >= 100 ? 0 : 2,
+    }).format(converted);
+  }
+
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(converted);
+}
+
 /**
- * Visual-only compare price.
- * Example: actual 55,000 shows as 80,000 struck-through + 55,000 actual.
- * This DOES NOT affect payment amount.
+ * Visual-only compare/original price.
+ * Example:
+ * - Gold actual 50,000, offer 50%
+ *   compare = 50,000 / (1 - 0.50) = 100,000
+ *
+ * - Platinum actual 33,000, offer 67%
+ *   compare = 33,000 / (1 - 0.67) = 100,000
+ *
+ * This DOES NOT affect payable amount.
  */
 function getOfferComparePrice(planKey: PlanKey, actualPrice: number) {
-  if (planKey !== "platinum" || actualPrice <= 0) return actualPrice;
+  const discountPercent = VISUAL_DISCOUNT_PERCENT[planKey];
 
-  const original = actualPrice / (1 - PLATINUM_VISUAL_DISCOUNT_PERCENT / 100);
+  if (!discountPercent || actualPrice <= 0) return actualPrice;
+
+  const original = actualPrice / (1 - discountPercent / 100);
   return smartRound(original);
+}
+
+function getPlanOfferPercent(planKey: PlanKey) {
+  return VISUAL_DISCOUNT_PERCENT[planKey] || 0;
 }
 
 export default function SubscriptionModal() {
@@ -104,6 +150,7 @@ export default function SubscriptionModal() {
 
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>("gold");
+  const [currencyMode, setCurrencyMode] = useState<CurrencyMode>("INR");
 
   const [loading, setLoading] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -116,6 +163,7 @@ export default function SubscriptionModal() {
   /**
    * Actual payable amount from API pricing.
    * No visual discount is applied here.
+   * Always treated as INR source amount.
    */
   const selectedAmount = useMemo(() => {
     if (!selectedPlanData) return 0;
@@ -128,6 +176,10 @@ export default function SubscriptionModal() {
     return getOfferComparePrice(selectedPlan, selectedAmount);
   }, [selectedPlan, selectedAmount]);
 
+  const selectedOfferPercent = useMemo(() => {
+    return getPlanOfferPercent(selectedPlan);
+  }, [selectedPlan]);
+
   const currentRank = useMemo(() => getPlanRank(currentPlan), [currentPlan]);
   const selectedRank = useMemo(() => getPlanRank(selectedPlan), [selectedPlan]);
 
@@ -135,8 +187,10 @@ export default function SubscriptionModal() {
   const isCurrentPlanSelected = currentPlan === selectedPlan;
   const isDowngrade = currentRank > selectedRank;
   const isUpgrade = selectedRank > currentRank;
-  const isPlatinumVisualOffer =
-    selectedPlan === "platinum" && selectedAmount > 0 && selectedCompareAmount > selectedAmount;
+  const isVisualOfferPlan =
+    selectedOfferPercent > 0 &&
+    selectedAmount > 0 &&
+    selectedCompareAmount > selectedAmount;
 
   const disablePayment =
     paying ||
@@ -163,8 +217,8 @@ export default function SubscriptionModal() {
       return "Silver is the free tier. No payment is required.";
     }
 
-    if (selectedPlan === "platinum" && !isCurrentPlanSelected && !isDowngrade) {
-      return "Platinum currently includes a special 30% OFF display offer for premium access.";
+    if (selectedOfferPercent > 0 && !isCurrentPlanSelected && !isDowngrade) {
+      return `${selectedPlanData?.title || "This plan"} currently includes a special ${selectedOfferPercent}% OFF display offer.`;
     }
 
     if (isUpgrade) {
@@ -172,7 +226,14 @@ export default function SubscriptionModal() {
     }
 
     return "Choose the plan that best fits your access needs.";
-  }, [isDowngrade, isCurrentPlanSelected, isFreeTier, isUpgrade, selectedPlan]);
+  }, [
+    isDowngrade,
+    isCurrentPlanSelected,
+    isFreeTier,
+    isUpgrade,
+    selectedOfferPercent,
+    selectedPlanData,
+  ]);
 
   async function loadModalData(userEmail: string | null) {
     setLoading(true);
@@ -314,7 +375,7 @@ export default function SubscriptionModal() {
           },
           body: JSON.stringify({
             customer_email: email,
-            AMT: selectedAmount, // actual amount only
+            AMT: selectedAmount, // actual INR amount only
           }),
         }
       );
@@ -330,19 +391,21 @@ export default function SubscriptionModal() {
         plan_name: selectedPlan,
         duration: billingCycle,
         amount: selectedAmount,
+        amount_display_currency: currencyMode,
         razorpay_order_id: createData.id,
         status: "created",
         message: "Order created in Auto India",
         request_payload: {
           customer_email: email,
           AMT: selectedAmount,
+          currency_display: currencyMode,
         },
         response_payload: createData,
       });
 
       const options = {
         key: createData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: selectedAmount * 100, // actual amount only
+        amount: selectedAmount * 100, // actual INR amount only
         currency: "INR",
         name: "Race Auto Analytics",
         description: `${selectedPlanData.title} - ${billingCycle}`,
@@ -355,6 +418,7 @@ export default function SubscriptionModal() {
           plan: selectedPlan,
           duration: billingCycle,
           source: "raceautoanalytics",
+          display_currency: currencyMode,
         },
         handler: async function (response: any) {
           try {
@@ -387,6 +451,7 @@ export default function SubscriptionModal() {
               plan_name: selectedPlan,
               duration: billingCycle,
               amount: selectedAmount,
+              amount_display_currency: currencyMode,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               status: "success",
@@ -396,6 +461,7 @@ export default function SubscriptionModal() {
                 razorpay_payment_id: response.razorpay_payment_id,
                 plan: selectedPlan,
                 duration: billingCycle,
+                currency_display: currencyMode,
               },
               response_payload: verifyData,
             });
@@ -428,6 +494,7 @@ export default function SubscriptionModal() {
               plan_name: selectedPlan,
               duration: billingCycle,
               amount: selectedAmount,
+              amount_display_currency: currencyMode,
               razorpay_order_id: response?.razorpay_order_id || null,
               razorpay_payment_id: response?.razorpay_payment_id || null,
               status: "failed",
@@ -437,6 +504,7 @@ export default function SubscriptionModal() {
                 razorpay_payment_id: response?.razorpay_payment_id || null,
                 plan: selectedPlan,
                 duration: billingCycle,
+                currency_display: currencyMode,
               },
               response_payload: null,
             });
@@ -466,11 +534,13 @@ export default function SubscriptionModal() {
         plan_name: selectedPlan,
         duration: billingCycle,
         amount: selectedAmount,
+        amount_display_currency: currencyMode,
         status: "failed",
         message: err?.message || "Unable to start payment",
         request_payload: {
           customer_email: email,
           AMT: selectedAmount,
+          currency_display: currencyMode,
         },
         response_payload: null,
       });
@@ -537,11 +607,13 @@ export default function SubscriptionModal() {
 
           <div className="relative flex items-start justify-between border-b border-white/10 px-4 py-3">
             <div>
-              <h2 className="text-xl sm:text-2xl font-semibold text-white">
+              <h2 className="text-xl font-semibold text-white sm:text-2xl">
                 Choose Your Subscription
               </h2>
               <p className="mt-1 text-sm text-white/65">
-                {email ? `Logged in as ${email}` : "Preview pricing. Login required only for checkout."}
+                {email
+                  ? `Logged in as ${email}`
+                  : "Preview pricing. Login required only for checkout."}
               </p>
               <p className="mt-1 text-sm text-white/65">
                 Current plan:{" "}
@@ -561,32 +633,62 @@ export default function SubscriptionModal() {
           </div>
 
           <div className="sticky top-0 z-20 border-b border-white/10 bg-[#0B1228]/95 px-4 py-3 backdrop-blur">
-            <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
-              <button
-                type="button"
-                onClick={() => setBillingCycle("monthly")}
-                className={[
-                  "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                  billingCycle === "monthly"
-                    ? "bg-[#4F67FF] text-white"
-                    : "text-white/70 hover:text-white",
-                ].join(" ")}
-              >
-                Monthly
-              </button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle("monthly")}
+                  className={[
+                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                    billingCycle === "monthly"
+                      ? "bg-[#4F67FF] text-white"
+                      : "text-white/70 hover:text-white",
+                  ].join(" ")}
+                >
+                  Monthly
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setBillingCycle("annual")}
-                className={[
-                  "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                  billingCycle === "annual"
-                    ? "bg-[#4F67FF] text-white"
-                    : "text-white/70 hover:text-white",
-                ].join(" ")}
-              >
-                Annual
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle("annual")}
+                  className={[
+                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                    billingCycle === "annual"
+                      ? "bg-[#4F67FF] text-white"
+                      : "text-white/70 hover:text-white",
+                  ].join(" ")}
+                >
+                  Annual
+                </button>
+              </div>
+
+              <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrencyMode("INR")}
+                  className={[
+                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                    currencyMode === "INR"
+                      ? "bg-[#14B8A6] text-white"
+                      : "text-white/70 hover:text-white",
+                  ].join(" ")}
+                >
+                  INR
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrencyMode("USD")}
+                  className={[
+                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                    currencyMode === "USD"
+                      ? "bg-[#14B8A6] text-white"
+                      : "text-white/70 hover:text-white",
+                  ].join(" ")}
+                >
+                  USD
+                </button>
+              </div>
             </div>
           </div>
 
@@ -609,8 +711,9 @@ export default function SubscriptionModal() {
                         : plan.monthlyPrice;
 
                     const comparePrice = getOfferComparePrice(plan.key, actualPrice);
+                    const offerPercent = getPlanOfferPercent(plan.key);
                     const hasVisualOffer =
-                      plan.key === "platinum" &&
+                      offerPercent > 0 &&
                       actualPrice > 0 &&
                       comparePrice > actualPrice;
 
@@ -630,8 +733,11 @@ export default function SubscriptionModal() {
                       badgeText = "Free";
                       badgeClass += " bg-emerald-500/15 text-emerald-300";
                     } else if (hasVisualOffer) {
-                      badgeText = "30% OFF";
-                      badgeClass += " bg-pink-500/15 text-pink-300";
+                      badgeText = `${offerPercent}% OFF`;
+                      badgeClass +=
+                        plan.key === "platinum"
+                          ? " bg-pink-500/15 text-pink-300"
+                          : " bg-violet-500/15 text-violet-300";
                     } else if (planRank > currentPlanRank) {
                       badgeText = "Upgrade";
                       badgeClass += " bg-blue-500/15 text-blue-300";
@@ -662,7 +768,7 @@ export default function SubscriptionModal() {
                         <div className="mt-4">
                           {actualPrice === 0 ? (
                             <>
-                              <div className="text-2xl sm:text-3xl font-bold text-white">
+                              <div className="text-2xl font-bold text-white sm:text-3xl">
                                 Free Tier
                               </div>
                               <div className="mt-1 text-sm text-white/60">
@@ -672,15 +778,22 @@ export default function SubscriptionModal() {
                           ) : hasVisualOffer ? (
                             <>
                               <div className="flex items-end gap-2">
-                                <div className="text-2xl sm:text-3xl font-bold text-white">
-                                  ₹{formatPrice(actualPrice)}
+                                <div className="text-2xl font-bold text-white sm:text-3xl">
+                                  {formatDisplayPrice(actualPrice, currencyMode)}
                                 </div>
                                 <div className="pb-1 text-sm text-white/40 line-through">
-                                  ₹{formatPrice(comparePrice)}
+                                  {formatDisplayPrice(comparePrice, currencyMode)}
                                 </div>
                               </div>
-                              <div className="mt-1 text-sm font-medium text-pink-300">
-                                Platinum special display offer · Save 30%
+                              <div
+                                className={[
+                                  "mt-1 text-sm font-medium",
+                                  plan.key === "platinum"
+                                    ? "text-pink-300"
+                                    : "text-violet-300",
+                                ].join(" ")}
+                              >
+                                {plan.title} special display offer · Save {offerPercent}%
                               </div>
                               <div className="mt-1 text-sm text-white/60">
                                 per {billingCycle === "annual" ? "year" : "month"}
@@ -688,8 +801,8 @@ export default function SubscriptionModal() {
                             </>
                           ) : (
                             <>
-                              <div className="text-2xl sm:text-3xl font-bold text-white">
-                                ₹{formatPrice(actualPrice)}
+                              <div className="text-2xl font-bold text-white sm:text-3xl">
+                                {formatDisplayPrice(actualPrice, currencyMode)}
                               </div>
                               <div className="mt-1 text-sm text-white/60">
                                 per {billingCycle === "annual" ? "year" : "month"}
@@ -699,16 +812,37 @@ export default function SubscriptionModal() {
                         </div>
 
                         {hasVisualOffer && (
-                          <div className="mt-3 rounded-xl border border-pink-400/20 bg-pink-500/10 px-3 py-2">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-pink-300">
+                          <div
+                            className={[
+                              "mt-3 rounded-xl border px-3 py-2",
+                              plan.key === "platinum"
+                                ? "border-pink-400/20 bg-pink-500/10"
+                                : "border-violet-400/20 bg-violet-500/10",
+                            ].join(" ")}
+                          >
+                            <div
+                              className={[
+                                "text-xs font-semibold uppercase tracking-wide",
+                                plan.key === "platinum"
+                                  ? "text-pink-300"
+                                  : "text-violet-300",
+                              ].join(" ")}
+                            >
                               Limited Offer
                             </div>
                             <div className="mt-1 text-sm text-white/85">
                               Get{" "}
-                              <span className="font-semibold text-pink-300">
-                                30% off
+                              <span
+                                className={[
+                                  "font-semibold",
+                                  plan.key === "platinum"
+                                    ? "text-pink-300"
+                                    : "text-violet-300",
+                                ].join(" ")}
+                              >
+                                {offerPercent}% off
                               </span>{" "}
-                              on the Platinum plan.
+                              on the {plan.title} plan.
                             </div>
                           </div>
                         )}
@@ -742,24 +876,40 @@ export default function SubscriptionModal() {
                       {selectedPlanData?.title || "-"} ·{" "}
                       {isFreeTier ? (
                         "Free Tier"
-                      ) : isPlatinumVisualOffer ? (
+                      ) : isVisualOfferPlan ? (
                         <>
-                          ₹{formatPrice(selectedAmount)} /{" "}
+                          {formatDisplayPrice(selectedAmount, currencyMode)} /{" "}
                           {billingCycle === "annual" ? "year" : "month"}
-                          <span className="ml-2 text-sm font-medium text-pink-300">
-                            (30% OFF visual offer)
+                          <span
+                            className={[
+                              "ml-2 text-sm font-medium",
+                              selectedPlan === "platinum"
+                                ? "text-pink-300"
+                                : selectedPlan === "gold"
+                                ? "text-violet-300"
+                                : "text-white/70",
+                            ].join(" ")}
+                          >
+                            ({selectedOfferPercent}% OFF visual offer)
                           </span>
                         </>
                       ) : (
-                        `₹${formatPrice(selectedAmount)} / ${
+                        `${formatDisplayPrice(selectedAmount, currencyMode)} / ${
                           billingCycle === "annual" ? "year" : "month"
                         }`
                       )}
                     </div>
 
-                    {!isFreeTier && isPlatinumVisualOffer && (
+                    {!isFreeTier && isVisualOfferPlan && (
                       <div className="mt-1 text-sm text-white/45 line-through">
-                        Display compare price: ₹{formatPrice(selectedCompareAmount)}
+                        Display compare price:{" "}
+                        {formatDisplayPrice(selectedCompareAmount, currencyMode)}
+                      </div>
+                    )}
+
+                    {currencyMode === "USD" && !isFreeTier && (
+                      <div className="mt-1 text-xs text-white/45">
+                        USD is display-only using 1 USD = ₹{USD_RATE}. Checkout remains in INR.
                       </div>
                     )}
 
@@ -774,6 +924,8 @@ export default function SubscriptionModal() {
                           ? "text-[#FFD166]"
                           : selectedPlan === "platinum"
                           ? "text-pink-300"
+                          : selectedPlan === "gold"
+                          ? "text-violet-300"
                           : "text-white/70",
                       ].join(" ")}
                     >
