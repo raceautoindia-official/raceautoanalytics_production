@@ -13,6 +13,7 @@ import type {
   MarketBarRawData,
 } from "@/lib/flashReportsServer";
 import { withCountry } from "@/lib/withCountry";
+
 interface OverallAutomotiveIndustryClientProps {
   initialOverallData: OverallChartPoint[];
   overAllText: any;
@@ -27,13 +28,15 @@ export function OverallAutomotiveIndustryClient({
   altFuelRaw,
 }: OverallAutomotiveIndustryClientProps) {
   const { region, month } = useAppContext();
-const suffix = useMemo(() => {
-  const qs = new URLSearchParams();
-  if (region) qs.set("country", region);
-  if (month) qs.set("month", month);
-  const s = qs.toString();
-  return s ? `?${s}` : "";
-}, [region, month]);
+
+  const suffix = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (region) qs.set("country", region);
+    if (month) qs.set("month", month);
+    const s = qs.toString();
+    return s ? `?${s}` : "";
+  }, [region, month]);
+
   // ---- Line chart data (refetch on month change) ----
   const [overallData, setOverallData] = useState<OverallChartPoint[]>(
     initialOverallData ?? [],
@@ -75,14 +78,14 @@ const suffix = useMemo(() => {
       try {
         setOverallLoading(true);
         const res = await fetch(
-  withCountry(
-    `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-      month,
-    )}&horizon=6`,
-    region,
-  ),
-  { cache: "no-store" },
-);
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
 
         const json = await res.json();
         if (cancelled) return;
@@ -131,29 +134,65 @@ const suffix = useMemo(() => {
     }
   }, [month, region]);
 
-  // ---- Alt-fuel bar data (from backend) ----
-  const altFuelComparison = useMemo(() => {
-    if (!altFuelRaw) return null;
+  // ---- Alt-fuel bar data (now refetches on month/region change) ----
+  const [altFuelData, setAltFuelData] = useState<MarketBarRawData | null>(
+    altFuelRaw ?? null,
+  );
+  const [altFuelLoading, setAltFuelLoading] = useState(false);
 
-    const firstCatKey = ALT_FUEL_CATEGORIES.find((cat) => altFuelRaw[cat]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAltFuel() {
+      try {
+        setAltFuelLoading(true);
+
+        const res = await fetch(
+          withCountry(
+            `/api/fetchMarketBarData?segmentName=alternative%20fuel&baseMonth=${encodeURIComponent(
+              month,
+            )}`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
+
+        const json = await res.json();
+        if (cancelled) return;
+
+        setAltFuelData(json && Object.keys(json).length ? json : null);
+      } catch (e) {
+        console.error("Failed to refetch alt-fuel comparison data", e);
+        if (!cancelled) setAltFuelData(null);
+      } finally {
+        if (!cancelled) setAltFuelLoading(false);
+      }
+    }
+
+    loadAltFuel();
+    return () => {
+      cancelled = true;
+    };
+  }, [month, region]);
+
+  const altFuelComparison = useMemo(() => {
+    if (!altFuelData) return null;
+
+    const firstCatKey = ALT_FUEL_CATEGORIES.find((cat) => altFuelData[cat]);
     if (!firstCatKey) return null;
 
-    const firstCat = altFuelRaw[firstCatKey];
+    const firstCat = altFuelData[firstCatKey];
     const monthKeys = Object.keys(firstCat);
 
-    // If there is no month at all, then truly no data
     if (monthKeys.length === 0) return null;
 
-    // Take the last month as the "current" one
     const rightMonth = monthKeys[monthKeys.length - 1];
-
-    // Optional previous month (if available)
     const leftMonth =
       monthKeys.length > 1 ? monthKeys[monthKeys.length - 2] : null;
 
     const data = ALT_FUEL_CATEGORIES.map((cat) => {
-      const current = altFuelRaw[cat]?.[rightMonth] ?? 0;
-      const previous = leftMonth ? (altFuelRaw[cat]?.[leftMonth] ?? 0) : 0;
+      const current = altFuelData[cat]?.[rightMonth] ?? 0;
+      const previous = leftMonth ? (altFuelData[cat]?.[leftMonth] ?? 0) : 0;
       const delta = leftMonth ? parseFloat((current - previous).toFixed(1)) : 0;
 
       return {
@@ -167,11 +206,11 @@ const suffix = useMemo(() => {
     if (!data.length) return null;
 
     return {
-      leftMonth, // can be null if we only have 1 month
+      leftMonth,
       rightMonth,
       data,
     };
-  }, [altFuelRaw]);
+  }, [altFuelData]);
 
   const renderAltFuelTooltip = (props: any) => {
     const { active, payload } = props;
@@ -245,7 +284,7 @@ const suffix = useMemo(() => {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
               <h1 className="text-3xl font-bold mb-2">
-                {"Overall Automotive Industry"}
+                Overall Automotive Industry
               </h1>
               <p className="text-muted-foreground">
                 Comprehensive market analysis across all vehicle categories and
@@ -285,7 +324,6 @@ const suffix = useMemo(() => {
               </span>
             </div>
             <div>
-              {/* Placeholder until derived from backend */}
               <span className="text-muted-foreground">EV Penetration:</span>
               <span className="ml-2 font-medium text-primary">4.2%</span>
             </div>
@@ -321,9 +359,7 @@ const suffix = useMemo(() => {
 
           {/* Alt-fuel bar chart from backend */}
           <ChartWrapper
-            title={
-              "Alternative Fuel Adoption – Segment-wise Comparison"
-            }
+            title="Alternative Fuel Adoption – Segment-wise Comparison"
             summary={
               altFuelComparison
                 ? altFuelComparison.leftMonth
@@ -332,7 +368,11 @@ const suffix = useMemo(() => {
                 : "No alternative fuel data available for the latest period."
             }
           >
-            {altFuelComparison ? (
+            {altFuelLoading ? (
+              <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+                Loading alternative fuel comparison…
+              </div>
+            ) : altFuelComparison ? (
               <BarChart
                 data={altFuelComparison.data}
                 bars={
