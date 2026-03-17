@@ -1314,13 +1314,13 @@ export default function ForecastPage() {
 
             <button
               className="inline-flex items-center gap-2 rounded-md bg-[#1F2023] px-4 py-2 text-sm font-semibold text-[#15AFE4] shadow-sm hover:bg-gradient-to-r hover:from-[#15AFE4] hover:to-[#2C2E31] hover:text-white"
-              onClick={() => router.push("/flash-reports")}
+              onClick={() => router.push("/flash-reports/overview")}
             >
               <FaBolt />
               Flash Reports
             </button>
 
-            {mountLoginNav || planName ? (
+            {/* {mountLoginNav || planName ? (
               <LoginNavButton />
             ) : (
               <button
@@ -1329,7 +1329,7 @@ export default function ForecastPage() {
               >
                 Login
               </button>
-            )}
+            )} */}
           </div>
         </div>
 

@@ -40,7 +40,7 @@ export function Navigation() {
             </Link>
             
             <Link
-              href="/flash-reports"
+              href="/flash-reports/overview"
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
                 'hover:bg-accent hover:text-accent-foreground focus-ring',
