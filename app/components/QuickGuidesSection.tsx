@@ -227,7 +227,7 @@ function FlipInfoCard({
                       onClick={() => setFlipped(true)}
                       className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
                     >
-                      Read more
+                      View Demo
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   )}

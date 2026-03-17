@@ -1337,83 +1337,7 @@ export default function ForecastPage() {
         <div className="relative z-10 mt-6 grid grid-cols-1 gap-3 lg:grid-cols-3 lg:items-start">
           {/* LEFT: Category + Region */}
           <div className="flex flex-wrap items-center justify-start gap-3">
-            {/* Category */}
-            <div ref={categoryRef} className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!email) {
-                    setMountLoginNav(true);
-                    return;
-                  }
-                  setOpenCategory((v) => !v);
-                  setOpenRegion(false);
-                  setOpenGraph(false);
-                }}
-                className="inline-flex items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10"
-              >
-                {selectedCategoryId
-                  ? hierarchyMap[selectedCategoryId]
-                  : "Category"}
-                <span
-                  className={`transition ${openCategory ? "rotate-180" : ""}`}
-                >
-                  ▾
-                </span>
-              </button>
-
-              <div
-                className={[
-                  "absolute left-0 top-full z-20 mt-2 w-[260px] max-h-[420px] overflow-auto rounded-xl border border-white/15 bg-[#0B0F14]/95 p-2 text-sm text-white shadow-2xl backdrop-blur-md",
-                  "transition duration-200",
-                  openCategory
-                    ? "translate-y-0 opacity-100"
-                    : "pointer-events-none -translate-y-1 opacity-0",
-                ].join(" ")}
-              >
-                {categories.map((cat, idx) => {
-                  const locked = !isAdmin && planName === "silver" && idx >= 2;
-                  const active = selectedCategoryId === cat.id;
-
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      disabled={locked}
-                      onClick={() => {
-                        if (locked) return;
-                        setSelectedCategoryId(cat.id);
-                        setSelectedRegionId(null);
-                        setSelectedGraphId(null);
-                        setOpenCategory(false);
-                      }}
-                      className={[
-                        "group relative flex w-full items-center justify-between rounded-md px-3 py-2 text-left",
-                        locked
-                          ? "cursor-not-allowed text-white/40"
-                          : active
-                            ? "bg-[#15AFE4]/15 text-[#FFDC00]"
-                            : "text-white hover:bg-white/5 hover:text-[#15AFE4]",
-                      ].join(" ")}
-                    >
-                      <span>{cat.name}</span>
-
-                      {locked && (
-                        <span className="ml-2 text-xs text-white/40">
-                          Locked
-                        </span>
-                      )}
-
-                      {locked && (
-                        <span className="pointer-events-none absolute -top-2 left-1/2 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-[#15AFE4]/40 bg-black/90 px-2 py-1 text-xs text-white group-hover:block">
-                          Upgrade to Gold or Platinum to unlock
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+           
 
             {/* Region */}
             {selectedCategoryId && (
@@ -1566,6 +1490,84 @@ export default function ForecastPage() {
                 </div>
               </div>
             )}
+
+             {/* Category */}
+            <div ref={categoryRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!email) {
+                    setMountLoginNav(true);
+                    return;
+                  }
+                  setOpenCategory((v) => !v);
+                  setOpenRegion(false);
+                  setOpenGraph(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10"
+              >
+                {selectedCategoryId
+                  ? hierarchyMap[selectedCategoryId]
+                  : "Category"}
+                <span
+                  className={`transition ${openCategory ? "rotate-180" : ""}`}
+                >
+                  ▾
+                </span>
+              </button>
+
+              <div
+                className={[
+                  "absolute left-0 top-full z-20 mt-2 w-[260px] max-h-[420px] overflow-auto rounded-xl border border-white/15 bg-[#0B0F14]/95 p-2 text-sm text-white shadow-2xl backdrop-blur-md",
+                  "transition duration-200",
+                  openCategory
+                    ? "translate-y-0 opacity-100"
+                    : "pointer-events-none -translate-y-1 opacity-0",
+                ].join(" ")}
+              >
+                {categories.map((cat, idx) => {
+                  const locked = !isAdmin && planName === "silver" && idx >= 2;
+                  const active = selectedCategoryId === cat.id;
+
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      disabled={locked}
+                      onClick={() => {
+                        if (locked) return;
+                        setSelectedCategoryId(cat.id);
+                        setSelectedRegionId(null);
+                        setSelectedGraphId(null);
+                        setOpenCategory(false);
+                      }}
+                      className={[
+                        "group relative flex w-full items-center justify-between rounded-md px-3 py-2 text-left",
+                        locked
+                          ? "cursor-not-allowed text-white/40"
+                          : active
+                            ? "bg-[#15AFE4]/15 text-[#FFDC00]"
+                            : "text-white hover:bg-white/5 hover:text-[#15AFE4]",
+                      ].join(" ")}
+                    >
+                      <span>{cat.name}</span>
+
+                      {locked && (
+                        <span className="ml-2 text-xs text-white/40">
+                          Locked
+                        </span>
+                      )}
+
+                      {locked && (
+                        <span className="pointer-events-none absolute -top-2 left-1/2 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-[#15AFE4]/40 bg-black/90 px-2 py-1 text-xs text-white group-hover:block">
+                          Upgrade to Gold or Platinum to unlock
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* CENTER: Graph picker */}

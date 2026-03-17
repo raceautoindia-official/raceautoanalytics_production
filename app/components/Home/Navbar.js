@@ -14,8 +14,8 @@ const Navbar = () => {
 
   const linkMap = {
     NEWS: "https://raceautoindia.com/",
-    "FLASH REPORT": "/flash-reports",
-    "FORECAST": "/forecast",
+    "FLASH REPORT": "/flash-reports/overview",
+    "FORECAST": "/forecast/overview",
     MAGAZINE: "https://raceautoindia.com/magazine",
     "CONTACT US": "https://raceautoindia.com/page/contact",
   };
