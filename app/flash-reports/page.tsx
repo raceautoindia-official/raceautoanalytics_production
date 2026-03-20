@@ -166,6 +166,18 @@ function getValue(row: OverallRow | null | undefined, key: string): number {
   return 0;
 }
 
+function getOverallTotalFromAnyRow(row: any): number {
+  if (!row) return 0;
+
+  const raw =
+    row?.data && typeof row.data === "object"
+      ? row.data?.Total
+      : row?.Total;
+
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : 0;
+}
+
 // helper: "2025-07" -> "jul"
 const MONTHS_SHORT = [
   "jan",
@@ -238,6 +250,8 @@ const overallForecastHorizon =
   Number(flashChartConfig?.horizonDefault) > 0
     ? Number(flashChartConfig.horizonDefault)
     : 6;
+
+    const isOverallChartValid = isChartMeaningful(overallChartPoints);
 
   useEffect(() => {
     setMounted(true);
@@ -766,6 +780,19 @@ setOverallChartPoints(sortedApiData);
   const topOemName = topOEMs[0]?.name;
   const topOemDelta = topOEMs[0]?.changePercent ?? 0;
 
+function isChartMeaningful(data: any[]) {
+  if (!Array.isArray(data) || data.length === 0) return false;
+
+  const values = data
+    .map((row) => getOverallTotalFromAnyRow(row))
+    .filter((v) => Number.isFinite(v));
+
+  if (!values.length) return false;
+
+  // hide only if every point is zero
+  return values.some((v) => v > 0);
+}
+
   return (
     <div className="min-h-screen py-0">
       <div className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4">
@@ -807,30 +834,32 @@ setOverallChartPoints(sortedApiData);
                 summary={
   overallError
     ? overallError
-    : overallMeta?.allowForecast
-      ? `Overall automotive market ${
-          overallGrowthRate >= 0 ? "expanded" : "contracted"
-        } by ${
-          overallGrowthRate >= 0 ? "+" : ""
-        }${overallGrowthRate.toFixed(
-          1,
-        )}% month-on-month based on total industry volumes. Historical trend and next ${
-          overallMeta?.horizon ?? overallForecastHorizon
-        } months of flash forecast are shown below.`
-      : `Overall automotive market ${
-          overallGrowthRate >= 0 ? "expanded" : "contracted"
-        } by ${
-          overallGrowthRate >= 0 ? "+" : ""
-        }${overallGrowthRate.toFixed(
-          1,
-        )}% month-on-month based on total industry volumes.`
+    : !isOverallChartValid
+      ? "Cross-category performance data is not yet available for the selected market and month."
+      : overallMeta?.allowForecast
+        ? `Overall automotive market ${
+            overallGrowthRate >= 0 ? "expanded" : "contracted"
+          } by ${
+            overallGrowthRate >= 0 ? "+" : ""
+          }${overallGrowthRate.toFixed(
+            1,
+          )}% month-on-month based on total industry volumes. Historical trend and next ${
+            overallMeta?.horizon ?? overallForecastHorizon
+          } months of flash forecast are shown below.`
+        : `Overall automotive market ${
+            overallGrowthRate >= 0 ? "expanded" : "contracted"
+          } by ${
+            overallGrowthRate >= 0 ? "+" : ""
+          }${overallGrowthRate.toFixed(
+            1,
+          )}% month-on-month based on total industry volumes.`
 }
               >
                 {overallLoading ? (
                   <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
                     Loading industry volumes…
                   </div>
-                ) : overallChartPoints.length ? (
+                ) : isOverallChartValid ? (
   <LineChart
     overallData={overallChartPoints}
     category="Total"
@@ -843,10 +872,17 @@ setOverallChartPoints(sortedApiData);
     showSubmitScore={false}
   />
 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                    No overall volume data available.
-                  </div>
-                )}
+  <div className="flex h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+    <div className="mb-2 text-sm font-semibold text-foreground">
+      Data not available yet
+    </div>
+    <div className="text-xs text-muted-foreground text-center max-w-md">
+      Cross-category performance data for the selected country and time period is
+      not yet available. This section will be enabled once sufficient market data
+      is released.
+    </div>
+  </div>
+)}
               </ChartWrapper>
             </div>
 
