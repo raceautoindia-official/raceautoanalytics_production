@@ -9,6 +9,9 @@ import {
   ChevronRight,
   Award,
   Zap,
+  Lock,
+  Clock3,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MiniSparkline } from "@/components/charts/MiniSparkline";
@@ -36,6 +39,8 @@ interface VehicleCategoryCardProps {
     targetProgress: number;
   };
   index: number;
+  disabled?: boolean;
+  disabledMessage?: string;
 }
 
 function buildSuffix(country?: string, month?: string) {
@@ -58,6 +63,8 @@ export function VehicleCategoryCard({
   subCategories,
   metrics,
   index,
+  disabled = false,
+  disabledMessage,
 }: VehicleCategoryCardProps) {
   const { region, month } = useAppContext();
 
@@ -99,195 +106,304 @@ export function VehicleCategoryCard({
 
   const hasMom = !Number.isNaN(metrics.momGrowth);
   const isGrowing = hasMom && metrics.momGrowth >= 0;
-
   const hasYoy = !Number.isNaN(metrics.yoyGrowth);
 
-  return (
-    <Link
-      href={href}
-      className="group block animate-fade-in hover-lift"
-      style={{ animationDelay: `${index * 100}ms` }}
-    >
-      <div className="relative bg-card border border-border rounded-xl p-6 h-full hover:bg-card/80 transition-all duration-300 overflow-hidden hover:shadow-xl hover:border-primary/30">
-        {/* Background gradient overlay */}
-        <div
-          className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-300"
-          style={{
-            background: `linear-gradient(135deg, ${chartColor}20 0%, transparent 100%)`,
-          }}
-        />
+  const disabledCopy =
+    disabledMessage ||
+    "Data for this segment will be available soon for the selected country.";
 
-        {/* Shine effect on hover */}
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+  const cardContent = (
+    <div
+      className={cn(
+        "relative h-full overflow-hidden rounded-2xl border p-6 transition-all duration-300",
+        disabled
+          ? "cursor-not-allowed border-border/70 bg-card/70 opacity-95"
+          : "border-border bg-card hover:border-primary/30 hover:bg-card/90 hover:shadow-2xl",
+      )}
+    >
+      <div
+        className="absolute inset-0 opacity-[0.05]"
+        style={{
+          background: `radial-gradient(circle at top left, ${chartColor}55 0%, transparent 40%)`,
+        }}
+      />
+
+      {disabled && (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-br from-background/10 via-transparent to-background/20" />
           <div
-            className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"
+            className="absolute inset-0 opacity-[0.06]"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(135deg, rgba(255,255,255,0.12) 0px, rgba(255,255,255,0.12) 2px, transparent 2px, transparent 10px)",
+            }}
+          />
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
+            <Lock className="h-3.5 w-3.5" />
+            Available Soon
+          </div>
+        </>
+      )}
+
+      {!disabled && (
+        <div className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+          <div
+            className="absolute inset-0"
             style={{
               background:
-                "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)",
+                "linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent)",
+              transform: "translateX(-100%)",
+              animation: "none",
             }}
           />
         </div>
+      )}
 
-        <div className="relative z-10 flex flex-col h-full">
-          {/* Header Section */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-start gap-3">
-              <div
-                className={cn(
-                  "p-3 rounded-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3",
-                  bgColor
+      <div className="relative z-10 flex h-full flex-col">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div
+              className={cn(
+                "rounded-xl p-3 transition-transform duration-300",
+                bgColor,
+                !disabled && "group-hover:scale-105",
+                disabled && "saturate-50",
+              )}
+            >
+              <Icon
+                className={cn("h-6 w-6", color, disabled && "opacity-70")}
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center gap-2">
+                <h3
+                  className={cn(
+                    "text-xl font-semibold",
+                    disabled
+                      ? "text-foreground/90"
+                      : "group-hover:text-primary",
+                  )}
+                >
+                  {title}
+                </h3>
+
+                {!disabled && isTopPerformer && (
+                  <Award className="h-4 w-4 text-warning" />
                 )}
-              >
-                <Icon className={cn("w-6 h-6", color)} />
+                {!disabled && isTrending && (
+                  <Zap className="h-4 w-4 text-success" />
+                )}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-semibold group-hover:text-primary transition-colors">
-                    {title}
-                  </h3>
-                  {isTopPerformer && <Award className="w-4 h-4 text-warning" />}
-                  {isTrending && <Zap className="w-4 h-4 text-success" />}
+
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {description}
+              </p>
+            </div>
+          </div>
+
+          <ChevronRight
+            className={cn(
+              "mt-1 h-5 w-5 flex-shrink-0 transition-all duration-200",
+              disabled
+                ? "text-muted-foreground/40"
+                : "text-muted-foreground group-hover:translate-x-1 group-hover:text-primary",
+            )}
+          />
+        </div>
+
+        <div className="mb-5 flex flex-wrap gap-2">
+          {disabled ? (
+            <>
+              {/* <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">
+                Not clickable
+              </span> */}
+              <span className="rounded-full bg-muted/70 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                Country-specific data pending
+              </span>
+            </>
+          ) : (
+            <>
+              {metrics.rank ? (
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                  #{metrics.rank} in Growth
+                </span>
+              ) : (
+                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  Growth Rank –
+                </span>
+              )}
+
+              {isTrending && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
+                  <Zap className="h-3.5 w-3.5" />
+                  Top Gainer
+                </span>
+              )}
+
+              {subCategories && subCategories.length > 0 && (
+                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize text-muted-foreground">
+                  {subCategories.length} segments
+                </span>
+              )}
+            </>
+          )}
+        </div>
+
+        {disabled ? (
+          <>
+            <div className="mb-5 rounded-xl border border-dashed border-amber-400/20 bg-amber-500/5 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Clock3 className="h-4 w-4 text-amber-300" />
+                Segment not released for this market
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {disabledCopy}
+              </p>
+            </div>
+
+            {/* <div className="mb-5 grid grid-cols-2 gap-4">
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="mb-1 text-xs text-muted-foreground">
+                  Sales Volume
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {description}
+                <div className="text-2xl font-bold text-foreground/60">–</div>
+                <div className="text-xs text-muted-foreground">units</div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="mb-1 text-xs text-muted-foreground">
+                  MoM Growth
+                </div>
+                <div className="text-2xl font-bold text-foreground/60">–</div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="mb-1 text-xs text-muted-foreground">
+                  Market Share
+                </div>
+                <div className="text-xl font-bold text-foreground/60">–</div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="mb-1 text-xs text-muted-foreground">
+                  YoY Growth
+                </div>
+                <div className="text-xl font-bold text-foreground/60">–</div>
+              </div>
+            </div> */}
+
+            {/* <div className="mb-5 rounded-xl border border-border/60 bg-muted/20 p-3">
+              <div className="mb-1 text-xs text-muted-foreground">Status</div>
+              <div className="text-sm font-semibold text-foreground/85">
+                Waiting for market share / EV share / application chart release
+              </div>
+            </div> */}
+
+            {/* <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  6-Month Trend
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Unavailable
+                </span>
+              </div>
+              <div className="relative h-14 overflow-hidden rounded-xl border border-dashed border-border/60 bg-muted/20">
+                <div className="absolute inset-x-4 top-1/2 h-px -translate-y-1/2 border-t border-dashed border-border/50" />
+                <div className="absolute left-4 right-4 top-1/2 h-2 -translate-y-1/2 rounded-full bg-muted/40" />
+              </div>
+            </div> */}
+
+            {/* <div className="mt-auto border-t border-border/50 pt-4">
+              <div className="flex items-start gap-2 rounded-lg bg-muted/20 p-3">
+                <Info className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  This card is disabled because the selected country does not
+                  yet have usable flash report data for this segment.
                 </p>
               </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200 flex-shrink-0" />
-          </div>
-
-          {/* Badges Section */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {metrics.rank ? (
-              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
-                #{metrics.rank} in Growth
-              </span>
-            ) : (
-              <span className="text-xs bg-muted px-2 py-1 rounded-full font-medium text-muted-foreground">
-                Growth Rank –
-              </span>
-            )}
-
-            {isTrending && (
-              <span
-                className={cn(
-                  "relative inline-flex items-center gap-2 rounded-full px-2.5 py-1",
-                  "text-[11px] font-semibold tracking-wide text-emerald-50",
-                  "bg-gradient-to-r from-emerald-600/90 via-emerald-500/80 to-teal-500/90",
-                  "shadow-sm shadow-emerald-500/20 ring-1 ring-emerald-300/30",
-                  "overflow-hidden"
-                )}
-              >
-                {/* subtle sheen */}
-                <span
-                  className="pointer-events-none absolute inset-0 opacity-30"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)",
-                    transform: "translateX(-120%)",
-                    animation: "shine 2.2s ease-in-out infinite",
-                  }}
-                />
-
-                {/* pulse dot */}
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-200/80 opacity-70" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
-                </span>
-
-                <Zap className="w-3.5 h-3.5 opacity-90" />
-                <span className="relative">Top Gainer</span>
-              </span>
-            )}
-
-            {subCategories && subCategories.length > 0 && (
-              <span className="text-xs bg-muted px-2 py-1 rounded capitalize">
-                {subCategories.length} segments
-              </span>
-            )}
-          </div>
-
-          {/* Metrics Grid Section */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                Sales Volume
+            </div> */}
+          </>
+        ) : (
+          <>
+            <div className="mb-5 grid grid-cols-2 gap-4">
+              <div>
+                <div className="mb-1 text-xs text-muted-foreground">
+                  Sales Volume
+                </div>
+                <div className="text-3xl font-bold">
+                  {formatUnits(metrics.salesVolume)}
+                </div>
+                <div className="text-xs text-muted-foreground">units</div>
               </div>
-              <div className="text-2xl font-bold">
-                {formatUnits(metrics.salesVolume)}
-              </div>
-              <div className="text-xs text-muted-foreground">units</div>
-            </div>
 
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                MoM Growth
+              <div>
+                <div className="mb-1 text-xs text-muted-foreground">
+                  Month on Month Growth
+                </div>
+                <div
+                  className={cn(
+                    "flex items-center gap-1 text-3xl font-bold",
+                    hasMom
+                      ? isGrowing
+                        ? "text-success"
+                        : "text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {hasMom ? (
+                    <>
+                      {isGrowing ? (
+                        <TrendingUp className="h-5 w-5" />
+                      ) : (
+                        <TrendingDown className="h-5 w-5" />
+                      )}
+                      {formatPct(metrics.momGrowth)}
+                    </>
+                  ) : (
+                    "–"
+                  )}
+                </div>
               </div>
-              <div
-                className={cn(
-                  "text-2xl font-bold flex items-center gap-1",
-                  hasMom
-                    ? isGrowing
-                      ? "text-success"
-                      : "text-destructive"
-                    : "text-muted-foreground"
-                )}
-              >
-                {hasMom ? (
-                  <>
-                    {isGrowing ? (
-                      <TrendingUp className="w-5 h-5" />
-                    ) : (
-                      <TrendingDown className="w-5 h-5" />
-                    )}
-                    {formatPct(metrics.momGrowth)}
-                  </>
-                ) : (
-                  <span>–</span>
-                )}
+
+              <div>
+                <div className="mb-1 text-xs text-muted-foreground">
+                  Market Share
+                </div>
+                <div className="text-xl font-bold">
+                  {metrics.marketShare.toFixed(1)}%
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 text-xs text-muted-foreground">
+                  Year on Year Growth
+                </div>
+                <div
+                  className={cn(
+                    "text-xl font-bold",
+                    hasYoy
+                      ? metrics.yoyGrowth >= 0
+                        ? "text-success"
+                        : "text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {hasYoy ? formatPct(metrics.yoyGrowth) : "–"}
+                </div>
               </div>
             </div>
 
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                Market Share
+            <div className="mb-5 rounded-xl bg-muted/50 p-3">
+              <div className="mb-1 text-xs text-muted-foreground">
+                Leading OEM
               </div>
-              <div className="text-xl font-bold">
-                {metrics.marketShare.toFixed(1)}%
-              </div>
+              <div className="text-sm font-semibold">{metrics.topOEM}</div>
             </div>
 
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                YoY Growth
-              </div>
-              <div
-                className={cn(
-                  "text-xl font-bold",
-                  hasYoy
-                    ? metrics.yoyGrowth >= 0
-                      ? "text-success"
-                      : "text-destructive"
-                    : "text-muted-foreground"
-                )}
-              >
-                {hasYoy ? formatPct(metrics.yoyGrowth) : "–"}
-              </div>
-            </div>
-          </div>
-
-          {/* Top OEM Badge */}
-          <div className="mb-4 p-2 bg-muted/50 rounded-lg">
-            <div className="text-xs text-muted-foreground mb-1">
-              Leading OEM
-            </div>
-            <div className="text-sm font-semibold">{metrics.topOEM}</div>
-          </div>
-
-          {/* Charts Section */}
-          <div className="space-y-4 mb-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
+            <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
                   6-Month Trend
                 </span>
@@ -295,27 +411,50 @@ export function VehicleCategoryCard({
               <MiniSparkline
                 data={sparklineData}
                 color={chartColor}
-                height={48}
+                height={54}
               />
             </div>
-          </div>
 
-          {/* Optional EV Penetration */}
-          {metrics.evPenetration !== undefined && (
-            <div className="mt-auto pt-4 border-t border-border/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                  <span className="text-xs text-muted-foreground">EV Share</span>
+            {metrics.evPenetration !== undefined && (
+              <div className="mt-auto border-t border-border/50 pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                    <span className="text-xs text-muted-foreground">
+                      EV Share
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold text-success">
+                    {metrics.evPenetration.toFixed(1)}%
+                  </span>
                 </div>
-                <span className="text-sm font-semibold text-success">
-                  {metrics.evPenetration.toFixed(1)}%
-                </span>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </>
+        )}
       </div>
+    </div>
+  );
+
+  if (disabled) {
+    return (
+      <div
+        className="group block animate-fade-in"
+        style={{ animationDelay: `${index * 100}ms` }}
+        aria-disabled="true"
+      >
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="group block animate-fade-in hover-lift"
+      style={{ animationDelay: `${index * 100}ms` }}
+    >
+      {cardContent}
     </Link>
   );
 }

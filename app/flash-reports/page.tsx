@@ -91,6 +91,8 @@ type OverallApiPoint = {
   };
 };
 
+
+
 // Flattened shape we’ll actually use in the dashboard
 type OverallRow = {
   month: string; // "YYYY-MM"
@@ -137,6 +139,20 @@ type TileMetrics = {
   rank: number;
   targetProgress: number;
 };
+
+type FlashReportChartConfig = {
+  overall: number | null;
+  horizonDefault: number;
+};
+
+type SegmentAvailability = {
+  isAvailable: boolean;
+  availableBlocks: string[];
+  missingBlocks: string[];
+  message: string;
+};
+
+type SegmentAvailabilityMap = Record<string, SegmentAvailability>;
 
 // helper: safe numeric getter
 function getValue(row: OverallRow | null | undefined, key: string): number {
@@ -201,13 +217,117 @@ export default function FlashReportsPage() {
   const [overallLastYearRow, setOverallLastYearRow] =
     useState<OverallRow | null>(null);
 
-  const [topOEMs, setTopOEMs] = useState<TopOem[]>([]);
-  const [topOemError, setTopOemError] = useState<string | null>(null);
-  const [topOemLoading, setTopOemLoading] = useState(false);
+const [topOEMs, setTopOEMs] = useState<TopOem[]>([]);
+const [topOemError, setTopOemError] = useState<string | null>(null);
+const [topOemLoading, setTopOemLoading] = useState(false);
+const [overallChartPoints, setOverallChartPoints] = useState<OverallApiPoint[]>(
+  [],
+);
+const [flashChartConfig, setFlashChartConfig] =
+  useState<FlashReportChartConfig>({
+    overall: null,
+    horizonDefault: 6,
+  });
+
+const [segmentAvailability, setSegmentAvailability] =
+  useState<SegmentAvailabilityMap>({});
+const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
+const overallForecastHorizon =
+  Number.isFinite(Number(flashChartConfig?.horizonDefault)) &&
+  Number(flashChartConfig?.horizonDefault) > 0
+    ? Number(flashChartConfig.horizonDefault)
+    : 6;
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadFlashChartConfig() {
+    try {
+      const res = await fetch("/api/flash-reports/config", {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load flash chart config: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (cancelled) return;
+
+      setFlashChartConfig({
+        overall:
+          json?.overall != null && Number.isFinite(Number(json.overall))
+            ? Number(json.overall)
+            : null,
+        horizonDefault:
+          json?.horizonDefault != null &&
+          Number.isFinite(Number(json.horizonDefault))
+            ? Number(json.horizonDefault)
+            : 6,
+      });
+    } catch (error) {
+      console.error("Failed to load flash chart config", error);
+      if (!cancelled) {
+        setFlashChartConfig({
+          overall: null,
+          horizonDefault: 6,
+        });
+      }
+    }
+  }
+
+  loadFlashChartConfig();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentAvailability() {
+    try {
+      setAvailabilityLoading(true);
+
+      const res = await fetch(
+        withCountry(
+          `/api/flash-reports/segment-availability?month=${encodeURIComponent(
+            month,
+          )}`,
+          region,
+        ),
+        { cache: "no-store" },
+      );
+
+      const json = await res.json();
+      if (cancelled) return;
+
+      setSegmentAvailability(json?.segments || {});
+    } catch (err) {
+      console.error("Failed to load segment availability", err);
+      if (!cancelled) {
+        setSegmentAvailability({});
+      }
+    } finally {
+      if (!cancelled) {
+        setAvailabilityLoading(false);
+      }
+    }
+  }
+
+  loadSegmentAvailability();
+
+  return () => {
+    cancelled = true;
+  };
+}, [month, region]);
 
   useEffect(() => {
     let cancelled = false;
@@ -229,16 +349,16 @@ export default function FlashReportsPage() {
         setOverallLastYearRow(null);
 
         const url1 = withCountry(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=6&forceHistorical=1`,
-          region,
-        );
+  `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}`,
+  region,
+);
 
-        const url2 = lastYearKey
-          ? withCountry(
-              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(lastYearKey)}&horizon=6&forceHistorical=1`,
-              region,
-            )
-          : null;
+const url2 = lastYearKey
+  ? withCountry(
+      `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(lastYearKey)}&horizon=6&forceHistorical=1`,
+      region,
+    )
+  : null;
 
         const [res, lastYearRes] = await Promise.all([
           fetch(url1, { cache: "no-store" }),
@@ -252,9 +372,11 @@ export default function FlashReportsPage() {
         }
 
         const json = await res.json();
-        const apiData = (json?.data || []) as OverallApiPoint[];
-        setOverallMeta(json?.meta || null);
+const apiData = (json?.data || []) as OverallApiPoint[];
+setOverallMeta(json?.meta || null);
 
+const sortedApiData = [...apiData].sort((a, b) => a.month.localeCompare(b.month));
+setOverallChartPoints(sortedApiData);
         // Parse and cache last year's same-month row (used for YoY on tiles)
         if (lastYearKey && lastYearRes && lastYearRes.ok) {
           const lyJson = await lastYearRes.json();
@@ -299,11 +421,12 @@ export default function FlashReportsPage() {
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setOverallError(
-            "Failed to load overall industry volumes from backend.",
-          );
-          setOverallData([]);
-        }
+  setOverallError(
+    "Failed to load overall industry volumes from backend.",
+  );
+  setOverallData([]);
+  setOverallChartPoints([]);
+}
       } finally {
         if (!cancelled) setOverallLoading(false);
       }
@@ -313,7 +436,7 @@ export default function FlashReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, [month, region]);
+ }, [month, region, overallForecastHorizon]);
 
   // Fetch overall OEM market share for "Top OEM Performance" widget
   useEffect(() => {
@@ -682,33 +805,44 @@ export default function FlashReportsPage() {
               <ChartWrapper
                 title="Cross-Category Sales Performance"
                 summary={
-                  overallError
-                    ? overallError
-                    : `Overall automotive market ${
-                        overallGrowthRate >= 0 ? "expanded" : "contracted"
-                      } by ${
-                        overallGrowthRate >= 0 ? "+" : ""
-                      }${overallGrowthRate.toFixed(
-                        1,
-                      )}% month-on-month based on total industry volumes.`
-                }
+  overallError
+    ? overallError
+    : overallMeta?.allowForecast
+      ? `Overall automotive market ${
+          overallGrowthRate >= 0 ? "expanded" : "contracted"
+        } by ${
+          overallGrowthRate >= 0 ? "+" : ""
+        }${overallGrowthRate.toFixed(
+          1,
+        )}% month-on-month based on total industry volumes. Historical trend and next ${
+          overallMeta?.horizon ?? overallForecastHorizon
+        } months of flash forecast are shown below.`
+      : `Overall automotive market ${
+          overallGrowthRate >= 0 ? "expanded" : "contracted"
+        } by ${
+          overallGrowthRate >= 0 ? "+" : ""
+        }${overallGrowthRate.toFixed(
+          1,
+        )}% month-on-month based on total industry volumes.`
+}
               >
                 {overallLoading ? (
                   <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
                     Loading industry volumes…
                   </div>
-                ) : recentTotalSeries.length ? (
-                  <LineChart
-                    overallData={recentTotalSeries.map((row) => ({
-                      month: row.month,
-                      Total: row.actual,
-                    }))}
-                    category="Total"
-                    height={300}
-                    allowForecast={!!overallMeta?.allowForecast}
-                    country={region}
-                  />
-                ) : (
+                ) : overallChartPoints.length ? (
+  <LineChart
+    overallData={overallChartPoints}
+    category="Total"
+    height={300}
+    allowForecast={!!overallMeta?.allowForecast}
+    baseMonth={overallMeta?.baseMonth ?? month}
+    horizon={overallMeta?.horizon ?? overallForecastHorizon}
+    graphId={flashChartConfig?.overall ?? null}
+    country={region}
+    showSubmitScore={false}
+  />
+) : (
                   <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
                     No overall volume data available.
                   </div>
@@ -768,24 +902,30 @@ export default function FlashReportsPage() {
 
           <div className="grid md:grid-cols-2 gap-6">
             {CATEGORIES.map((category, index) => {
-              const metrics = categoryMetricsMap[category.id];
-              if (!metrics) return null;
+  const metrics = categoryMetricsMap[category.id];
+  if (!metrics) return null;
 
-              return (
-                <VehicleCategoryCard
-                  key={category.id}
-                  id={category.id}
-                  title={category.title}
-                  description={category.description}
-                  icon={category.icon}
-                  color={category.color}
-                  bgColor={category.bgColor}
-                  subCategories={category.subCategories}
-                  metrics={metrics}
-                  index={index}
-                />
-              );
-            })}
+  const availability = segmentAvailability[category.id];
+
+  return (
+    <VehicleCategoryCard
+      key={category.id}
+      id={category.id}
+      title={category.title}
+      description={category.description}
+      icon={category.icon}
+      color={category.color}
+      bgColor={category.bgColor}
+      subCategories={category.subCategories}
+      metrics={metrics}
+      index={index}
+      disabled={
+        !availabilityLoading && availability?.isAvailable === false
+      }
+      disabledMessage={availability?.message}
+    />
+  );
+})}
           </div>
         </div>
 

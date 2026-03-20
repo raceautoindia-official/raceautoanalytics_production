@@ -143,7 +143,10 @@ export default function ForecastPage() {
   const [chosenCountry, setChosenCountry] = useState(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
-
+  const [regionSelectionMemory, setRegionSelectionMemory] = useState({
+    kind: null, // "country" | "allRegions" | null
+    countryName: "",
+  });
   //admin access
   // ─── Add these just below your other useState calls ─────────────────
   const [isAdmin, setIsAdmin] = useState(false);
@@ -195,6 +198,18 @@ export default function ForecastPage() {
     const country = countries.find((c) => c.id === chosenCountry);
     return country ? country.name : "";
   }, [countries, chosenCountry]);
+
+  useEffect(() => {
+    if (!chosenCountryName) return;
+
+    setRegionSelectionMemory((prev) => {
+      if (prev.kind) return prev;
+      return {
+        kind: "country",
+        countryName: chosenCountryName,
+      };
+    });
+  }, [chosenCountryName]);
 
   // ─── Fetch all needed data once ─────────────────────────────────────
   useEffect(() => {
@@ -485,19 +500,19 @@ export default function ForecastPage() {
   }, [displayRegions, contentHierarchyNodes]);
 
   // if Silver, drop any selectedCategoryId ≥ index 2
-  useEffect(() => {
-    const isGoldOrPlat = planName === "gold" || planName === "platinum";
-    if (!isGoldOrPlat) return;
-    if (!chosenCountryName || !allCountryNodes.length) return;
+  // useEffect(() => {
+  //   const isGoldOrPlat = planName === "gold" || planName === "platinum";
+  //   if (!isGoldOrPlat) return;
+  //   if (!chosenCountryName || !allCountryNodes.length) return;
 
-    // ✅ Do NOT override if user already selected something (like All Regions)
-    if (selectedRegionId != null) return;
+  //   // ✅ Do NOT override if user already selected something (like All Regions)
+  //   if (selectedRegionId != null) return;
 
-    const match = allCountryNodes.find(
-      (node) => node.name === chosenCountryName,
-    );
-    if (match) setSelectedRegionId(match.id);
-  }, [planName, chosenCountryName, allCountryNodes, selectedRegionId]);
+  //   const match = allCountryNodes.find(
+  //     (node) => node.name === chosenCountryName,
+  //   );
+  //   if (match) setSelectedRegionId(match.id);
+  // }, [planName, chosenCountryName, allCountryNodes, selectedRegionId]);
 
   // 6) All country IDs under all regions
   const allCountryIds = useMemo(() => {
@@ -517,22 +532,65 @@ export default function ForecastPage() {
   }, [contentHierarchyNodes, allRegionsNode]);
 
   //Auto-select that country for Gold & Platinum
+  // useEffect(() => {
+  //   // Only for gold/platinum, once we know the modal‐chosen name + allCountryNodes
+  //   if (
+  //     (planName === "gold" || planName === "platinum") &&
+  //     chosenCountryName &&
+  //     allCountryNodes.length
+  //   ) {
+  //     const match = allCountryNodes.find(
+  //       (node) => node.name === chosenCountryName,
+  //     );
+  //     if (match) {
+  //       // match.id is the contentHierarchy ID of the country leaf node
+  //       setSelectedRegionId(match.id);
+  //     }
+  //   }
+  // }, [planName, chosenCountryName, allCountryNodes]);
+
   useEffect(() => {
-    // Only for gold/platinum, once we know the modal‐chosen name + allCountryNodes
+    if (!selectedCategoryId) return;
+
+    const isGoldOrPlat = planName === "gold" || planName === "platinum";
+
+    const targetSelection =
+      !isAdmin && isGoldOrPlat
+        ? { kind: "country", countryName: chosenCountryName }
+        : regionSelectionMemory;
+
+    if (!targetSelection?.kind) return;
+
+    if (targetSelection.kind === "allRegions") {
+      if (allRegionsNode && selectedRegionId !== allRegionsNode.id) {
+        setSelectedRegionId(allRegionsNode.id);
+      }
+      return;
+    }
+
     if (
-      (planName === "gold" || planName === "platinum") &&
-      chosenCountryName &&
+      targetSelection.kind === "country" &&
+      targetSelection.countryName &&
       allCountryNodes.length
     ) {
       const match = allCountryNodes.find(
-        (node) => node.name === chosenCountryName,
+        (node) => node.name === targetSelection.countryName,
       );
-      if (match) {
-        // match.id is the contentHierarchy ID of the country leaf node
+
+      if (match && selectedRegionId !== match.id) {
         setSelectedRegionId(match.id);
       }
     }
-  }, [planName, chosenCountryName, allCountryNodes]);
+  }, [
+    selectedCategoryId,
+    planName,
+    isAdmin,
+    chosenCountryName,
+    regionSelectionMemory,
+    allCountryNodes,
+    allRegionsNode,
+    selectedRegionId,
+  ]);
 
   // ─── Derive selectedCountriesList based on selectedRegionId ───────────────
   const selectedCountriesList = useMemo(() => {
@@ -1337,8 +1395,6 @@ export default function ForecastPage() {
         <div className="relative z-10 mt-6 grid grid-cols-1 gap-3 lg:grid-cols-3 lg:items-start">
           {/* LEFT: Category + Region */}
           <div className="flex flex-wrap items-center justify-start gap-3">
-           
-
             {/* Region */}
             {selectedCategoryId && (
               <div ref={regionRef} className="relative">
@@ -1381,12 +1437,32 @@ export default function ForecastPage() {
                         className="h-4 w-4 accent-[#FFC107]"
                         checked={selectedRegionId === allRegionsNode.id}
                         onChange={() => {
+                          const isGoldOrPlat =
+                            planName === "gold" || planName === "platinum";
+
                           if (selectedRegionId === allRegionsNode.id) {
                             setSelectedRegionId(null);
+
+                            if (!isAdmin && isGoldOrPlat) {
+                              setRegionSelectionMemory({
+                                kind: "country",
+                                countryName: chosenCountryName,
+                              });
+                            } else {
+                              setRegionSelectionMemory({
+                                kind: null,
+                                countryName: "",
+                              });
+                            }
                           } else {
+                            setRegionSelectionMemory({
+                              kind: "allRegions",
+                              countryName: "",
+                            });
                             setSelectedRegionId(allRegionsNode.id);
                             setSelectedGraphId(null);
                           }
+
                           setOpenRegion(false);
                         }}
                       />
@@ -1465,12 +1541,32 @@ export default function ForecastPage() {
                                       onChange={() => {
                                         if (disabled) return;
 
-                                        setSelectedRegionId(
-                                          selectedRegionId === cn.id
-                                            ? null
-                                            : cn.id,
-                                        );
-                                        if (selectedRegionId !== cn.id) {
+                                        const isGoldOrPlat =
+                                          planName === "gold" ||
+                                          planName === "platinum";
+                                        const isSameCountry =
+                                          selectedRegionId === cn.id;
+
+                                        if (isSameCountry) {
+                                          setSelectedRegionId(null);
+
+                                          if (!isAdmin && isGoldOrPlat) {
+                                            setRegionSelectionMemory({
+                                              kind: "country",
+                                              countryName: chosenCountryName,
+                                            });
+                                          } else {
+                                            setRegionSelectionMemory({
+                                              kind: null,
+                                              countryName: "",
+                                            });
+                                          }
+                                        } else {
+                                          setRegionSelectionMemory({
+                                            kind: "country",
+                                            countryName: cn.name,
+                                          });
+                                          setSelectedRegionId(cn.id);
                                           setSelectedGraphId(null);
                                         }
 
@@ -1491,7 +1587,7 @@ export default function ForecastPage() {
               </div>
             )}
 
-             {/* Category */}
+            {/* Category */}
             <div ref={categoryRef} className="relative">
               <button
                 type="button"
