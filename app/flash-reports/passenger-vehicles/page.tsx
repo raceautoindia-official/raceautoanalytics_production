@@ -371,7 +371,7 @@ export default function PassengerVehiclesPage() {
     [marketRaw, marketCurrentMonth, marketCompare, month],
   );
 
-  const marketChartData = marketComputed?.chartData.slice(0, 8) ?? [];
+  const marketChartData = marketComputed?.chartData ?? [];
   const marketTop = marketComputed?.chartData[0];
   const marketTopDelta = marketTop?.deltaPct ?? 0;
 
@@ -408,7 +408,7 @@ export default function PassengerVehiclesPage() {
     [evRaw, evCurrentMonth, evCompare, month],
   );
 
-  const evChartData = evComputed?.chartData.slice(0, 8) ?? [];
+  const evChartData = evComputed?.chartData ?? [];
   const evTop = evComputed?.chartData[0];
   const evTopDelta = evTop?.deltaPct ?? 0;
 

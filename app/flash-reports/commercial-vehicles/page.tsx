@@ -521,7 +521,7 @@ const prevCV = toNum(prevPoint?.data?.["CV"]);
     return <PageSkeleton />;
   }
 
-  const oemChartData = oemComputed?.chartData.slice(0, 6) ?? [];
+  const oemChartData = oemComputed?.chartData ?? [];
 
     const showSegmentChartSection =
   segmentLoading || !!segmentError || segmentData.length > 0;

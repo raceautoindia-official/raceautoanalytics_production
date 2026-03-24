@@ -605,7 +605,7 @@ useEffect(() => {
     return <PageSkeleton />;
   }
 
-  const oemChartData = oemComputed?.chartData.slice(0, 6) ?? [];
+  const oemChartData = oemComputed?.chartData ?? [];
 
   const showOemChartSection =
   oemLoading || !!oemError || oemChartData.length > 0;

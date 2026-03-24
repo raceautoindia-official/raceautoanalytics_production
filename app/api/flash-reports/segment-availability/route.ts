@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { resolveFlashReportContext } from "@/lib/flashReportCountry";
+import { getOverallChartDataWithMeta } from "@/lib/flashReportsServer";
 
 export const dynamic = "force-dynamic";
 
-type BlockType = "marketShare" | "ev" | "app" | "segmentSplit";
+type BlockType = "marketShare" | "ev" | "app" | "segmentSplit" | "forecast";
 
 type SegmentRule = {
   segmentNames: string[];
@@ -28,15 +29,15 @@ const MONTHS_SHORT = [
 const SEGMENT_RULES: Record<string, SegmentRule> = {
   "overall-automotive-industry": {
     segmentNames: [],
-    blocks: [],
+    blocks: ["forecast"],
   },
   "two-wheeler": {
     segmentNames: ["two-wheeler", "two wheeler", "2w"],
-    blocks: ["marketShare", "ev", "app"],
+    blocks: ["marketShare", "ev", "app", "forecast"],
   },
   "three-wheeler": {
     segmentNames: ["three-wheeler", "three wheeler", "3w"],
-    blocks: ["marketShare", "ev", "app"],
+    blocks: ["marketShare", "ev", "app", "forecast"],
   },
   "commercial-vehicles": {
     segmentNames: [
@@ -45,7 +46,7 @@ const SEGMENT_RULES: Record<string, SegmentRule> = {
       "commercial-vehicles",
       "cv",
     ],
-    blocks: ["marketShare", "segmentSplit"],
+    blocks: ["marketShare", "segmentSplit", "forecast"],
   },
   "passenger-vehicles": {
     segmentNames: [
@@ -54,11 +55,11 @@ const SEGMENT_RULES: Record<string, SegmentRule> = {
       "passenger-vehicles",
       "pv",
     ],
-    blocks: ["marketShare", "ev", "app"],
+    blocks: ["marketShare", "ev", "app", "forecast"],
   },
   tractor: {
     segmentNames: ["tractor", "trac"],
-    blocks: ["marketShare", "app"],
+    blocks: ["marketShare", "app", "forecast"],
   },
   "construction-equipment": {
     segmentNames: [
@@ -66,8 +67,18 @@ const SEGMENT_RULES: Record<string, SegmentRule> = {
       "construction-equipment",
       "ce",
     ],
-    blocks: ["marketShare", "ev", "app"],
+    blocks: ["marketShare", "ev", "app", "forecast"],
   },
+};
+
+const FORECAST_SERIES_KEY_BY_SEGMENT: Record<string, string> = {
+  "overall-automotive-industry": "Total",
+  "two-wheeler": "2W",
+  "three-wheeler": "3W",
+  "commercial-vehicles": "CV",
+  "passenger-vehicles": "PV",
+  tractor: "TRAC",
+  "construction-equipment": "CE",
 };
 
 function getOrigin(req: Request) {
@@ -203,6 +214,20 @@ function findTypeNode(
   });
 }
 
+function hasForecastSeriesData(
+  segmentId: string,
+  overallPoints: Array<{ data?: Record<string, any> }> = [],
+) {
+  const seriesKey = FORECAST_SERIES_KEY_BY_SEGMENT[segmentId];
+  if (!seriesKey) return false;
+
+  return overallPoints.some((point) => {
+    const value = point?.data?.[seriesKey];
+    const num = toNumberLoose(value);
+    return Number.isFinite(num) && num > 0;
+  });
+}
+
 function hasBlockData(params: {
   hierarchyData: any[];
   volumeData: any[];
@@ -312,13 +337,34 @@ export async function GET(req: Request) {
       });
     }
 
+    let overallChartPoints: Array<{ data?: Record<string, any> }> = [];
+
+    try {
+      const overallChart = await getOverallChartDataWithMeta({
+        baseMonth: month,
+        horizon: 6,
+        country,
+      });
+
+      overallChartPoints = Array.isArray(overallChart?.data)
+        ? overallChart.data
+        : [];
+    } catch (error) {
+      console.error("segment-availability overall-chart check error:", error);
+      overallChartPoints = [];
+    }
+
     const segments: Record<string, any> = {};
 
     for (const [segmentId, rule] of Object.entries(SEGMENT_RULES)) {
       if (segmentId === "overall-automotive-industry") continue;
 
-      const availableBlocks = rule.blocks.filter((block) =>
-        hasBlockData({
+      const availableBlocks = rule.blocks.filter((block) => {
+        if (block === "forecast") {
+          return hasForecastSeriesData(segmentId, overallChartPoints);
+        }
+
+        return hasBlockData({
           hierarchyData,
           volumeData,
           rootId: rootNode.id,
@@ -326,8 +372,8 @@ export async function GET(req: Request) {
           block,
           year,
           monthName,
-        }),
-      );
+        });
+      });
 
       segments[segmentId] = {
         isAvailable: availableBlocks.length > 0,
@@ -346,13 +392,25 @@ export async function GET(req: Request) {
       (item: any) => item?.isAvailable,
     );
 
+    const overallForecastAvailable = hasForecastSeriesData(
+      "overall-automotive-industry",
+      overallChartPoints,
+    );
+
     segments["overall-automotive-industry"] = {
-      isAvailable: anyOtherSegmentAvailable,
-      availableBlocks: anyOtherSegmentAvailable ? ["overview"] : [],
-      missingBlocks: anyOtherSegmentAvailable ? [] : ["overview"],
-      message: anyOtherSegmentAvailable
-        ? ""
-        : `Data for this segment will be available soon in ${countryLabel}.`,
+      isAvailable: anyOtherSegmentAvailable || overallForecastAvailable,
+      availableBlocks: [
+        ...(overallForecastAvailable ? ["forecast"] : []),
+        ...(anyOtherSegmentAvailable ? ["overview"] : []),
+      ],
+      missingBlocks: ["forecast", "overview"].filter((block) => {
+        if (block === "forecast") return !overallForecastAvailable;
+        return !anyOtherSegmentAvailable;
+      }),
+      message:
+        anyOtherSegmentAvailable || overallForecastAvailable
+          ? ""
+          : `Data for this segment will be available soon in ${countryLabel}.`,
     };
 
     return NextResponse.json({

@@ -83,10 +83,10 @@ export function BarChart({
       ? Math.min(height, 260)
       : height;
 
-  const xTickStyle = {
-    fontSize: isMobile ? 9 : 11,
-    fill: "hsl(var(--muted-foreground))",
-  };
+const xTickStyle = {
+  fontSize: isMobile ? 8 : 9,
+  fill: "hsl(var(--muted-foreground))",
+};
 
   const yTickStyle = {
     fontSize: isMobile ? 9 : 11,
@@ -138,10 +138,10 @@ export function BarChart({
         <RechartsBarChart
           data={data}
           margin={
-            isMobile
-              ? { top: 4, right: 8, left: isVertical ? 8 : 4, bottom: 5 }
-              : { top: 5, right: 20, left: 20, bottom: 5 }
-          }
+  isMobile
+    ? { top: 4, right: 8, left: isVertical ? 8 : 4, bottom: isHorizontal ? 30 : 5 }
+    : { top: 5, right: 20, left: 20, bottom: isHorizontal ? 30 : 5 }
+}
           layout={layout}
         >
           {renderGradientDefs(gradientDirection, false)}
@@ -154,21 +154,22 @@ export function BarChart({
             />
           )}
           <XAxis
-            type={isHorizontal ? "category" : "number"}
-            dataKey={isHorizontal ? "name" : undefined}
-            tick={xTickStyle}
-            axisLine={{ stroke: "hsl(var(--border))" }}
-            tickLine={isMobile ? false : { stroke: "hsl(var(--border))" }}
-            tickMargin={isMobile ? 0 : 8}
-            interval={0}
-            angle={isMobile && isHorizontal ? -30 : 0}
-            textAnchor={isMobile && isHorizontal ? "end" : "middle"}
-            tickFormatter={(value: string | number) => {
-              const str = String(value);
-              const maxChars = isMobile ? 10 : 16;
-              return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
-            }}
-          />
+  type={isHorizontal ? "category" : "number"}
+  dataKey={isHorizontal ? "name" : undefined}
+  tick={xTickStyle}
+  axisLine={{ stroke: "hsl(var(--border))" }}
+  tickLine={isMobile ? false : { stroke: "hsl(var(--border))" }}
+  tickMargin={isHorizontal ? 10 : isMobile ? 0 : 8}
+  interval={0}
+  angle={isHorizontal ? -35 : 0}
+  textAnchor={isHorizontal ? "end" : "middle"}
+  height={isHorizontal ? (isMobile ? 55 : 75) : undefined}
+  tickFormatter={(value: string | number) => {
+    const str = String(value);
+    const maxChars = isMobile ? 8 : 12;
+    return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
+  }}
+/>
 
           <YAxis
             type={isHorizontal ? "number" : "category"}

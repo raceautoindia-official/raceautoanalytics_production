@@ -443,7 +443,7 @@ export default function TractorPage() {
     [oemRaw, oemCurrentMonth, oemCompare, month],
   );
 
-  const oemChartData = oemComputed?.chartData.slice(0, 6) ?? [];
+  const oemChartData = oemComputed?.chartData ?? [];
   const topOem = oemComputed?.chartData[0];
   const topOemDelta = topOem?.deltaPct ?? 0;
 
