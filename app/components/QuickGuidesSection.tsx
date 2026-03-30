@@ -76,6 +76,7 @@ function getPreviousMonthYyyyMm() {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
 }
+
 /** --- Country Modal --- */
 function CountryModal({
   country,
@@ -85,6 +86,7 @@ function CountryModal({
   onClose: () => void;
 }) {
   const targetMonth = getPreviousMonthYyyyMm();
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -144,7 +146,7 @@ function CountryModal({
   );
 }
 
-/** --- Flip Card (optional popup/back side) --- */
+/** --- Flip Card --- */
 function FlipInfoCard({
   ariaLabel,
   bullets,
@@ -225,7 +227,7 @@ function FlipInfoCard({
                     <button
                       type="button"
                       onClick={() => setFlipped(true)}
-                      className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                      className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-yellow-300/40 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_10px_30px_rgba(234,179,8,.28)] hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-yellow-300/60 transition"
                     >
                       View Demo
                       <ChevronRight className="h-4 w-4" />
@@ -310,7 +312,7 @@ function FlipInfoCard({
                           <iframe
                             className="h-full w-full"
                             src={embedUrl}
-                            title="Flash Report Quick Walkthrough"
+                            title={backTitle}
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                             allowFullScreen
                           />
@@ -353,46 +355,6 @@ function CountryBadge({
     </button>
   );
 }
-
-/* ---------- NEW: polished sections data ---------- */
-const CATEGORY_PREVIEW = [
-  {
-    name: "2W",
-    hint: "Two Wheeler",
-    value: "—",
-    accent: "bg-blue-500/15 text-blue-200",
-  },
-  {
-    name: "3W",
-    hint: "Three Wheeler",
-    value: "—",
-    accent: "bg-indigo-500/15 text-indigo-200",
-  },
-  {
-    name: "PV",
-    hint: "Passenger Vehicles",
-    value: "—",
-    accent: "bg-emerald-500/15 text-emerald-200",
-  },
-  {
-    name: "CV",
-    hint: "Commercial Vehicles",
-    value: "—",
-    accent: "bg-amber-500/15 text-amber-200",
-  },
-  {
-    name: "TRAC",
-    hint: "Tractors",
-    value: "—",
-    accent: "bg-sky-500/15 text-sky-200",
-  },
-  {
-    name: "CE",
-    hint: "Construction Equip.",
-    value: "—",
-    accent: "bg-rose-500/15 text-rose-200",
-  },
-];
 
 const VALUE_PROPS = [
   {
@@ -558,7 +520,7 @@ export default function QuickGuidesSection() {
                 ctaHref="/flash-reports/overview"
                 ctaLabel="Open Flash Reports"
                 enableReadMore={true}
-                videoUrl="https://youtu.be/oP8wflTrc5E"
+                videoUrl="https://youtu.be/BBcHKQH90xo?si=o4T0_udCkwy-D9Hu"
                 backTitle="Flash Report Quick Walkthrough"
                 backSubtitle="Quick steps and video guide for flash reports"
                 extraFront={
@@ -567,7 +529,7 @@ export default function QuickGuidesSection() {
                       Primary countries (launching)
                     </div>
 
-                    <div className="mt-2 grid grid-cols-4 gap-2 hidden md:grid">
+                    <div className="mt-2 hidden grid-cols-4 gap-2 md:grid">
                       {countries.map((c) => (
                         <CountryBadge
                           key={c.name}
@@ -596,11 +558,15 @@ export default function QuickGuidesSection() {
                 bullets={forecastBullets}
                 ctaHref="/forecast/overview"
                 ctaLabel="Open Forecast"
+                enableReadMore={true}
+                videoUrl="https://youtu.be/06PIm3mTGcE?si=5QhUnDEAy6-ZIp72"
+                backTitle="Forecast Quick Walkthrough"
+                backSubtitle="Quick steps and video guide for forecast"
               />
             </div>
           </div>
 
-          {/* ===== NEW Section: Value props ===== */}
+          {/* ===== Value props ===== */}
           <div className="mt-14">
             <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
               What you get in one place
@@ -637,7 +603,7 @@ export default function QuickGuidesSection() {
             </div>
           </div>
 
-          {/* ===== NEW Section: How it works ===== */}
+          {/* ===== How it works ===== */}
           <div className="mt-14">
             <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
               How it works
@@ -669,7 +635,7 @@ export default function QuickGuidesSection() {
             </div>
           </div>
 
-          {/* ===== NEW Section: CTA band ===== */}
+          {/* ===== CTA band ===== */}
           <div className="mt-14 pb-16">
             <div className="rounded-3xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
