@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { usePathname } from "next/navigation";
 
@@ -51,12 +52,19 @@ export default function AuthModal({
     return "RaceAutoAnalytics Premium";
   }, [pathname]);
 
-  if (!visible) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!visible || !mounted) return null;
 
   const Shell = ({ children }: { children: React.ReactNode }) => {
     if (embedded) return <>{children}</>;
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[9999] overflow-y-auto">
         {/* Backdrop */}
         <div
           className="absolute inset-0 bg-[#050B1A]/80 backdrop-blur-[14px]"
@@ -66,26 +74,26 @@ export default function AuthModal({
         />
 
         {/* Modal */}
-        <div className="relative w-full max-w-[400px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)]">
-          {children}
+        <div className="relative flex min-h-full items-start justify-center p-4 sm:items-center sm:p-6">
+          <div className="relative my-4 w-full max-w-[400px] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[28px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)] sm:my-0 sm:max-h-[calc(100vh-3rem)]">
+            {children}
+          </div>
         </div>
       </div>
     );
   };
 
-  return (
+  const modalContent = (
     <Shell>
       {/* subtle top glow */}
-      <div className="pointer-events-none absolute -top-28 left-1/2 h-56 w-[860px] -translate-x-1/2 rounded-full bg-[#4F67FF]/18 blur-3xl" />
+      <div className="pointer-events-none absolute -top-28 left-1/2 h-56 -translate-x-1/2 rounded-full bg-[#4F67FF]/18 blur-3xl" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/8 to-transparent" />
 
       {/* Header */}
       <div className="relative flex items-start justify-between gap-4 px-8 pt-3">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-2xl " />
-          <div>
-          
-          </div>
+          <div></div>
         </div>
 
         {!disableClose && (
@@ -150,10 +158,9 @@ export default function AuthModal({
             />
           )}
         </div>
-
-
-      
       </div>
     </Shell>
   );
+
+  return embedded ? modalContent : createPortal(modalContent, document.body);
 }
