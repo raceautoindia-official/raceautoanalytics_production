@@ -3,7 +3,7 @@ export type FeatureItem = {
 };
 
 export type PlanCard = {
-  key: "silver" | "gold" | "platinum";
+  key: "bronze" | "silver" | "gold" | "platinum";
   title: string;
   monthlyPrice: number;
   annualPrice: number;
@@ -51,12 +51,7 @@ function isHiddenRow(label: string) {
 function isFeatureEnabled(value: unknown) {
   const v = toText(value).toLowerCase();
 
-  // Based on your current data pattern:
-  // 1 and 3 behave like enabled/available rows
-  // 2 behaves like hidden/not-for-this-tier
   if (v === "1" || v === "3") return true;
-
-  // also support text flags if later used
   if (["yes", "true", "included", "active"].includes(v)) return true;
 
   return false;
@@ -73,6 +68,14 @@ function uniqueByLabel(items: FeatureItem[]) {
 }
 
 export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[] {
+  const bronzePlan: PlanCard = {
+    key: "bronze",
+    title: "Bronze",
+    monthlyPrice: 0,
+    annualPrice: 0,
+    features: [],
+  };
+
   const silverPlan: PlanCard = {
     key: "silver",
     title: "Silver",
@@ -97,7 +100,8 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
     features: [],
   };
 
-  const silverOwn: FeatureItem[] = [];
+  const bronzeOwn: FeatureItem[] = [];
+  const silverRaw: FeatureItem[] = [];
   const goldRaw: FeatureItem[] = [];
   const platinumRaw: FeatureItem[] = [];
 
@@ -107,8 +111,8 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
 
     if (!label) continue;
 
-    // Pricing rows
     if (lower.includes("monthly")) {
+      bronzePlan.monthlyPrice = toNumber(row.bronze);
       silverPlan.monthlyPrice = toNumber(row.silver);
       goldPlan.monthlyPrice = toNumber(row.gold);
       platinumPlan.monthlyPrice = toNumber(row.platinum);
@@ -116,18 +120,21 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
     }
 
     if (lower.includes("annual")) {
+      bronzePlan.annualPrice = toNumber(row.bronze);
       silverPlan.annualPrice = toNumber(row.silver);
       goldPlan.annualPrice = toNumber(row.gold);
       platinumPlan.annualPrice = toNumber(row.platinum);
       continue;
     }
 
-    // Ignore helper/meta rows
     if (isHiddenRow(label)) continue;
 
-    // Build tier-wise enabled feature sets
+    if (isFeatureEnabled(row.bronze)) {
+      bronzeOwn.push({ label });
+    }
+
     if (isFeatureEnabled(row.silver)) {
-      silverOwn.push({ label });
+      silverRaw.push({ label });
     }
 
     if (isFeatureEnabled(row.gold)) {
@@ -139,17 +146,30 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
     }
   }
 
-  const silverLabels = new Set(
-    silverOwn.map((item) => item.label.toLowerCase())
+  const bronzeLabels = new Set(
+    bronzeOwn.map((item) => item.label.toLowerCase())
   );
+
+  const silverOwn = silverRaw.filter(
+    (item) =>
+      !bronzeLabels.has(item.label.toLowerCase()) &&
+      item.label.toLowerCase() !== "everything in bronze plan"
+  );
+
+  const silverLabels = new Set([
+    ...bronzeOwn.map((item) => item.label.toLowerCase()),
+    ...silverOwn.map((item) => item.label.toLowerCase()),
+  ]);
 
   const goldOwn = goldRaw.filter(
     (item) =>
       !silverLabels.has(item.label.toLowerCase()) &&
+      item.label.toLowerCase() !== "everything in bronze plan" &&
       item.label.toLowerCase() !== "everything in silver plan"
   );
 
   const goldLabels = new Set([
+    ...bronzeOwn.map((item) => item.label.toLowerCase()),
     ...silverOwn.map((item) => item.label.toLowerCase()),
     ...goldOwn.map((item) => item.label.toLowerCase()),
   ]);
@@ -157,23 +177,31 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
   const platinumOwn = platinumRaw.filter(
     (item) =>
       !goldLabels.has(item.label.toLowerCase()) &&
+      item.label.toLowerCase() !== "everything in bronze plan" &&
       item.label.toLowerCase() !== "everything in silver plan" &&
       item.label.toLowerCase() !== "everything in gold plan"
   );
 
-  silverPlan.features = uniqueByLabel(silverOwn);
+  bronzePlan.features = uniqueByLabel(bronzeOwn);
+
+  silverPlan.features = uniqueByLabel([
+    ...(bronzeOwn.length ? [{ label: "Everything in Bronze Plan" }] : []),
+    ...silverOwn,
+  ]);
 
   goldPlan.features = uniqueByLabel([
-    ...(silverOwn.length ? [{ label: "Everything in Silver Plan" }] : []),
+    ...(silverOwn.length || bronzeOwn.length
+      ? [{ label: "Everything in Silver Plan" }]
+      : []),
     ...goldOwn,
   ]);
 
   platinumPlan.features = uniqueByLabel([
-    ...(goldOwn.length || silverOwn.length
+    ...(goldOwn.length || silverOwn.length || bronzeOwn.length
       ? [{ label: "Everything in Gold Plan" }]
       : []),
     ...platinumOwn,
   ]);
 
-  return [silverPlan, goldPlan, platinumPlan];
+  return [bronzePlan, silverPlan, goldPlan, platinumPlan];
 }

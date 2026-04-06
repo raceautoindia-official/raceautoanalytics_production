@@ -7,7 +7,7 @@ import { useSubscriptionModal } from "@/utils/SubscriptionModalContext";
 import transformPricing from "./transformPricing";
 
 type BillingCycle = "monthly" | "annual";
-type PlanKey = "silver" | "gold" | "platinum";
+type PlanKey = "bronze" | "silver" | "gold" | "platinum";
 type CurrencyMode = "INR" | "USD";
 
 type FeatureItem = {
@@ -29,30 +29,35 @@ declare global {
   }
 }
 
-const PLAN_RANK: Record<PlanKey, number> = {
-  silver: 1,
-  gold: 2,
-  platinum: 3,
-};
-
 const USD_RATE = 90.2;
 
-/**
- * Visual display-only discount mapping.
- * Payment amount is NOT changed by this.
- *
- * Means:
- * - Gold actual shown as 50% OFF from compare/original price
- * - Platinum actual shown as 67% OFF from compare/original price
- */
 const VISUAL_DISCOUNT_PERCENT: Partial<Record<PlanKey, number>> = {
   gold: 50,
   platinum: 67,
 };
 
 function getPlanRank(plan?: string | null) {
-  const key = String(plan || "silver").toLowerCase() as PlanKey;
-  return PLAN_RANK[key] || 1;
+  const key = String(plan || "").toLowerCase();
+
+  if (key === "bronze") return 1;
+  if (key === "silver") return 2;
+  if (key === "gold") return 3;
+  if (key === "platinum") return 4;
+
+  return 0;
+}
+
+function normalizePlanKey(plan?: string | null): PlanKey | null {
+  const key = String(plan || "").toLowerCase();
+  if (
+    key === "bronze" ||
+    key === "silver" ||
+    key === "gold" ||
+    key === "platinum"
+  ) {
+    return key;
+  }
+  return null;
 }
 
 function getCookie(name: string) {
@@ -115,17 +120,6 @@ function formatDisplayPrice(value: number, currencyMode: CurrencyMode) {
   }).format(converted);
 }
 
-/**
- * Visual-only compare/original price.
- * Example:
- * - Gold actual 50,000, offer 50%
- *   compare = 50,000 / (1 - 0.50) = 100,000
- *
- * - Platinum actual 33,000, offer 67%
- *   compare = 33,000 / (1 - 0.67) = 100,000
- *
- * This DOES NOT affect payable amount.
- */
 function getOfferComparePrice(planKey: PlanKey, actualPrice: number) {
   const discountPercent = VISUAL_DISCOUNT_PERCENT[planKey];
 
@@ -139,6 +133,118 @@ function getPlanOfferPercent(planKey: PlanKey) {
   return VISUAL_DISCOUNT_PERCENT[planKey] || 0;
 }
 
+function getPlanAccent(planKey: PlanKey) {
+  if (planKey === "bronze") return "from-amber-500/18 to-orange-500/8";
+  if (planKey === "silver") return "from-slate-200/10 to-slate-400/5";
+  if (planKey === "gold") return "from-violet-500/12 to-fuchsia-500/10";
+  return "from-pink-500/12 to-violet-500/10";
+}
+
+function getPlanStatus(
+  currentPlan: PlanKey | null,
+  planKey: PlanKey
+): "current" | "included" | "upgrade" | "buy" {
+  const currentRank = getPlanRank(currentPlan);
+  const viewedRank = getPlanRank(planKey);
+
+  if (currentRank === 0) return "buy";
+  if (currentRank === viewedRank) return "current";
+  if (currentRank > viewedRank) return "included";
+  return "upgrade";
+}
+
+function getPlanBadge(
+  planKey: PlanKey,
+  status: "current" | "included" | "upgrade" | "buy"
+) {
+  if (status === "current") {
+    return {
+      text: "Current",
+      className: "bg-[#FFD166]/15 text-[#FFD166]",
+    };
+  }
+
+  if (status === "included") {
+    return {
+      text: "Included",
+      className: "bg-orange-500/15 text-orange-300",
+    };
+  }
+
+  if (status === "upgrade") {
+    return {
+      text: "Upgrade",
+      className: "bg-blue-500/15 text-blue-300",
+    };
+  }
+
+  if (planKey === "bronze") {
+    return {
+      text: "Starter",
+      className: "bg-amber-500/15 text-amber-300",
+    };
+  }
+
+  if (planKey === "platinum") {
+    return {
+      text: "Premium",
+      className: "bg-pink-500/15 text-pink-300",
+    };
+  }
+
+  return {
+    text: "Paid Plan",
+    className: "bg-white/10 text-white/75",
+  };
+}
+
+function getCardActionText(
+  status: "current" | "included" | "upgrade" | "buy"
+) {
+  if (status === "current") return "Current Plan";
+  if (status === "included") return "Included in Your Plan";
+  if (status === "upgrade") return "Upgrade Plan";
+  return "Choose Plan";
+}
+
+function getSelectedCardClasses(
+  isSelected: boolean,
+  status: "current" | "included" | "upgrade" | "buy"
+) {
+  if (!isSelected) {
+    return "border-white/10 bg-white/5 hover:bg-white/[0.07]";
+  }
+
+  if (status === "current") {
+    return "border-[#FFD166] bg-[#FFD166]/10 shadow-[0_12px_30px_rgba(255,209,102,0.16)]";
+  }
+
+  if (status === "included") {
+    return "border-orange-400/50 bg-orange-500/10 shadow-[0_12px_30px_rgba(249,115,22,0.16)]";
+  }
+
+  if (status === "upgrade") {
+    return "border-blue-400/50 bg-blue-500/10 shadow-[0_12px_30px_rgba(59,130,246,0.16)]";
+  }
+
+  return "border-[#4F67FF] bg-[#4F67FF]/10 shadow-[0_12px_30px_rgba(79,103,255,0.18)]";
+}
+
+function getFooterCtaText(
+  currentPlan: PlanKey | null,
+  selectedPlan: PlanKey,
+  paying: boolean
+) {
+  if (paying) return "Processing...";
+
+  const status = getPlanStatus(currentPlan, selectedPlan);
+
+  if (status === "upgrade") return "Upgrade Plan";
+  if (status === "buy") return "Continue to Payment";
+  if (status === "current") return "Current Plan";
+  return "Included in Your Plan";
+}
+
 export default function SubscriptionModal() {
   const { show, close } = useSubscriptionModal();
 
@@ -146,10 +252,10 @@ export default function SubscriptionModal() {
 
   const [email, setEmail] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanCard[]>([]);
-  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<PlanKey | null>(null);
 
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
-  const [selectedPlan, setSelectedPlan] = useState<PlanKey>("gold");
+  const [selectedPlan, setSelectedPlan] = useState<PlanKey>("bronze");
   const [currencyMode, setCurrencyMode] = useState<CurrencyMode>("INR");
 
   const [loading, setLoading] = useState(false);
@@ -160,11 +266,6 @@ export default function SubscriptionModal() {
     return plans.find((p) => p.key === selectedPlan) || null;
   }, [plans, selectedPlan]);
 
-  /**
-   * Actual payable amount from API pricing.
-   * No visual discount is applied here.
-   * Always treated as INR source amount.
-   */
   const selectedAmount = useMemo(() => {
     if (!selectedPlanData) return 0;
     return billingCycle === "annual"
@@ -183,10 +284,10 @@ export default function SubscriptionModal() {
   const currentRank = useMemo(() => getPlanRank(currentPlan), [currentPlan]);
   const selectedRank = useMemo(() => getPlanRank(selectedPlan), [selectedPlan]);
 
-  const isFreeTier = selectedAmount === 0;
+  const isPriceUnavailable = selectedAmount === 0;
   const isCurrentPlanSelected = currentPlan === selectedPlan;
-  const isDowngrade = currentRank > selectedRank;
-  const isUpgrade = selectedRank > currentRank;
+  const isDowngrade = currentRank > 0 && currentRank > selectedRank;
+  const isUpgrade = currentRank > 0 && selectedRank > currentRank;
   const isVisualOfferPlan =
     selectedOfferPercent > 0 &&
     selectedAmount > 0 &&
@@ -196,25 +297,21 @@ export default function SubscriptionModal() {
     paying ||
     loading ||
     !selectedPlanData ||
-    isFreeTier ||
+    isPriceUnavailable ||
     isCurrentPlanSelected ||
     isDowngrade;
 
   const selectionMessage = useMemo(() => {
     if (isDowngrade) {
-      return "You already have a better plan. Switching to this plan would reduce your access.";
-    }
-
-    if (isCurrentPlanSelected && isFreeTier) {
-      return "You are already on the free tier.";
+      return "You already have a better plan. This lower plan is already covered by your current access.";
     }
 
     if (isCurrentPlanSelected) {
       return "You are already on this plan.";
     }
 
-    if (isFreeTier) {
-      return "Silver is the free tier. No payment is required.";
+    if (isPriceUnavailable) {
+      return "Pricing is not available for this plan right now.";
     }
 
     if (selectedOfferPercent > 0 && !isCurrentPlanSelected && !isDowngrade) {
@@ -225,14 +322,19 @@ export default function SubscriptionModal() {
       return "Upgrade your plan to unlock more access and premium features.";
     }
 
+    if (!currentPlan) {
+      return "Choose a paid plan to activate your subscription.";
+    }
+
     return "Choose the plan that best fits your access needs.";
   }, [
     isDowngrade,
     isCurrentPlanSelected,
-    isFreeTier,
+    isPriceUnavailable,
     isUpgrade,
     selectedOfferPercent,
     selectedPlanData,
+    currentPlan,
   ]);
 
   async function loadModalData(userEmail: string | null) {
@@ -283,19 +385,18 @@ export default function SubscriptionModal() {
           ? myPlanData.find((item: any) => item.status === "Active")
           : null;
 
-        if (active?.plan_name) {
-          const normalizedPlan = String(active.plan_name).toLowerCase() as PlanKey;
-          setCurrentPlan(normalizedPlan);
+        const normalizedPlan = normalizePlanKey(active?.plan_name);
 
-          if (["silver", "gold", "platinum"].includes(normalizedPlan)) {
-            setSelectedPlan(normalizedPlan);
-          }
+        if (normalizedPlan) {
+          setCurrentPlan(normalizedPlan);
+          setSelectedPlan(normalizedPlan);
         } else {
-          setCurrentPlan("silver");
+          setCurrentPlan(null);
+          setSelectedPlan("bronze");
         }
       } else {
-        setCurrentPlan("silver");
-        setSelectedPlan("gold");
+        setCurrentPlan(null);
+        setSelectedPlan("bronze");
       }
     } catch (err: any) {
       console.error("Subscription modal load error:", err);
@@ -312,7 +413,7 @@ export default function SubscriptionModal() {
 
     if (!token) {
       setEmail(null);
-      setCurrentPlan("silver");
+      setCurrentPlan(null);
       loadModalData(null);
       return;
     }
@@ -321,7 +422,7 @@ export default function SubscriptionModal() {
 
     if (!payload?.email) {
       setEmail(null);
-      setCurrentPlan("silver");
+      setCurrentPlan(null);
       loadModalData(null);
       return;
     }
@@ -331,8 +432,8 @@ export default function SubscriptionModal() {
   }, [show]);
 
   async function handlePayNow() {
-    if (isFreeTier) {
-      setError("Silver is a free tier. No payment is required.");
+    if (isPriceUnavailable) {
+      setError("Pricing is not available for this plan.");
       return;
     }
 
@@ -375,41 +476,63 @@ export default function SubscriptionModal() {
           },
           body: JSON.stringify({
             customer_email: email,
-            AMT: selectedAmount, // actual INR amount only
+            AMT: selectedAmount,
           }),
         }
       );
 
       const createData = await createRes.json();
+console.log("create-payment response:", createData);
 
-      if (!createRes.ok || !createData?.id) {
-        throw new Error(createData?.message || "Unable to create payment order");
-      }
+const razorpayOrderId = createData?.id || createData?.order_id || null;
+const razorpayKey =
+  createData?.key_id ||
+  createData?.key ||
+  process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+  null;
+const razorpayAmount = Number(createData?.amount || selectedAmount * 100);
+const razorpayCurrency = createData?.currency || "INR";
 
-      void syncLocal("/api/subscription/sync-payment-log", {
-        email,
-        plan_name: selectedPlan,
-        duration: billingCycle,
-        amount: selectedAmount,
-        amount_display_currency: currencyMode,
-        razorpay_order_id: createData.id,
-        status: "created",
-        message: "Order created in Auto India",
-        request_payload: {
-          customer_email: email,
-          AMT: selectedAmount,
-          currency_display: currencyMode,
-        },
-        response_payload: createData,
-      });
+if (!createRes.ok) {
+  throw new Error(createData?.message || `Create payment failed: ${createRes.status}`);
+}
 
-      const options = {
-        key: createData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: selectedAmount * 100, // actual INR amount only
-        currency: "INR",
-        name: "Race Auto Analytics",
-        description: `${selectedPlanData.title} - ${billingCycle}`,
-        order_id: createData.id,
+if (!razorpayKey) {
+  throw new Error("Missing Razorpay key from create-payment response");
+}
+
+if (!razorpayOrderId || !String(razorpayOrderId).startsWith("order_")) {
+  throw new Error("Invalid Razorpay order id returned from create-payment");
+}
+
+if (!Number.isFinite(razorpayAmount) || razorpayAmount <= 0) {
+  throw new Error("Invalid Razorpay amount returned from create-payment");
+}
+
+void syncLocal("/api/subscription/sync-payment-log", {
+  email,
+  plan_name: selectedPlan,
+  duration: billingCycle,
+  amount: selectedAmount,
+  amount_display_currency: currencyMode,
+  razorpay_order_id: razorpayOrderId,
+  status: "created",
+  message: "Order created in Auto India",
+  request_payload: {
+    customer_email: email,
+    AMT: selectedAmount,
+    currency_display: currencyMode,
+  },
+  response_payload: createData,
+});
+
+const options = {
+  key: razorpayKey,
+  amount: razorpayAmount,
+  currency: razorpayCurrency,
+  name: "Race Auto Analytics",
+  description: `${selectedPlanData.title} - ${billingCycle}`,
+  order_id: razorpayOrderId,
         prefill: {
           email,
         },
@@ -602,7 +725,7 @@ export default function SubscriptionModal() {
           onClick={close}
         />
 
-        <div className="relative z-10 flex h-[calc(100vh-1rem)] w-full max-w-[1100px] flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)] sm:h-[calc(100vh-2rem)]">
+        <div className="relative z-10 flex h-[calc(100vh-1rem)] w-full max-w-[1180px] flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)] sm:h-[calc(100vh-2rem)]">
           <div className="pointer-events-none absolute -top-28 left-1/2 h-56 w-[860px] -translate-x-1/2 rounded-full bg-[#4F67FF]/18 blur-3xl" />
 
           <div className="relative flex items-start justify-between border-b border-white/10 px-4 py-3">
@@ -618,7 +741,7 @@ export default function SubscriptionModal() {
               <p className="mt-1 text-sm text-white/65">
                 Current plan:{" "}
                 <span className="font-medium text-[#FFD166]">
-                  {(currentPlan || "silver").toUpperCase()}
+                  {(currentPlan || "none").toUpperCase()}
                 </span>
               </p>
             </div>
@@ -703,7 +826,7 @@ export default function SubscriptionModal() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                   {plans.map((plan) => {
                     const actualPrice =
                       billingCycle === "annual"
@@ -718,33 +841,8 @@ export default function SubscriptionModal() {
                       comparePrice > actualPrice;
 
                     const isSelected = selectedPlan === plan.key;
-                    const isCurrent = currentPlan === plan.key;
-
-                    const planRank = getPlanRank(plan.key);
-                    const currentPlanRank = getPlanRank(currentPlan);
-
-                    let badgeText: string | null = null;
-                    let badgeClass = "rounded-full px-3 py-1 text-xs font-semibold";
-
-                    if (isCurrent) {
-                      badgeText = "Current";
-                      badgeClass += " bg-[#FFD166]/15 text-[#FFD166]";
-                    } else if (actualPrice === 0) {
-                      badgeText = "Free";
-                      badgeClass += " bg-emerald-500/15 text-emerald-300";
-                    } else if (hasVisualOffer) {
-                      badgeText = `${offerPercent}% OFF`;
-                      badgeClass +=
-                        plan.key === "platinum"
-                          ? " bg-pink-500/15 text-pink-300"
-                          : " bg-violet-500/15 text-violet-300";
-                    } else if (planRank > currentPlanRank) {
-                      badgeText = "Upgrade";
-                      badgeClass += " bg-blue-500/15 text-blue-300";
-                    } else if (planRank < currentPlanRank) {
-                      badgeText = "Lower Plan";
-                      badgeClass += " bg-orange-500/15 text-orange-300";
-                    }
+                    const planStatus = getPlanStatus(currentPlan, plan.key);
+                    const badge = getPlanBadge(plan.key, planStatus);
 
                     return (
                       <button
@@ -752,33 +850,35 @@ export default function SubscriptionModal() {
                         type="button"
                         onClick={() => setSelectedPlan(plan.key)}
                         className={[
-                          "rounded-[18px] border p-3.5 text-left transition",
-                          isSelected
-                            ? "border-[#4F67FF] bg-[#4F67FF]/10 shadow-[0_12px_30px_rgba(79,103,255,0.18)]"
-                            : "border-white/10 bg-white/5 hover:bg-white/[0.07]",
+                          "relative min-h-[420px] overflow-hidden rounded-[18px] border p-3 text-left transition xl:min-h-[440px]",
+                          getSelectedCardClasses(isSelected, planStatus),
                         ].join(" ")}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <h3 className="text-lg font-semibold text-white">
+                        <div
+                          className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-r ${getPlanAccent(
+                            plan.key
+                          )}`}
+                        />
+
+                        <div className="relative flex items-center justify-between gap-2">
+                          <h3 className="text-base font-semibold text-white sm:text-lg">
                             {plan.title}
                           </h3>
-                          {badgeText && <span className={badgeClass}>{badgeText}</span>}
+                          <span
+                            className={[
+                              "rounded-full px-3 py-1 text-[11px] font-semibold",
+                              badge.className,
+                            ].join(" ")}
+                          >
+                            {badge.text}
+                          </span>
                         </div>
 
                         <div className="mt-4">
-                          {actualPrice === 0 ? (
-                            <>
-                              <div className="text-2xl font-bold text-white sm:text-3xl">
-                                Free Tier
-                              </div>
-                              <div className="mt-1 text-sm text-white/60">
-                                No payment required
-                              </div>
-                            </>
-                          ) : hasVisualOffer ? (
+                          {hasVisualOffer ? (
                             <>
                               <div className="flex items-end gap-2">
-                                <div className="text-2xl font-bold text-white sm:text-3xl">
+                                <div className="text-xl font-bold text-white sm:text-2xl xl:text-[1.7rem]">
                                   {formatDisplayPrice(actualPrice, currencyMode)}
                                 </div>
                                 <div className="pb-1 text-sm text-white/40 line-through">
@@ -801,11 +901,15 @@ export default function SubscriptionModal() {
                             </>
                           ) : (
                             <>
-                              <div className="text-2xl font-bold text-white sm:text-3xl">
-                                {formatDisplayPrice(actualPrice, currencyMode)}
+                              <div className="text-xl font-bold text-white sm:text-2xl xl:text-[1.7rem]">
+                                {actualPrice > 0
+                                  ? formatDisplayPrice(actualPrice, currencyMode)
+                                  : "Price unavailable"}
                               </div>
                               <div className="mt-1 text-sm text-white/60">
-                                per {billingCycle === "annual" ? "year" : "month"}
+                                {actualPrice > 0
+                                  ? `per ${billingCycle === "annual" ? "year" : "month"}`
+                                  : "Contact support or update plan pricing"}
                               </div>
                             </>
                           )}
@@ -814,7 +918,7 @@ export default function SubscriptionModal() {
                         {hasVisualOffer && (
                           <div
                             className={[
-                              "mt-3 rounded-xl border px-3 py-2",
+                              "mt-2.5 rounded-xl border px-3 py-2",
                               plan.key === "platinum"
                                 ? "border-pink-400/20 bg-pink-500/10"
                                 : "border-violet-400/20 bg-violet-500/10",
@@ -847,7 +951,7 @@ export default function SubscriptionModal() {
                           </div>
                         )}
 
-                        <div className="sub-scroll mt-3 max-h-40 space-y-2.5 overflow-y-auto pr-1">
+                        <div className="sub-scroll mt-2.5 max-h-28 space-y-1.5 overflow-y-auto pr-1 xl:max-h-32">
                           {plan.features.map((feature, index) => (
                             <div
                               key={`${plan.key}-${index}`}
@@ -857,25 +961,67 @@ export default function SubscriptionModal() {
                                 size={16}
                                 className="mt-[2px] shrink-0 text-[#22C55E]"
                               />
-                              <div className="text-[13px] font-medium leading-5 text-white/85 sm:text-sm">
+                              <div className="text-[12px] font-medium leading-[1.3rem] text-white/85 sm:text-[13px]">
                                 {feature.label}
                               </div>
                             </div>
                           ))}
+                        </div>
+
+                        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs uppercase tracking-wide text-white/45">
+                              Action
+                            </div>
+
+                            {isSelected && (
+                              <span
+                                className={[
+                                  "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide",
+                                  planStatus === "current"
+                                    ? "bg-[#FFD166]/15 text-[#FFD166]"
+                                    : planStatus === "included"
+                                    ? "bg-orange-500/15 text-orange-300"
+                                    : planStatus === "upgrade"
+                                    ? "bg-blue-500/15 text-blue-300"
+                                    : "bg-[#4F67FF]/15 text-[#9FB0FF]",
+                                ].join(" ")}
+                              >
+                                Selected
+                              </span>
+                            )}
+                          </div>
+
+                          <div
+                            className={[
+                              "mt-1 text-sm font-semibold",
+                              planStatus === "current"
+                                ? "text-[#FFD166]"
+                                : planStatus === "included"
+                                ? "text-orange-300"
+                                : planStatus === "upgrade"
+                                ? "text-blue-300"
+                                : plan.key === "bronze"
+                                ? "text-amber-300"
+                                : "text-white",
+                            ].join(" ")}
+                          >
+                            {getCardActionText(planStatus)}
+                          </div>
                         </div>
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="sticky bottom-0 mt-4 flex flex-col items-start justify-between gap-3 rounded-2xl border border-white/10 bg-[#0F1730]/95 p-3 backdrop-blur sm:flex-row sm:items-center">
+                <div className="sticky bottom-0 mt-3 flex flex-col items-start justify-between gap-3 rounded-2xl border border-white/10 bg-[#0F1730]/95 p-3 backdrop-blur sm:flex-row sm:items-center">
                   <div>
                     <div className="text-sm text-white/60">Selected plan</div>
 
                     <div className="mt-1 text-base font-semibold text-white sm:text-lg">
                       {selectedPlanData?.title || "-"} ·{" "}
-                      {isFreeTier ? (
-                        "Free Tier"
+                      {isPriceUnavailable ? (
+                        "Price unavailable"
                       ) : isVisualOfferPlan ? (
                         <>
                           {formatDisplayPrice(selectedAmount, currencyMode)} /{" "}
@@ -887,6 +1033,8 @@ export default function SubscriptionModal() {
                                 ? "text-pink-300"
                                 : selectedPlan === "gold"
                                 ? "text-violet-300"
+                                : selectedPlan === "bronze"
+                                ? "text-amber-300"
                                 : "text-white/70",
                             ].join(" ")}
                           >
@@ -900,14 +1048,14 @@ export default function SubscriptionModal() {
                       )}
                     </div>
 
-                    {!isFreeTier && isVisualOfferPlan && (
+                    {!isPriceUnavailable && isVisualOfferPlan && (
                       <div className="mt-1 text-sm text-white/45 line-through">
                         Display compare price:{" "}
                         {formatDisplayPrice(selectedCompareAmount, currencyMode)}
                       </div>
                     )}
 
-                    {currencyMode === "USD" && !isFreeTier && (
+                    {currencyMode === "USD" && !isPriceUnavailable && (
                       <div className="mt-1 text-xs text-white/45">
                         USD is display-only using 1 USD = ₹{USD_RATE}. Checkout remains in INR.
                       </div>
@@ -918,14 +1066,16 @@ export default function SubscriptionModal() {
                         "mt-2 text-sm",
                         isDowngrade
                           ? "text-orange-300"
-                          : isFreeTier
-                          ? "text-emerald-300"
+                          : isPriceUnavailable
+                          ? "text-red-300"
                           : isCurrentPlanSelected
                           ? "text-[#FFD166]"
                           : selectedPlan === "platinum"
                           ? "text-pink-300"
                           : selectedPlan === "gold"
                           ? "text-violet-300"
+                          : selectedPlan === "bronze"
+                          ? "text-amber-300"
                           : "text-white/70",
                       ].join(" ")}
                     >
@@ -933,9 +1083,9 @@ export default function SubscriptionModal() {
                     </div>
                   </div>
 
-                  {isFreeTier ? (
-                    <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-sm font-semibold text-emerald-300">
-                      Free Access
+                  {isPriceUnavailable ? (
+                    <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-300">
+                      Price Unavailable
                     </div>
                   ) : isDowngrade ? (
                     <div className="rounded-xl border border-orange-400/20 bg-orange-500/10 px-5 py-3 text-sm font-semibold text-orange-300">
@@ -952,7 +1102,7 @@ export default function SubscriptionModal() {
                       disabled={disablePayment}
                       className="h-11 rounded-xl bg-[#4F67FF] px-5 font-semibold text-white shadow-[0_12px_30px_rgba(79,103,255,0.25)] transition hover:bg-[#3B55FF] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {paying ? "Processing..." : "Pay Now"}
+                      {getFooterCtaText(currentPlan, selectedPlan, paying)}
                     </button>
                   )}
                 </div>
