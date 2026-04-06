@@ -11,10 +11,8 @@ import {
   Zap,
   Lock,
   Clock3,
-  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MiniSparkline } from "@/components/charts/MiniSparkline";
 import type { LucideIcon } from "lucide-react";
 
 interface VehicleCategoryCardProps {
@@ -30,7 +28,7 @@ interface VehicleCategoryCardProps {
     momGrowth: number;
     yoyGrowth: number;
     marketShare: number;
-    topOEM: string;
+    topOEM?: string;
     evPenetration?: number;
     currentMonthSales: number;
     previousMonthSales: number | null;
@@ -71,7 +69,6 @@ export function VehicleCategoryCard({
   const suffix = useMemo(() => buildSuffix(region, month), [region, month]);
   const href = useMemo(() => `/flash-reports/${id}${suffix}`, [id, suffix]);
 
-  const sparklineData = metrics.trendData.map((value) => ({ value }));
 
   const colorMap: Record<string, string> = {
     "text-blue-400": "#007AFF",
@@ -84,6 +81,8 @@ export function VehicleCategoryCard({
   };
 
   const chartColor = colorMap[color] || "#007AFF";
+  const shouldShowLeader =
+    id !== "overall-automotive-industry" && !!String(metrics.topOEM || "").trim();
   const isTopPerformer = metrics.rank > 0 && metrics.rank <= 2;
   const isTrending =
     metrics.rank === 1 &&
@@ -395,25 +394,14 @@ export function VehicleCategoryCard({
               </div>
             </div>
 
-            <div className="mb-5 rounded-xl bg-muted/50 p-3">
-              <div className="mb-1 text-xs text-muted-foreground">
-                Leading OEM
+            {shouldShowLeader && (
+              <div className="mb-5 rounded-xl bg-muted/50 p-3">
+                <div className="mb-1 text-xs text-muted-foreground">
+                  Leading OEM
+                </div>
+                <div className="text-sm font-semibold">{metrics.topOEM}</div>
               </div>
-              <div className="text-sm font-semibold">{metrics.topOEM}</div>
-            </div>
-
-            <div className="mb-5">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  6-Month Trend
-                </span>
-              </div>
-              <MiniSparkline
-                data={sparklineData}
-                color={chartColor}
-                height={54}
-              />
-            </div>
+            )}
 
             {metrics.evPenetration !== undefined && (
               <div className="mt-auto border-t border-border/50 pt-4">

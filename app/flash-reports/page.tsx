@@ -126,12 +126,14 @@ type TopOem = {
   changePercent: number; // MoM change of share (approx)
 };
 
+type SegmentLeaderMap = Record<string, string>;
+
 type TileMetrics = {
   salesVolume: number;
   momGrowth: number;
   yoyGrowth: number;
   marketShare: number;
-  topOEM: string;
+  topOEM?: string;
   evPenetration?: number;
   currentMonthSales: number;
   previousMonthSales: number | null;
@@ -203,9 +205,36 @@ function getShortMonthFromYyyyMm(yyyymm: string): string {
   return MONTHS_SHORT[idx] ?? MONTHS_SHORT[0];
 }
 
+function getTopOemNameFromRows(rows: any[], monthKey: string) {
+  if (!Array.isArray(rows) || !rows.length) return "";
+
+  const shortMonth = getShortMonthFromYyyyMm(monthKey);
+  const year = monthKey.split("-")[0];
+  const currentKey = `${shortMonth} ${year}`;
+
+  const sorted = rows
+    .map((row) => ({
+      name: String(row?.name || "").trim(),
+      value: Number(row?.[currentKey] ?? 0) || 0,
+    }))
+    .filter((row) => row.name)
+    .sort((a, b) => b.value - a.value);
+
+  return sorted[0]?.name || "";
+}
+
 // CONFIG: what segmentName your OEM market share backend expects for overall
 // Adjust this to match your existing PieChart usage, e.g. "overall" or "overall industry"
 const OVERALL_OEM_SEGMENT_NAME = "overall";
+
+const SEGMENT_OEM_QUERY_MAP: Record<string, string> = {
+  "two-wheeler": "two-wheeler",
+  "three-wheeler": "three wheeler",
+  "commercial-vehicles": "commercial vehicle",
+  "passenger-vehicles": "passenger vehicle",
+  tractor: "tractor",
+  "construction-equipment": "construction-equipment",
+};
 
 export default function FlashReportsPage() {
   const { region, month } = useAppContext();
@@ -228,6 +257,7 @@ export default function FlashReportsPage() {
   // even though /api/flash-reports/overall-chart-data returns a 10-month window.
   const [overallLastYearRow, setOverallLastYearRow] =
     useState<OverallRow | null>(null);
+  const [segmentLeaders, setSegmentLeaders] = useState<SegmentLeaderMap>({});
 
 const [topOEMs, setTopOEMs] = useState<TopOem[]>([]);
 const [topOemError, setTopOemError] = useState<string | null>(null);
@@ -262,9 +292,9 @@ useEffect(() => {
 
   async function loadFlashChartConfig() {
     try {
-      const res = await fetch("/api/flash-reports/config", {
-        cache: "no-store",
-      });
+      const res = await fetch(withCountry("/api/flash-reports/config", region), {
+  cache: "no-store",
+});
 
       if (!res.ok) {
         throw new Error(`Failed to load flash chart config: ${res.status}`);
@@ -452,6 +482,61 @@ setOverallChartPoints(sortedApiData);
     };
  }, [month, region, overallForecastHorizon]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSegmentLeaders() {
+      try {
+        const shortMonth = getShortMonthFromYyyyMm(month);
+
+        const entries = await Promise.all(
+          Object.entries(SEGMENT_OEM_QUERY_MAP).map(async ([categoryId, segmentName]) => {
+            try {
+              const url = withCountry(
+                `/api/fetchMarketData?segmentName=${encodeURIComponent(
+                  segmentName,
+                )}&segmentType=market share&mode=mom&baseMonth=${encodeURIComponent(
+                  month,
+                )}&selectedMonth=${shortMonth}`,
+                region,
+              );
+
+              const res = await fetch(url, { cache: "no-store" });
+              if (!res.ok) return [categoryId, ""] as const;
+
+              const json = await res.json();
+              const leader = getTopOemNameFromRows(json, month);
+
+              return [categoryId, leader] as const;
+            } catch {
+              return [categoryId, ""] as const;
+            }
+          }),
+        );
+
+        if (cancelled) return;
+
+        setSegmentLeaders(
+          entries.reduce((acc, [categoryId, leader]) => {
+            acc[categoryId] = leader;
+            return acc;
+          }, {} as SegmentLeaderMap),
+        );
+      } catch (error) {
+        console.error("Failed to load segment leaders", error);
+        if (!cancelled) {
+          setSegmentLeaders({});
+        }
+      }
+    }
+
+    loadSegmentLeaders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [month, region]);
+
   // Fetch overall OEM market share for "Top OEM Performance" widget
   useEffect(() => {
     let cancelled = false;
@@ -610,7 +695,7 @@ setOverallChartPoints(sortedApiData);
           momGrowth: 0,
           yoyGrowth: 0,
           marketShare: 0,
-          topOEM: "Coming soon",
+          topOEM: category.id === "overall-automotive-industry" ? "" : "Coming soon",
           evPenetration: undefined,
           currentMonthSales: 0,
           previousMonthSales: 0,
@@ -661,7 +746,10 @@ setOverallChartPoints(sortedApiData);
         momGrowth,
         yoyGrowth,
         marketShare,
-        topOEM: "See OEM breakdown", // optional: wire actual top OEM per segment later via fetchMarketData
+        topOEM:
+          category.id === "overall-automotive-industry"
+            ? ""
+            : segmentLeaders[category.id] || "",
         evPenetration: evPenetrationLookup[category.id],
         currentMonthSales: current,
         previousMonthSales: prevVal,
@@ -695,7 +783,15 @@ setOverallChartPoints(sortedApiData);
     // ✅ REMOVE the special-case rank=0 block entirely
 
     return base;
-  }, [overallData, selectedRow, prevRow, lastYearRow, overallLastYearRow, region]);
+  }, [
+    overallData,
+    selectedRow,
+    prevRow,
+    lastYearRow,
+    overallLastYearRow,
+    region,
+    segmentLeaders,
+  ]);
 
   // Key Highlights should be fully dynamic. Use segment momentum (best MoM)
   // as the middle highlight so it updates with the global month selector.

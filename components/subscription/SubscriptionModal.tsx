@@ -8,6 +8,7 @@ import transformPricing from "./transformPricing";
 
 type BillingCycle = "monthly" | "annual";
 type PlanKey = "bronze" | "silver" | "gold" | "platinum";
+type PlanCategory = "individual" | "business";
 type CurrencyMode = "INR" | "USD";
 
 type FeatureItem = {
@@ -58,6 +59,22 @@ function normalizePlanKey(plan?: string | null): PlanKey | null {
     return key;
   }
   return null;
+}
+
+function getCategoryFromPlan(plan?: PlanKey | null): PlanCategory {
+  if (plan === "gold" || plan === "platinum") return "business";
+  return "individual";
+}
+
+function isPlanDisabledByCategory(
+  planKey: PlanKey,
+  categoryView: PlanCategory
+) {
+  if (categoryView === "individual") {
+    return planKey === "gold" || planKey === "platinum";
+  }
+
+  return planKey === "bronze" || planKey === "silver";
 }
 
 function getCookie(name: string) {
@@ -198,15 +215,6 @@ function getPlanBadge(
   };
 }
 
-function getCardActionText(
-  status: "current" | "included" | "upgrade" | "buy"
-) {
-  if (status === "current") return "Current Plan";
-  if (status === "included") return "Included in Your Plan";
-  if (status === "upgrade") return "Upgrade Plan";
-  return "Choose Plan";
-}
-
 function getSelectedCardClasses(
   isSelected: boolean,
   status: "current" | "included" | "upgrade" | "buy"
@@ -230,19 +238,26 @@ function getSelectedCardClasses(
   return "border-[#4F67FF] bg-[#4F67FF]/10 shadow-[0_12px_30px_rgba(79,103,255,0.18)]";
 }
 
-function getFooterCtaText(
-  currentPlan: PlanKey | null,
-  selectedPlan: PlanKey,
-  paying: boolean
-) {
-  if (paying) return "Processing...";
+function getDisabledViewText(categoryView: PlanCategory) {
+  return categoryView === "individual"
+    ? "Available in Business View"
+    : "Available in Individual View";
+}
 
-  const status = getPlanStatus(currentPlan, selectedPlan);
-
-  if (status === "upgrade") return "Upgrade Plan";
-  if (status === "buy") return "Continue to Payment";
-  if (status === "current") return "Current Plan";
-  return "Included in Your Plan";
+function getCardCtaLabel(args: {
+  isCategoryDisabled: boolean;
+  categoryView: PlanCategory;
+  isCurrent: boolean;
+  isIncluded: boolean;
+  isUpgrade: boolean;
+  isPriceUnavailable: boolean;
+}) {
+  if (args.isCategoryDisabled) return getDisabledViewText(args.categoryView);
+  if (args.isPriceUnavailable) return "Price Unavailable";
+  if (args.isCurrent) return "Current Plan";
+  if (args.isIncluded) return "Included in Your Plan";
+  if (args.isUpgrade) return "Upgrade Plan";
+  return "Buy Now";
 }
 
 export default function SubscriptionModal() {
@@ -257,85 +272,23 @@ export default function SubscriptionModal() {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>("bronze");
   const [currencyMode, setCurrencyMode] = useState<CurrencyMode>("INR");
+  const [categoryView, setCategoryView] = useState<PlanCategory>("individual");
 
   const [loading, setLoading] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [payingPlan, setPayingPlan] = useState<PlanKey | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedPlanData = useMemo(() => {
-    return plans.find((p) => p.key === selectedPlan) || null;
-  }, [plans, selectedPlan]);
+  const visiblePlans = useMemo(() => plans, [plans]);
 
-  const selectedAmount = useMemo(() => {
-    if (!selectedPlanData) return 0;
-    return billingCycle === "annual"
-      ? selectedPlanData.annualPrice
-      : selectedPlanData.monthlyPrice;
-  }, [selectedPlanData, billingCycle]);
+  const categoryTitle =
+    categoryView === "individual"
+      ? "Individual Category"
+      : "Business / Enterprise Category";
 
-  const selectedCompareAmount = useMemo(() => {
-    return getOfferComparePrice(selectedPlan, selectedAmount);
-  }, [selectedPlan, selectedAmount]);
-
-  const selectedOfferPercent = useMemo(() => {
-    return getPlanOfferPercent(selectedPlan);
-  }, [selectedPlan]);
-
-  const currentRank = useMemo(() => getPlanRank(currentPlan), [currentPlan]);
-  const selectedRank = useMemo(() => getPlanRank(selectedPlan), [selectedPlan]);
-
-  const isPriceUnavailable = selectedAmount === 0;
-  const isCurrentPlanSelected = currentPlan === selectedPlan;
-  const isDowngrade = currentRank > 0 && currentRank > selectedRank;
-  const isUpgrade = currentRank > 0 && selectedRank > currentRank;
-  const isVisualOfferPlan =
-    selectedOfferPercent > 0 &&
-    selectedAmount > 0 &&
-    selectedCompareAmount > selectedAmount;
-
-  const disablePayment =
-    paying ||
-    loading ||
-    !selectedPlanData ||
-    isPriceUnavailable ||
-    isCurrentPlanSelected ||
-    isDowngrade;
-
-  const selectionMessage = useMemo(() => {
-    if (isDowngrade) {
-      return "You already have a better plan. This lower plan is already covered by your current access.";
-    }
-
-    if (isCurrentPlanSelected) {
-      return "You are already on this plan.";
-    }
-
-    if (isPriceUnavailable) {
-      return "Pricing is not available for this plan right now.";
-    }
-
-    if (selectedOfferPercent > 0 && !isCurrentPlanSelected && !isDowngrade) {
-      return `${selectedPlanData?.title || "This plan"} currently includes a special ${selectedOfferPercent}% OFF display offer.`;
-    }
-
-    if (isUpgrade) {
-      return "Upgrade your plan to unlock more access and premium features.";
-    }
-
-    if (!currentPlan) {
-      return "Choose a paid plan to activate your subscription.";
-    }
-
-    return "Choose the plan that best fits your access needs.";
-  }, [
-    isDowngrade,
-    isCurrentPlanSelected,
-    isPriceUnavailable,
-    isUpgrade,
-    selectedOfferPercent,
-    selectedPlanData,
-    currentPlan,
-  ]);
+  const categoryDescription =
+    categoryView === "individual"
+      ? "Bronze and Silver are active. Gold and Platinum remain visible in disabled state."
+      : "Gold and Platinum are active. Bronze and Silver remain visible in disabled state.";
 
   async function loadModalData(userEmail: string | null) {
     setLoading(true);
@@ -389,13 +342,16 @@ export default function SubscriptionModal() {
 
         if (normalizedPlan) {
           setCurrentPlan(normalizedPlan);
+          setCategoryView(getCategoryFromPlan(normalizedPlan));
           setSelectedPlan(normalizedPlan);
         } else {
           setCurrentPlan(null);
+          setCategoryView("individual");
           setSelectedPlan("bronze");
         }
       } else {
         setCurrentPlan(null);
+        setCategoryView("individual");
         setSelectedPlan("bronze");
       }
     } catch (err: any) {
@@ -431,19 +387,59 @@ export default function SubscriptionModal() {
     loadModalData(payload.email);
   }, [show]);
 
-  async function handlePayNow() {
-    if (isPriceUnavailable) {
+  useEffect(() => {
+    const selectedDisabled = isPlanDisabledByCategory(selectedPlan, categoryView);
+
+    if (!selectedDisabled) return;
+
+    if (categoryView === "individual") {
+      setSelectedPlan("bronze");
+    } else {
+      setSelectedPlan("gold");
+    }
+  }, [categoryView, selectedPlan]);
+
+  async function handlePayNow(planToPay: PlanKey) {
+    setSelectedPlan(planToPay);
+
+    const chosenPlan = plans.find((p) => p.key === planToPay);
+
+    if (!chosenPlan) {
+      setError("Please select a valid plan.");
+      return;
+    }
+
+    const chosenAmount =
+      billingCycle === "annual" ? chosenPlan.annualPrice : chosenPlan.monthlyPrice;
+
+    const isCategoryDisabled = isPlanDisabledByCategory(planToPay, categoryView);
+    const chosenRank = getPlanRank(planToPay);
+    const currentRank = getPlanRank(currentPlan);
+    const isChosenCurrent = currentPlan === planToPay;
+    const isChosenIncluded = currentRank > 0 && currentRank > chosenRank;
+    const isChosenPriceUnavailable = chosenAmount === 0;
+
+    if (isCategoryDisabled) {
+      setError(
+        categoryView === "individual"
+          ? "This plan is disabled in Individual view. Switch to Business view."
+          : "This plan is disabled in Business view. Switch to Individuals view."
+      );
+      return;
+    }
+
+    if (isChosenPriceUnavailable) {
       setError("Pricing is not available for this plan.");
       return;
     }
 
-    if (isCurrentPlanSelected) {
+    if (isChosenCurrent) {
       setError("You are already on this plan.");
       return;
     }
 
-    if (isDowngrade) {
-      setError("You already have a higher plan. Downgrade is not available here.");
+    if (isChosenIncluded) {
+      setError("This lower plan is already covered by your current access.");
       return;
     }
 
@@ -453,17 +449,12 @@ export default function SubscriptionModal() {
       return;
     }
 
-    if (!selectedPlanData || !selectedAmount) {
-      setError("Please select a valid plan.");
-      return;
-    }
-
     if (!window.Razorpay) {
       setError("Razorpay SDK not loaded.");
       return;
     }
 
-    setPaying(true);
+    setPayingPlan(planToPay);
     setError(null);
 
     try {
@@ -476,69 +467,47 @@ export default function SubscriptionModal() {
           },
           body: JSON.stringify({
             customer_email: email,
-            AMT: selectedAmount,
+            AMT: chosenAmount,
           }),
         }
       );
 
       const createData = await createRes.json();
-console.log("create-payment response:", createData);
 
-const razorpayOrderId = createData?.id || createData?.order_id || null;
-const razorpayKey =
-  createData?.key_id ||
-  createData?.key ||
-  process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-  null;
-const razorpayAmount = Number(createData?.amount || selectedAmount * 100);
-const razorpayCurrency = createData?.currency || "INR";
+      if (!createRes.ok || !createData?.id) {
+        throw new Error(createData?.message || "Unable to create payment order");
+      }
 
-if (!createRes.ok) {
-  throw new Error(createData?.message || `Create payment failed: ${createRes.status}`);
-}
+      void syncLocal("/api/subscription/sync-payment-log", {
+        email,
+        plan_name: planToPay,
+        duration: billingCycle,
+        amount: chosenAmount,
+        amount_display_currency: currencyMode,
+        razorpay_order_id: createData.id,
+        status: "created",
+        message: "Order created in Auto India",
+        request_payload: {
+          customer_email: email,
+          AMT: chosenAmount,
+          currency_display: currencyMode,
+        },
+        response_payload: createData,
+      });
 
-if (!razorpayKey) {
-  throw new Error("Missing Razorpay key from create-payment response");
-}
-
-if (!razorpayOrderId || !String(razorpayOrderId).startsWith("order_")) {
-  throw new Error("Invalid Razorpay order id returned from create-payment");
-}
-
-if (!Number.isFinite(razorpayAmount) || razorpayAmount <= 0) {
-  throw new Error("Invalid Razorpay amount returned from create-payment");
-}
-
-void syncLocal("/api/subscription/sync-payment-log", {
-  email,
-  plan_name: selectedPlan,
-  duration: billingCycle,
-  amount: selectedAmount,
-  amount_display_currency: currencyMode,
-  razorpay_order_id: razorpayOrderId,
-  status: "created",
-  message: "Order created in Auto India",
-  request_payload: {
-    customer_email: email,
-    AMT: selectedAmount,
-    currency_display: currencyMode,
-  },
-  response_payload: createData,
-});
-
-const options = {
-  key: razorpayKey,
-  amount: razorpayAmount,
-  currency: razorpayCurrency,
-  name: "Race Auto Analytics",
-  description: `${selectedPlanData.title} - ${billingCycle}`,
-  order_id: razorpayOrderId,
+      const options = {
+        key: createData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: chosenAmount * 100,
+        currency: "INR",
+        name: "Race Auto Analytics",
+        description: `${chosenPlan.title} - ${billingCycle}`,
+        order_id: createData.id,
         prefill: {
           email,
         },
         notes: {
           email,
-          plan: selectedPlan,
+          plan: planToPay,
           duration: billingCycle,
           source: "raceautoanalytics",
           display_currency: currencyMode,
@@ -557,7 +526,7 @@ const options = {
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
                   email,
-                  plan: selectedPlan,
+                  plan: planToPay,
                   duration: billingCycle,
                 }),
               }
@@ -571,9 +540,9 @@ const options = {
 
             await syncLocal("/api/subscription/sync-payment-log", {
               email,
-              plan_name: selectedPlan,
+              plan_name: planToPay,
               duration: billingCycle,
-              amount: selectedAmount,
+              amount: chosenAmount,
               amount_display_currency: currencyMode,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -582,7 +551,7 @@ const options = {
               request_payload: {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
-                plan: selectedPlan,
+                plan: planToPay,
                 duration: billingCycle,
                 currency_display: currencyMode,
               },
@@ -614,9 +583,9 @@ const options = {
 
             await syncLocal("/api/subscription/sync-payment-log", {
               email,
-              plan_name: selectedPlan,
+              plan_name: planToPay,
               duration: billingCycle,
-              amount: selectedAmount,
+              amount: chosenAmount,
               amount_display_currency: currencyMode,
               razorpay_order_id: response?.razorpay_order_id || null,
               razorpay_payment_id: response?.razorpay_payment_id || null,
@@ -625,7 +594,7 @@ const options = {
               request_payload: {
                 razorpay_order_id: response?.razorpay_order_id || null,
                 razorpay_payment_id: response?.razorpay_payment_id || null,
-                plan: selectedPlan,
+                plan: planToPay,
                 duration: billingCycle,
                 currency_display: currencyMode,
               },
@@ -634,12 +603,12 @@ const options = {
 
             setError(err?.message || "Payment verification failed");
           } finally {
-            setPaying(false);
+            setPayingPlan(null);
           }
         },
         modal: {
           ondismiss: function () {
-            setPaying(false);
+            setPayingPlan(null);
           },
         },
         theme: {
@@ -654,22 +623,22 @@ const options = {
 
       void syncLocal("/api/subscription/sync-payment-log", {
         email,
-        plan_name: selectedPlan,
+        plan_name: planToPay,
         duration: billingCycle,
-        amount: selectedAmount,
+        amount: chosenAmount,
         amount_display_currency: currencyMode,
         status: "failed",
         message: err?.message || "Unable to start payment",
         request_payload: {
           customer_email: email,
-          AMT: selectedAmount,
+          AMT: chosenAmount,
           currency_display: currencyMode,
         },
         response_payload: null,
       });
 
       setError(err?.message || "Unable to start payment");
-      setPaying(false);
+      setPayingPlan(null);
     }
   }
 
@@ -756,61 +725,100 @@ const options = {
           </div>
 
           <div className="sticky top-0 z-20 border-b border-white/10 bg-[#0B1228]/95 px-4 py-3 backdrop-blur">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle("monthly")}
-                  className={[
-                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                    billingCycle === "monthly"
-                      ? "bg-[#4F67FF] text-white"
-                      : "text-white/70 hover:text-white",
-                  ].join(" ")}
-                >
-                  Monthly
-                </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle("monthly")}
+                    className={[
+                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                      billingCycle === "monthly"
+                        ? "bg-[#4F67FF] text-white"
+                        : "text-white/70 hover:text-white",
+                    ].join(" ")}
+                  >
+                    Monthly
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle("annual")}
-                  className={[
-                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                    billingCycle === "annual"
-                      ? "bg-[#4F67FF] text-white"
-                      : "text-white/70 hover:text-white",
-                  ].join(" ")}
-                >
-                  Annual
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle("annual")}
+                    className={[
+                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                      billingCycle === "annual"
+                        ? "bg-[#4F67FF] text-white"
+                        : "text-white/70 hover:text-white",
+                    ].join(" ")}
+                  >
+                    Annual
+                  </button>
+                </div>
+
+                <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrencyMode("INR")}
+                    className={[
+                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                      currencyMode === "INR"
+                        ? "bg-[#14B8A6] text-white"
+                        : "text-white/70 hover:text-white",
+                    ].join(" ")}
+                  >
+                    INR
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrencyMode("USD")}
+                    className={[
+                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                      currencyMode === "USD"
+                        ? "bg-[#14B8A6] text-white"
+                        : "text-white/70 hover:text-white",
+                    ].join(" ")}
+                  >
+                    USD
+                  </button>
+                </div>
+
+                <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setCategoryView("individual")}
+                    className={[
+                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                      categoryView === "individual"
+                        ? "bg-[#F59E0B] text-white"
+                        : "text-white/70 hover:text-white",
+                    ].join(" ")}
+                  >
+                    Individuals
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCategoryView("business")}
+                    className={[
+                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                      categoryView === "business"
+                        ? "bg-[#F59E0B] text-white"
+                        : "text-white/70 hover:text-white",
+                    ].join(" ")}
+                  >
+                    Business
+                  </button>
+                </div>
               </div>
 
-              <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
-                <button
-                  type="button"
-                  onClick={() => setCurrencyMode("INR")}
-                  className={[
-                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                    currencyMode === "INR"
-                      ? "bg-[#14B8A6] text-white"
-                      : "text-white/70 hover:text-white",
-                  ].join(" ")}
-                >
-                  INR
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCurrencyMode("USD")}
-                  className={[
-                    "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                    currencyMode === "USD"
-                      ? "bg-[#14B8A6] text-white"
-                      : "text-white/70 hover:text-white",
-                  ].join(" ")}
-                >
-                  USD
-                </button>
+              <div className="text-center">
+                <div className="text-sm font-semibold text-white">
+                  {categoryTitle}
+                </div>
+                <div className="mt-1 text-xs text-white/60">
+                  {categoryDescription}
+                </div>
               </div>
             </div>
           </div>
@@ -821,46 +829,97 @@ const options = {
                 Loading subscription plans...
               </div>
             ) : error ? (
-              <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-200">
+              <div className="mb-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-200">
                 {error}
               </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {plans.map((plan) => {
-                    const actualPrice =
-                      billingCycle === "annual"
-                        ? plan.annualPrice
-                        : plan.monthlyPrice;
+            ) : null}
 
-                    const comparePrice = getOfferComparePrice(plan.key, actualPrice);
-                    const offerPercent = getPlanOfferPercent(plan.key);
-                    const hasVisualOffer =
-                      offerPercent > 0 &&
-                      actualPrice > 0 &&
-                      comparePrice > actualPrice;
+            {!loading && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {visiblePlans.map((plan) => {
+                  const actualPrice =
+                    billingCycle === "annual"
+                      ? plan.annualPrice
+                      : plan.monthlyPrice;
 
-                    const isSelected = selectedPlan === plan.key;
-                    const planStatus = getPlanStatus(currentPlan, plan.key);
-                    const badge = getPlanBadge(plan.key, planStatus);
+                  const comparePrice = getOfferComparePrice(plan.key, actualPrice);
+                  const offerPercent = getPlanOfferPercent(plan.key);
+                  const hasVisualOffer =
+                    offerPercent > 0 &&
+                    actualPrice > 0 &&
+                    comparePrice > actualPrice;
 
-                    return (
-                      <button
-                        key={plan.key}
-                        type="button"
-                        onClick={() => setSelectedPlan(plan.key)}
-                        className={[
-                          "relative min-h-[420px] overflow-hidden rounded-[18px] border p-3 text-left transition xl:min-h-[440px]",
-                          getSelectedCardClasses(isSelected, planStatus),
-                        ].join(" ")}
-                      >
-                        <div
-                          className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-r ${getPlanAccent(
-                            plan.key
-                          )}`}
-                        />
+                  const isSelected = selectedPlan === plan.key;
+                  const planStatus = getPlanStatus(currentPlan, plan.key);
+                  const badge = getPlanBadge(plan.key, planStatus);
+                  const isCategoryDisabled = isPlanDisabledByCategory(
+                    plan.key,
+                    categoryView
+                  );
 
-                        <div className="relative flex items-center justify-between gap-2">
+                  const isCurrent = currentPlan === plan.key;
+                  const isIncluded =
+                    getPlanRank(currentPlan) > 0 &&
+                    getPlanRank(currentPlan) > getPlanRank(plan.key);
+                  const isUpgrade =
+                    getPlanRank(currentPlan) > 0 &&
+                    getPlanRank(plan.key) > getPlanRank(currentPlan);
+                  const isPriceUnavailable = actualPrice === 0;
+                  const isPayingThisPlan = payingPlan === plan.key;
+
+                  const ctaLabel = getCardCtaLabel({
+                    isCategoryDisabled,
+                    categoryView,
+                    isCurrent,
+                    isIncluded,
+                    isUpgrade,
+                    isPriceUnavailable,
+                  });
+
+                  const ctaDisabled =
+                    isCategoryDisabled ||
+                    isCurrent ||
+                    isIncluded ||
+                    isPriceUnavailable ||
+                    isPayingThisPlan;
+
+                  return (
+                    <div
+                      key={plan.key}
+                      role="button"
+                      tabIndex={isCategoryDisabled ? -1 : 0}
+                      onClick={() => {
+                        if (!isCategoryDisabled) {
+                          setSelectedPlan(plan.key);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (isCategoryDisabled) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedPlan(plan.key);
+                        }
+                      }}
+                      className={[
+                        "relative min-h-[430px] overflow-hidden rounded-[18px] border p-3 text-left transition xl:min-h-[450px]",
+                        getSelectedCardClasses(isSelected, planStatus),
+                        isCategoryDisabled
+                          ? "cursor-not-allowed opacity-50 grayscale-[0.2]"
+                          : "cursor-pointer",
+                      ].join(" ")}
+                    >
+                      {isCategoryDisabled && (
+                        <div className="absolute inset-0 z-[1] bg-white/10" />
+                      )}
+
+                      <div
+                        className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-r ${getPlanAccent(
+                          plan.key
+                        )}`}
+                      />
+
+                      <div className="relative z-[2] flex h-full flex-col">
+                        <div className="flex items-center justify-between gap-2">
                           <h3 className="text-base font-semibold text-white sm:text-lg">
                             {plan.title}
                           </h3>
@@ -873,6 +932,14 @@ const options = {
                             {badge.text}
                           </span>
                         </div>
+
+                        {isCategoryDisabled && (
+                          <div className="mt-2">
+                            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-[11px] font-semibold text-white">
+                              {getDisabledViewText(categoryView)}
+                            </span>
+                          </div>
+                        )}
 
                         <div className="mt-4">
                           {hasVisualOffer ? (
@@ -951,7 +1018,7 @@ const options = {
                           </div>
                         )}
 
-                        <div className="sub-scroll mt-2.5 max-h-28 space-y-1.5 overflow-y-auto pr-1 xl:max-h-32">
+                        <div className="sub-scroll mt-2.5 max-h-28 flex-1 space-y-1.5 overflow-y-auto pr-1 xl:max-h-32">
                           {plan.features.map((feature, index) => (
                             <div
                               key={`${plan.key}-${index}`}
@@ -968,145 +1035,60 @@ const options = {
                           ))}
                         </div>
 
-                        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs uppercase tracking-wide text-white/45">
-                              Action
-                            </div>
-
-                            {isSelected && (
-                              <span
-                                className={[
-                                  "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide",
-                                  planStatus === "current"
-                                    ? "bg-[#FFD166]/15 text-[#FFD166]"
-                                    : planStatus === "included"
-                                    ? "bg-orange-500/15 text-orange-300"
-                                    : planStatus === "upgrade"
-                                    ? "bg-blue-500/15 text-blue-300"
-                                    : "bg-[#4F67FF]/15 text-[#9FB0FF]",
-                                ].join(" ")}
-                              >
-                                Selected
-                              </span>
-                            )}
-                          </div>
-
+                        <div className="mt-4 border-t border-white/10 pt-3">
                           <div
                             className={[
-                              "mt-1 text-sm font-semibold",
-                              planStatus === "current"
+                              "mb-2 text-xs uppercase tracking-wide",
+                              isCategoryDisabled
+                                ? "text-slate-300"
+                                : planStatus === "current"
                                 ? "text-[#FFD166]"
                                 : planStatus === "included"
                                 ? "text-orange-300"
                                 : planStatus === "upgrade"
                                 ? "text-blue-300"
-                                : plan.key === "bronze"
-                                ? "text-amber-300"
-                                : "text-white",
+                                : "text-white/55",
                             ].join(" ")}
                           >
-                            {getCardActionText(planStatus)}
+                            {isCategoryDisabled
+                              ? categoryView === "individual"
+                                ? "Disabled in Individual View"
+                                : "Disabled in Business View"
+                              : planStatus === "current"
+                              ? "Current access"
+                              : planStatus === "included"
+                              ? "Already covered"
+                              : planStatus === "upgrade"
+                              ? "Upgrade available"
+                              : "Ready to buy"}
                           </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
 
-                <div className="sticky bottom-0 mt-3 flex flex-col items-start justify-between gap-3 rounded-2xl border border-white/10 bg-[#0F1730]/95 p-3 backdrop-blur sm:flex-row sm:items-center">
-                  <div>
-                    <div className="text-sm text-white/60">Selected plan</div>
-
-                    <div className="mt-1 text-base font-semibold text-white sm:text-lg">
-                      {selectedPlanData?.title || "-"} ·{" "}
-                      {isPriceUnavailable ? (
-                        "Price unavailable"
-                      ) : isVisualOfferPlan ? (
-                        <>
-                          {formatDisplayPrice(selectedAmount, currencyMode)} /{" "}
-                          {billingCycle === "annual" ? "year" : "month"}
-                          <span
+                          <button
+                            type="button"
+                            disabled={ctaDisabled}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!ctaDisabled) {
+                                void handlePayNow(plan.key);
+                              }
+                            }}
                             className={[
-                              "ml-2 text-sm font-medium",
-                              selectedPlan === "platinum"
-                                ? "text-pink-300"
-                                : selectedPlan === "gold"
-                                ? "text-violet-300"
-                                : selectedPlan === "bronze"
-                                ? "text-amber-300"
-                                : "text-white/70",
+                              "h-11 w-full rounded-xl px-4 font-semibold transition",
+                              ctaDisabled
+                                ? "cursor-not-allowed border border-white/20 bg-white/5 text-slate-300"
+                                : isUpgrade
+                                ? "bg-[#4F67FF] text-white shadow-[0_12px_30px_rgba(79,103,255,0.25)] hover:bg-[#3B55FF]"
+                                : "bg-[#111827] text-white hover:bg-[#0b1228]",
                             ].join(" ")}
                           >
-                            ({selectedOfferPercent}% OFF visual offer)
-                          </span>
-                        </>
-                      ) : (
-                        `${formatDisplayPrice(selectedAmount, currencyMode)} / ${
-                          billingCycle === "annual" ? "year" : "month"
-                        }`
-                      )}
-                    </div>
-
-                    {!isPriceUnavailable && isVisualOfferPlan && (
-                      <div className="mt-1 text-sm text-white/45 line-through">
-                        Display compare price:{" "}
-                        {formatDisplayPrice(selectedCompareAmount, currencyMode)}
+                            {isPayingThisPlan ? "Processing..." : ctaLabel}
+                          </button>
+                        </div>
                       </div>
-                    )}
-
-                    {currencyMode === "USD" && !isPriceUnavailable && (
-                      <div className="mt-1 text-xs text-white/45">
-                        USD is display-only using 1 USD = ₹{USD_RATE}. Checkout remains in INR.
-                      </div>
-                    )}
-
-                    <div
-                      className={[
-                        "mt-2 text-sm",
-                        isDowngrade
-                          ? "text-orange-300"
-                          : isPriceUnavailable
-                          ? "text-red-300"
-                          : isCurrentPlanSelected
-                          ? "text-[#FFD166]"
-                          : selectedPlan === "platinum"
-                          ? "text-pink-300"
-                          : selectedPlan === "gold"
-                          ? "text-violet-300"
-                          : selectedPlan === "bronze"
-                          ? "text-amber-300"
-                          : "text-white/70",
-                      ].join(" ")}
-                    >
-                      {selectionMessage}
                     </div>
-                  </div>
-
-                  {isPriceUnavailable ? (
-                    <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-300">
-                      Price Unavailable
-                    </div>
-                  ) : isDowngrade ? (
-                    <div className="rounded-xl border border-orange-400/20 bg-orange-500/10 px-5 py-3 text-sm font-semibold text-orange-300">
-                      Better Plan Active
-                    </div>
-                  ) : isCurrentPlanSelected ? (
-                    <div className="rounded-xl border border-[#FFD166]/20 bg-[#FFD166]/10 px-5 py-3 text-sm font-semibold text-[#FFD166]">
-                      Current Plan
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handlePayNow}
-                      disabled={disablePayment}
-                      className="h-11 rounded-xl bg-[#4F67FF] px-5 font-semibold text-white shadow-[0_12px_30px_rgba(79,103,255,0.25)] transition hover:bg-[#3B55FF] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {getFooterCtaText(currentPlan, selectedPlan, paying)}
-                    </button>
-                  )}
-                </div>
-              </>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
