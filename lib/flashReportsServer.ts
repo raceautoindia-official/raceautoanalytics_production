@@ -440,15 +440,26 @@ export async function getOverallChartData(opts?: {
 }
 
 // ---- OVERALL PAGE TEXT (SERVER) ----
-export async function getOverallText() {
-  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (!baseUrl) throw new Error("NEXT_PUBLIC_BACKEND_URL is not set");
+export async function getOverallText(country?: string) {
+  const siteUrlRaw =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SITE_URL ||
+    "http://localhost:3000";
 
-  const res = await fetch(
-    `${baseUrl}api/admin/flash-dynamic/flash-reports-text`,
-    { cache: "no-store" },
-  );
+  const siteUrl = siteUrlRaw.replace(/\/$/, "");
+
+  const qs = new URLSearchParams();
+  if (country) {
+    qs.set("country", String(country).trim().toLowerCase());
+  }
+
+  const url = `${siteUrl}/api/flash-reports/text${
+    qs.toString() ? `?${qs.toString()}` : ""
+  }`;
+
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch overall text");
+
   return res.json();
 }
 

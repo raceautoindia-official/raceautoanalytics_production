@@ -43,6 +43,8 @@ export function OverallAutomotiveIndustryClient({
   );
   const [overallMeta, setOverallMeta] = useState<any>(null);
   const [overallLoading, setOverallLoading] = useState(false);
+  const [overallTextData, setOverallTextData] = useState<any>(overAllText ?? {});
+const [overallTextLoading, setOverallTextLoading] = useState(false);
 
   const [graphId, setGraphId] = useState<number | null>(null);
 
@@ -51,9 +53,9 @@ export function OverallAutomotiveIndustryClient({
 
     async function loadConfig() {
       try {
-        const res = await fetch("/api/flash-reports/config", {
-          cache: "no-store",
-        });
+        const res = await fetch(withCountry("/api/flash-reports/config", region), {
+  cache: "no-store",
+});
         if (!res.ok) return;
         const json = await res.json();
         if (cancelled) return;
@@ -108,6 +110,46 @@ export function OverallAutomotiveIndustryClient({
       cancelled = true;
     };
   }, [month, region]);
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadOverallText() {
+    try {
+      setOverallTextLoading(true);
+
+      const res = await fetch(
+        withCountry("/api/flash-reports/text", region),
+        { cache: "no-store" }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch overall text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setOverallTextData(json || {});
+      }
+    } catch (e) {
+      console.error("Failed to refetch overall text", e);
+      if (!cancelled) {
+        setOverallTextData({});
+      }
+    } finally {
+      if (!cancelled) {
+        setOverallTextLoading(false);
+      }
+    }
+  }
+
+  loadOverallText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
 
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
@@ -335,7 +377,7 @@ export function OverallAutomotiveIndustryClient({
           {/* Line chart */}
           <ChartWrapper
             title="Sales & Forecast"
-            summary="Forecast indicates trajectory based on historical volumes and computed projections."
+            summary="Forecast indicates trajectory based on historical volumes and computed projections. Tractors and Construction Equipment are excluded."
           >
             <LineChart
               overallData={overallData}
@@ -350,12 +392,12 @@ export function OverallAutomotiveIndustryClient({
           </ChartWrapper>
 
           {/* Main text block below first chart (from old page) */}
-          {overAllText?.overall_oem_main && (
-            <div
-              className="mt-4 prose prose-invert max-w-none text-sm text-muted-foreground"
-              dangerouslySetInnerHTML={{ __html: overAllText.overall_oem_main }}
-            />
-          )}
+          {overallTextData?.overall_oem_main && (
+  <div
+    className="mt-4 prose prose-invert max-w-none text-sm text-muted-foreground"
+    dangerouslySetInnerHTML={{ __html: overallTextData.overall_oem_main }}
+  />
+)}
 
           {/* Alt-fuel bar chart from backend */}
           <ChartWrapper
@@ -409,14 +451,13 @@ export function OverallAutomotiveIndustryClient({
             )}
           </ChartWrapper>
 
-          {overAllText?.overall_oem_secondary && (
-            <div
-              className="mt-2 prose prose-invert max-w-none text-sm text-muted-foreground"
-              dangerouslySetInnerHTML={{
-                __html: overAllText.overall_oem_secondary,
-              }}
-            />
-          )}
+        {overallTextData?.overall_oem_secondary && (
+  <div
+    className="mt-4 prose prose-invert max-w-none text-sm text-muted-foreground"
+    dangerouslySetInnerHTML={{ __html: overallTextData.overall_oem_secondary }}
+  />
+)}
+           
         </div>
       </div>
     </div>

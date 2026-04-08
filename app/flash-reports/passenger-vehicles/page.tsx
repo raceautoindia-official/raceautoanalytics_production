@@ -17,6 +17,8 @@ import {
 } from "@/lib/mockData";
 import { ChartSummary } from "@/components/charts/ChartSummary";
 import { withCountry } from "@/lib/withCountry";
+import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
 const MONTHS_SHORT = [
   "jan",
@@ -238,6 +240,7 @@ export default function PassengerVehiclesPage() {
   const [overallLoading, setOverallLoading] = useState(false);
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
+  const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
 
   // ---- Application chart (backend /api/fetchAppData) ----
   const [appRaw, setAppRaw] = useState<any[]>([]);
@@ -246,10 +249,13 @@ export default function PassengerVehiclesPage() {
   const [appMonth, setAppMonth] = useState(""); // 'jan 2025' style
 
   const [graphId, setGraphId] = useState<number | null>(null);
+  const [segmentText, setSegmentText] = useState<any>(null);
+const [segmentTextLoading, setSegmentTextLoading] = useState(false);
+const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/flash-reports/config");
+      const res = await fetch(withCountry("/api/flash-reports/config", region));
       const cfg = await res.json();
       setGraphId(cfg?.pv ?? null);
     })();
@@ -261,6 +267,47 @@ export default function PassengerVehiclesPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
 
   // ---------- FETCH MARKET OEM DATA (PV, market share) ----------
   useEffect(() => {
@@ -314,6 +361,46 @@ export default function PassengerVehiclesPage() {
     };
   }, [marketCompare, marketCurrentMonth, month, region]);
 
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
   // ---------- FETCH EV OEM DATA (PV EV) ----------
   useEffect(() => {
     let cancelled = false;
@@ -584,6 +671,41 @@ export default function PassengerVehiclesPage() {
       .sort((a, b) => b.value - a.value);
   }, [appRaw, appMonth]);
 
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadAltFuelSummary() {
+    try {
+      const res = await fetch(
+        withCountry(
+          `/api/fetchMarketBarData?segmentName=alternative%20fuel&baseMonth=${encodeURIComponent(
+            month,
+          )}`,
+          region,
+        ),
+        { cache: "no-store" },
+      );
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setAltFuelSummaryData(json && Object.keys(json).length ? json : null);
+      }
+    } catch (err) {
+      console.error("Failed to load alternate fuel summary", err);
+      if (!cancelled) {
+        setAltFuelSummaryData(null);
+      }
+    }
+  }
+
+  loadAltFuelSummary();
+
+  return () => {
+    cancelled = true;
+  };
+}, [month, region]);
+
   const appTotal = appChartData.reduce((sum, item) => sum + item.value, 0);
   const leadingApp = appChartData[0];
   const secondApp = appChartData[1];
@@ -593,6 +715,8 @@ export default function PassengerVehiclesPage() {
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
   const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+  const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
+  const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
 
   const latestPV = pickSeries(basePoint, [
     "PV",
@@ -605,8 +729,13 @@ export default function PassengerVehiclesPage() {
     "passenger vehicle",
   ]);
 
-  const growthRate =
-    prevPV > 0 ? Math.round(((latestPV - prevPV) / prevPV) * 100) : 0;
+  const growthSummary = formatGrowthWithYoY(
+    latestPV,
+    prevPV,
+    pickSeries(prevYearPoint, ["PV", "pv", "Passenger", "Passenger Vehicles"]),
+  );
+
+  const altFuelHeaderLabel = formatAltFuelHeaderLabel(altFuelSummaryData, "PV", month);
 
   const pageMonthLabel = formatMonthForDisplay(month);
 
@@ -679,28 +808,31 @@ const showApplicationChartSection =
               <span className="text-muted-foreground">PV Growth Rate:</span>
               <span
                 className={`ml-2 font-medium ${
-                  growthRate >= 0 ? "text-success" : "text-destructive"
+                  growthSummary.mom != null && growthSummary.mom >= 0
+                    ? "text-success"
+                    : "text-destructive"
                 }`}
               >
-                {growthRate >= 0 ? "+" : ""}
-                {growthRate}% MoM
+                {growthSummary.text}
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">Top EV OEM:</span>
+              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
               <span className="ml-2 font-medium text-primary">
-                {topEvHeaderLabel}
+                {altFuelHeaderLabel}
               </span>
             </div>
           </div>
         </div>
+
+
 
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) PV Market OEM Performance */}
          {showMarketChartSection && (
   <ChartWrapper
-    title="Passenger Vehicle Market Performance"
+    title="Passenger Vehicle OEM Segment Share"
     summary={marketSummary}
     controls={
       <div className="flex items-center space-x-3">
@@ -748,13 +880,21 @@ const showApplicationChartSection =
         />
       </>
     ) : null}
+    <p className="mt-3 text-sm text-muted-foreground">
+  Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
+</p>
   </ChartWrapper>
 )}
+
+<SegmentCmsText
+  html={segmentText?.passenger_vehicle_secondary}
+  className="mt-2"
+/>
 
           {/* 2) PV EV OEM Share Comparison */}
          {showEvChartSection && (
   <ChartWrapper
-    title="Passenger Vehicle EV Electric Share Comparison"
+    title="Passenger Vehicle EV Electric OEM Market Share"
     summary={evSummary}
     controls={
       <div className="flex items-center space-x-3">
@@ -842,7 +982,7 @@ const showApplicationChartSection =
       title="Passenger Vehicle Application Chart"
       summary={
         leadingApp && appTotal
-          ? `${leadingApp.name} dominates at ${Math.round(
+          ? `${leadingApp.name} Application dominates at ${Math.round(
               (leadingApp.value / appTotal) * 100,
             )}% of passenger vehicle applications, with ${
               secondApp?.name ?? "other uses"

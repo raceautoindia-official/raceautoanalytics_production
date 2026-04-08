@@ -31,6 +31,10 @@ export default function FlashGraphMappingEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [graphs, setGraphs] = useState([]);
+  const [selectedCountry, setSelectedCountry] = useState("india");
+  const [countryOptions, setCountryOptions] = useState([
+    { value: "india", label: "🇮🇳 India" },
+  ]);
 
   const graphOptions = useMemo(() => {
     return (graphs || []).map((g) => ({
@@ -39,7 +43,32 @@ export default function FlashGraphMappingEditor() {
     }));
   }, [graphs]);
 
-  const load = async () => {
+  const loadCountries = async () => {
+    try {
+      const res = await fetch("/api/flash-reports/countries", {
+        headers: {
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+        },
+      });
+
+      if (!res.ok) throw new Error("Failed to load countries");
+
+      const json = await res.json();
+      const mapped = (Array.isArray(json) ? json : []).map((item) => ({
+        value: item.value,
+        label: item.flag ? `${item.flag} ${item.label}` : item.label,
+      }));
+
+      if (mapped.length > 0) {
+        setCountryOptions(mapped);
+      }
+    } catch (e) {
+      console.error("Failed to load countries", e);
+      setCountryOptions([{ value: "india", label: "🇮🇳 India" }]);
+    }
+  };
+
+  const load = async (country = selectedCountry) => {
     setLoading(true);
     try {
       const [graphsRes, cfgRes] = await Promise.all([
@@ -48,11 +77,16 @@ export default function FlashGraphMappingEditor() {
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
           },
         }),
-        fetch("/api/admin/flash-dynamic/flash-reports-config", {
-          headers: {
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
-          },
-        }),
+        fetch(
+          `/api/admin/flash-dynamic/flash-reports-config?country=${encodeURIComponent(
+            country
+          )}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+            },
+          }
+        ),
       ]);
 
       if (!graphsRes.ok) throw new Error("Failed to load graphs");
@@ -66,16 +100,17 @@ export default function FlashGraphMappingEditor() {
       const g = graphsJson || [];
       setGraphs(g);
 
-      // If the mapping contains IDs that don't exist anymore, clear them to avoid confusing the admin.
       const validIds = new Set((g || []).map((x) => Number(x.id)));
       const cleaned = { ...(cfgJson || {}) };
       let cleared = 0;
+
       for (const f of FIELDS) {
         const raw = cleaned?.[f.key];
         if (raw == null || raw === "") {
           cleaned[f.key] = null;
           continue;
         }
+
         const n = Number(raw);
         if (!Number.isFinite(n) || !validIds.has(n)) {
           cleaned[f.key] = null;
@@ -86,9 +121,10 @@ export default function FlashGraphMappingEditor() {
       }
 
       form.setFieldsValue(cleaned);
+
       if (cleared) {
         message.warning(
-          `${cleared} mapped graph ID(s) were not found in Flash graphs and were cleared.`,
+          `${cleared} mapped graph ID(s) were not found in Flash graphs and were cleared.`
         );
       }
     } catch (e) {
@@ -99,13 +135,18 @@ export default function FlashGraphMappingEditor() {
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadCountries();
   }, []);
+
+  useEffect(() => {
+    load(selectedCountry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCountry]);
 
   const onSave = async () => {
     const values = await form.validateFields();
     setSaving(true);
+
     try {
       const res = await fetch("/api/admin/flash-dynamic/flash-reports-config", {
         method: "POST",
@@ -113,14 +154,17 @@ export default function FlashGraphMappingEditor() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          country: selectedCountry,
+        }),
       });
 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || "Save failed");
 
-      message.success("Flash graph mapping saved");
-      await load();
+      message.success(`Flash graph mapping saved for ${selectedCountry}`);
+      await load(selectedCountry);
     } catch (e) {
       message.error(e?.message || "Save failed");
     } finally {
@@ -140,12 +184,23 @@ export default function FlashGraphMappingEditor() {
     <Card style={{ maxWidth: 900 }}>
       <Space direction="vertical" size={8} style={{ width: "100%" }}>
         <Text type="secondary">
-          Select which <b>Flash graph</b> powers each Flash Reports segment.
-          These IDs are read by the public endpoint{" "}
+          Select which <b>Flash graph</b> powers each Flash Reports segment for
+          the chosen country. These IDs are read by the public endpoint{" "}
           <code>/api/flash-reports/config</code>.
         </Text>
 
         <Form form={form} layout="vertical">
+          <Form.Item label="Country">
+            <Select
+              value={selectedCountry}
+              onChange={setSelectedCountry}
+              options={countryOptions}
+              showSearch
+              optionFilterProp="label"
+              placeholder="Select country"
+            />
+          </Form.Item>
+
           {FIELDS.map((f) => (
             <Form.Item key={f.key} name={f.key} label={f.label}>
               <Select
@@ -159,7 +214,7 @@ export default function FlashGraphMappingEditor() {
           ))}
 
           <Space>
-            <Button onClick={load}>Refresh</Button>
+            <Button onClick={() => load(selectedCountry)}>Refresh</Button>
             <Button type="primary" onClick={onSave} loading={saving}>
               Save Mapping
             </Button>

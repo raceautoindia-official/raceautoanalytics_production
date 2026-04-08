@@ -95,6 +95,25 @@ function OptionalBoxesManager() {
       { title: "Icon", dataIndex: "icon", key: "icon", width: 120 },
       { title: "Theme", dataIndex: "theme", key: "theme", width: 120 },
       {
+        title: "Link",
+        dataIndex: "link_url",
+        key: "link_url",
+        width: 260,
+        render: (v) =>
+          v ? (
+            <a
+              href={v}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              {v}
+            </a>
+          ) : (
+            <span className="text-black/40">—</span>
+          ),
+      },
+      {
         title: "Active",
         dataIndex: "is_active",
         key: "is_active",
@@ -112,7 +131,10 @@ function OptionalBoxesManager() {
               size="small"
               onClick={() => {
                 setEditing(row);
-                form.setFieldsValue(row);
+                form.setFieldsValue({
+                  ...row,
+                  link_url: row?.link_url || "",
+                });
                 setOpen(true);
               }}
             >
@@ -158,6 +180,7 @@ function OptionalBoxesManager() {
               is_active: true,
               sort_order: 10,
               theme: "slate",
+              link_url: "",
             });
             setOpen(true);
           }}
@@ -183,7 +206,11 @@ function OptionalBoxesManager() {
         onOk={async () => {
           try {
             const values = await form.validateFields();
-            await api.upsert({ ...values, id: editing?.id });
+            await api.upsert({
+              ...values,
+              id: editing?.id,
+              link_url: values.link_url?.trim() || null,
+            });
             message.success("Saved");
             setOpen(false);
           } catch (e) {
@@ -196,9 +223,38 @@ function OptionalBoxesManager() {
           <Form.Item name="title" label="Title" rules={[{ required: true }]}>
             <Input placeholder="e.g., Seasonal Trend Detected" />
           </Form.Item>
+
           <Form.Item name="body" label="Body" rules={[{ required: true }]}>
             <Input.TextArea rows={4} placeholder="Short insight text" />
           </Form.Item>
+
+          <Form.Item
+            name="link_url"
+            label="Link URL"
+            rules={[
+              {
+                validator: async (_, value) => {
+                  if (!value || !String(value).trim()) return Promise.resolve();
+                  const v = String(value).trim();
+                  if (
+                    v.startsWith("/") ||
+                    v.startsWith("http://") ||
+                    v.startsWith("https://")
+                  ) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(
+                    new Error(
+                      "Enter a valid URL starting with http:// or https://, or use an internal path like /flash-reports"
+                    ),
+                  );
+                },
+              },
+            ]}
+          >
+            <Input placeholder="https://example.com or /flash-reports" />
+          </Form.Item>
+
           <div className="grid grid-cols-2 gap-3">
             <Form.Item name="icon" label="Icon" rules={[{ required: true }]}>
               <Select options={ICON_OPTIONS} placeholder="Pick icon" />
@@ -207,6 +263,7 @@ function OptionalBoxesManager() {
               <Select options={THEME_OPTIONS} placeholder="Pick theme" />
             </Form.Item>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <Form.Item
               name="sort_order"
@@ -299,7 +356,7 @@ function LatestInsightsManager() {
     if (!v) return "";
     const d = new Date(v);
     if (Number.isNaN(d.getTime())) return "";
-    return d.toISOString().slice(0, 10); // ✅ YYYY-MM-DD
+    return d.toISOString().slice(0, 10);
   }
 
   return (
@@ -359,12 +416,15 @@ function LatestInsightsManager() {
               <Input placeholder="e.g., +3.4%" />
             </Form.Item>
           </div>
+
           <Form.Item name="title" label="Title" rules={[{ required: true }]}>
             <Input placeholder="Insight headline" />
           </Form.Item>
+
           <Form.Item name="body" label="Body" rules={[{ required: true }]}>
             <Input.TextArea rows={4} placeholder="Short insight summary" />
           </Form.Item>
+
           <div className="grid grid-cols-2 gap-3">
             <Form.Item
               name="publish_date"
@@ -381,6 +441,7 @@ function LatestInsightsManager() {
               <InputNumber className="w-full" min={0} max={9999} />
             </Form.Item>
           </div>
+
           <Form.Item name="is_active" label="Active" valuePropName="checked">
             <Switch />
           </Form.Item>

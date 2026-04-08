@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { withCountry } from "@/lib/withCountry";
+import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -15,6 +16,7 @@ import { useAppContext } from "@/components/providers/Providers";
 import { formatNumber } from "@/lib/mockData";
 import { Truck, Bus, ChevronRight } from "lucide-react";
 import { DataAvailabilityHint } from "@/components/ui/DataAvailabilityHint";
+import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
 const SUB_CATEGORIES = [
   {
@@ -144,6 +146,7 @@ export default function CommercialVehiclesPage() {
   const [overallLoading, setOverallLoading] = useState(false);
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
+  const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
 
   // ---- Segment donut (REAL backend via /api/fetchCVSegmentSplit) ----
   const [segmentData, setSegmentData] = useState<SegmentDonutPoint[]>([]);
@@ -154,6 +157,9 @@ export default function CommercialVehiclesPage() {
   );
 
   const [graphId, setGraphId] = useState<number | null>(null);
+      const [segmentText, setSegmentText] = useState<any>(null);
+const [segmentTextLoading, setSegmentTextLoading] = useState(false);
+const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
 
   useEffect(() => {
     setOemCurrentMonth(month);
@@ -161,7 +167,7 @@ export default function CommercialVehiclesPage() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/flash-reports/config");
+      const res = await fetch(withCountry("/api/flash-reports/config", region));
       const cfg = await res.json();
       setGraphId(cfg?.cv ?? null);
     })();
@@ -223,6 +229,46 @@ export default function CommercialVehiclesPage() {
       cancelled = true;
     };
   }, [oemCompare, oemCurrentMonth, month, region]);
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
 
   // ---------- PROCESS OEM DATA ----------
   const oemComputed = useMemo(() => {
@@ -474,12 +520,50 @@ export default function CommercialVehiclesPage() {
     };
   }, [month, region]);
 
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadAltFuelSummary() {
+    try {
+      const res = await fetch(
+        withCountry(
+          `/api/fetchMarketBarData?segmentName=alternative%20fuel&baseMonth=${encodeURIComponent(
+            month,
+          )}`,
+          region,
+        ),
+        { cache: "no-store" },
+      );
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setAltFuelSummaryData(json && Object.keys(json).length ? json : null);
+      }
+    } catch (err) {
+      console.error("Failed to load alternate fuel summary", err);
+      if (!cancelled) {
+        setAltFuelSummaryData(null);
+      }
+    }
+  }
+
+  loadAltFuelSummary();
+
+  return () => {
+    cancelled = true;
+  };
+}, [month, region]);
+
+
   // ---------- SUMMARY METRICS (CV volumes + segment split) ----------
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;
 
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
   const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+  const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
+  const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
 
 const toNum = (v: any) => {
   const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
@@ -489,8 +573,9 @@ const toNum = (v: any) => {
 const latestCV = toNum(basePoint?.data?.["CV"]);
 const prevCV = toNum(prevPoint?.data?.["CV"]);
 
-  const growthRate =
-    prevCV > 0 ? Math.round(((latestCV - prevCV) / prevCV) * 100) : 0;
+  const growthSummary = formatGrowthWithYoY(latestCV, prevCV, toNum(prevYearPoint?.data?.["CV"]));
+
+  const altFuelHeaderLabel = formatAltFuelHeaderLabel(altFuelSummaryData, "CV", month);
 
   const pageMonthLabel = new Date(`${month}-01`).toLocaleDateString("en-US", {
     month: "long",
@@ -528,6 +613,8 @@ const prevCV = toNum(prevPoint?.data?.["CV"]);
 
 const showOemChartSection =
   oemLoading || !!oemError || oemChartData.length > 0;
+
+  
 
   return (
     <div className="min-h-screen py-0">
@@ -573,21 +660,24 @@ const showOemChartSection =
               <span className="text-muted-foreground">CV Growth Rate:</span>
               <span
                 className={`ml-2 font-medium ${
-                  growthRate >= 0 ? "text-success" : "text-destructive"
+                  growthSummary.mom != null && growthSummary.mom >= 0
+                    ? "text-success"
+                    : "text-destructive"
                 }`}
               >
-                {growthRate >= 0 ? "+" : ""}
-                {growthRate}% MoM
+                {growthSummary.text}
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">Leading Segment:</span>
+              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
               <span className="ml-2 font-medium text-primary">
-                {leadingSegment?.name ?? "—"}
+                {altFuelHeaderLabel}
               </span>
             </div>
           </div>
         </div>
+
+
 
         {/* Sub-categories (Truck / Bus) */}
         <div className="mb-12">
@@ -607,21 +697,26 @@ const showOemChartSection =
                   className="group block animate-fade-in hover-lift"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <div className="bg-card border border-border rounded-lg p-6 h-full hover:bg-card/80 transition-all duration-200">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className={`p-3 rounded-lg ${category.bgColor}`}>
-                        <Icon className={`w-6 h-6 ${category.color}`} />
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
-                    </div>
+                  <div className="bg-card border border-border rounded-lg p-5 h-full min-h-[100px] hover:bg-card/80 transition-all duration-200">
+  <div className="flex items-start justify-between gap-4 h-full">
+    <div className="flex items-start gap-4">
+      <div className={`p-3 rounded-lg shrink-0 ${category.bgColor}`}>
+        <Icon className={`w-6 h-6 ${category.color}`} />
+      </div>
 
-                    <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">
-                      {category.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {category.description}
-                    </p>
-                  </div>
+      <div>
+        <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">
+          {category.title}
+        </h3>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {category.description}
+        </p>
+      </div>
+    </div>
+
+    <ChevronRight className="w-5 h-5 mt-1 shrink-0 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
+  </div>
+</div>
                 </Link>
               );
             })}
@@ -654,7 +749,7 @@ const showOemChartSection =
                 graphId={graphId}
               />
             )}
-            <DataAvailabilityHint points={overallData || []} />
+            {/* <DataAvailabilityHint points={overallData || []} /> */}
           </ChartWrapper>
           {/* 2) Segmental split (backend → donut) + 3) Forecast (backend timeseries) */}
           <div className="grid lg:grid-cols-3 gap-8">
@@ -683,7 +778,7 @@ const showOemChartSection =
            {showOemChartSection && (
   <div className="lg:col-span-2">
     <ChartWrapper
-      title="Commercial Vehicle OEM Performance"
+      title="Commercial Vehicle OEM Segment Share"
       summary={oemSummary}
       controls={
         <div className="flex items-center space-x-3">

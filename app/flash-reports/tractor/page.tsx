@@ -12,7 +12,9 @@ import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
+import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
 import { DataAvailabilityHint } from "@/components/ui/DataAvailabilityHint";
+import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
 const MONTHS_SHORT = [
   "jan",
@@ -227,9 +229,13 @@ export default function TractorPage() {
 
   const [graphId, setGraphId] = useState<number | null>(null);
 
+  const [segmentText, setSegmentText] = useState<any>(null);
+const [segmentTextLoading, setSegmentTextLoading] = useState(false);
+const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/flash-reports/config");
+      const res = await fetch(withCountry("/api/flash-reports/config", region));
       const cfg = await res.json();
       setGraphId(cfg?.tractor ?? null);
     })();
@@ -289,6 +295,48 @@ export default function TractorPage() {
       cancelled = true;
     };
   }, [oemCompare, oemCurrentMonth, month, region]);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
+
 
   // ---- Fetch overall timeseries (for TRAC series) ----
   useEffect(() => {
@@ -477,14 +525,15 @@ export default function TractorPage() {
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
   const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+  const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
+  const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
 
   const latestTractor = pickSeries(basePoint, ["TRAC", "tractor"]);
   const prevTractor = pickSeries(prevPoint, ["TRAC", "tractor"]);
 
-  const growthRate =
-    prevTractor > 0
-      ? Math.round(((latestTractor - prevTractor) / prevTractor) * 100)
-      : 0;
+  const growthSummary = formatGrowthWithYoY(latestTractor, prevTractor, pickSeries(prevYearPoint, ["TRAC", "tractor"]));
+
+  const leadingOemHeaderLabel = formatLeadingOemLabel(topOem);
 
   const pageMonthLabel = new Date(`${month}-01`).toLocaleDateString("en-US", {
     month: "long",
@@ -561,28 +610,33 @@ useEffect(() => {
               <span className="text-muted-foreground">Growth Rate:</span>
               <span
                 className={`ml-2 font-medium ${
-                  growthRate >= 0 ? "text-success" : "text-destructive"
+                  growthSummary.mom != null && growthSummary.mom >= 0
+                    ? "text-success"
+                    : "text-destructive"
                 }`}
               >
-                {growthRate >= 0 ? "+" : ""}
-                {growthRate}% MoM
+                {growthSummary.text}
               </span>
             </div>
             <div>
               <span className="text-muted-foreground">Leading OEM:</span>
               <span className="ml-2 font-medium text-primary">
-                {topOem?.name ?? "—"}
+                {leadingOemHeaderLabel}
               </span>
             </div>
           </div>
         </div>
+
+        
+
+        
 
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) Tractor OEM Performance */}
          {showOemChartSection && (
   <ChartWrapper
-    title="Tractor OEM Performance"
+    title="Tractor OEM Segment Share"
     summary={oemSummary}
     controls={
       <div className="flex items-center space-x-3">
@@ -623,6 +677,9 @@ useEffect(() => {
         tooltipRenderer={renderOemTooltip}
       />
     ) : null}
+    <p className="mt-3 text-sm text-muted-foreground">
+  Note: Includes diesel, electric (EV), and other alternative-fuel vehicles.
+</p>
   </ChartWrapper>
 )}
 
@@ -652,7 +709,7 @@ useEffect(() => {
               />
               
             )}
-            <DataAvailabilityHint points={overallData || []} />
+            {/* <DataAvailabilityHint points={overallData || []} /> */}
           </ChartWrapper>
 
           {/* 3) Application + 4) HP Segment Distribution */}

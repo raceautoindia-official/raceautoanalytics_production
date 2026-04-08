@@ -4,10 +4,11 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   TrendingUp,
+  TrendingDown,
   Car,
   Truck,
   Tractor,
-  Bus,
+  Bike,
   Award,
   ChartBar as BarChart3,
 } from "lucide-react";
@@ -22,6 +23,25 @@ import { useAppContext } from "@/components/providers/Providers";
 import { cn } from "@/lib/utils";
 import { withCountry } from "@/lib/withCountry";
 
+const ThreeWheelerIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M7 7h6l3 3v4H5v-4l2-3Z" />
+    <path d="M13 7V5h2" />
+    <circle cx="8" cy="16.5" r="1.8" />
+    <circle cx="17" cy="16.5" r="1.8" />
+    <path d="M5 14h13" />
+    <path d="M16 10h2l1 2" />
+  </svg>
+);
+
 const CATEGORIES = [
   {
     id: "overall-automotive-industry",
@@ -35,7 +55,7 @@ const CATEGORIES = [
     id: "two-wheeler",
     title: "Two Wheeler",
     description: "Motorcycles, scooters, and electric two-wheelers",
-    icon: Car,
+    icon: Bike,
     color: "text-green-400",
     bgColor: "bg-green-400/10",
   },
@@ -43,7 +63,7 @@ const CATEGORIES = [
     id: "three-wheeler",
     title: "Three Wheeler",
     description: "Auto-rickshaws, goods carriers, and passenger vehicles",
-    icon: Car,
+    icon: ThreeWheelerIcon,
     color: "text-purple-400",
     bgColor: "bg-purple-400/10",
   },
@@ -220,7 +240,12 @@ function getTopOemNameFromRows(rows: any[], monthKey: string) {
     .filter((row) => row.name)
     .sort((a, b) => b.value - a.value);
 
-  return sorted[0]?.name || "";
+  const firstRealOem = sorted.find((row) => {
+    const name = row.name.toLowerCase().trim();
+    return name !== "others" && name !== "other";
+  });
+
+  return firstRealOem?.name || sorted[0]?.name || "";
 }
 
 // CONFIG: what segmentName your OEM market share backend expects for overall
@@ -864,6 +889,96 @@ setOverallChartPoints(sortedApiData);
     return best;
   }, [categoryMetricsMap]);
 
+  const largestSegment = useMemo(() => {
+    const candidates = CATEGORIES.filter(
+      (c) =>
+        !!CATEGORY_SERIES_KEYS[c.id] && c.id !== "overall-automotive-industry",
+    );
+
+    let best: {
+      id: string;
+      title: string;
+      salesVolume: number;
+      marketShare: number;
+    } | null = null;
+
+    for (const c of candidates) {
+      const m = categoryMetricsMap[c.id];
+      if (!m) continue;
+      if (!best || m.salesVolume > best.salesVolume) {
+        best = {
+          id: c.id,
+          title: c.title,
+          salesVolume: m.salesVolume,
+          marketShare: m.marketShare,
+        };
+      }
+    }
+
+    return best;
+  }, [categoryMetricsMap]);
+
+  const weakestSegment = useMemo(() => {
+    const candidates = CATEGORIES.filter(
+      (c) =>
+        !!CATEGORY_SERIES_KEYS[c.id] && c.id !== "overall-automotive-industry",
+    );
+
+    let weakest: {
+      id: string;
+      title: string;
+      momGrowth: number;
+      salesVolume: number;
+    } | null = null;
+
+    for (const c of candidates) {
+      const m = categoryMetricsMap[c.id];
+      if (!m) continue;
+      const g = m.momGrowth;
+      if (!Number.isFinite(g)) continue;
+
+      if (!weakest || g < weakest.momGrowth) {
+        weakest = {
+          id: c.id,
+          title: c.title,
+          momGrowth: g,
+          salesVolume: m.salesVolume,
+        };
+      }
+    }
+
+    return weakest;
+  }, [categoryMetricsMap]);
+
+  const topShareSegment = useMemo(() => {
+    const candidates = CATEGORIES.filter(
+      (c) =>
+        !!CATEGORY_SERIES_KEYS[c.id] && c.id !== "overall-automotive-industry",
+    );
+
+    let best: {
+      id: string;
+      title: string;
+      marketShare: number;
+      salesVolume: number;
+    } | null = null;
+
+    for (const c of candidates) {
+      const m = categoryMetricsMap[c.id];
+      if (!m) continue;
+      if (!best || m.marketShare > best.marketShare) {
+        best = {
+          id: c.id,
+          title: c.title,
+          marketShare: m.marketShare,
+          salesVolume: m.salesVolume,
+        };
+      }
+    }
+
+    return best;
+  }, [categoryMetricsMap]);
+
   if (!mounted) {
     return <FlashReportsPageSkeleton />;
   }
@@ -1032,40 +1147,71 @@ function isChartMeaningful(data: any[]) {
         <div className="mb-12">
           <h2 className="text-xl font-semibold mb-6">Vehicle Categories</h2>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {CATEGORIES.map((category, index) => {
-  const metrics = categoryMetricsMap[category.id];
-  if (!metrics) return null;
+          {(() => {
+            const overallCategory = CATEGORIES.find(
+              (category) => category.id === "overall-automotive-industry",
+            );
+            const remainingCategories = CATEGORIES.filter(
+              (category) => category.id !== "overall-automotive-industry",
+            );
 
-  const availability = segmentAvailability[category.id];
+            return (
+              <>
+                {overallCategory && categoryMetricsMap[overallCategory.id] ? (
+                  <div className="mb-6">
+                    <VehicleCategoryCard
+                      key={overallCategory.id}
+                      id={overallCategory.id}
+                      title={overallCategory.title}
+                      description={overallCategory.description}
+                      icon={overallCategory.icon}
+                      color={overallCategory.color}
+                      bgColor={overallCategory.bgColor}
+                      subCategories={overallCategory.subCategories}
+                      metrics={categoryMetricsMap[overallCategory.id]}
+                      index={0}
+                      disabled={false}
+                    />
+                  </div>
+                ) : null}
 
-  return (
-    <VehicleCategoryCard
-      key={category.id}
-      id={category.id}
-      title={category.title}
-      description={category.description}
-      icon={category.icon}
-      color={category.color}
-      bgColor={category.bgColor}
-      subCategories={category.subCategories}
-      metrics={metrics}
-      index={index}
-      disabled={
-        !availabilityLoading && availability?.isAvailable === false
-      }
-      disabledMessage={availability?.message}
-    />
-  );
-})}
-          </div>
+                <div className="grid md:grid-cols-2 gap-6">
+                  {remainingCategories.map((category, index) => {
+                    const metrics = categoryMetricsMap[category.id];
+                    if (!metrics) return null;
+
+                    const availability = segmentAvailability[category.id];
+
+                    return (
+                      <VehicleCategoryCard
+                        key={category.id}
+                        id={category.id}
+                        title={category.title}
+                        description={category.description}
+                        icon={category.icon}
+                        color={category.color}
+                        bgColor={category.bgColor}
+                        subCategories={category.subCategories}
+                        metrics={metrics}
+                        index={index + 1}
+                        disabled={
+                          !availabilityLoading && availability?.isAvailable === false
+                        }
+                        disabledMessage={availability?.message}
+                      />
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Key Highlights (fully dynamic) */}
         <div className="bg-card/30 rounded-xl p-8">
           <h2 className="text-xl font-semibold mb-6">Key Highlights</h2>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
             <div className="flex items-start space-x-3 animate-fade-in">
               <TrendingUp className="w-5 h-5 text-success mt-0.5" />
               <div>
@@ -1109,6 +1255,48 @@ function isChartMeaningful(data: any[]) {
                         1,
                       )}% share in the selected period.`
                     : "YoY leadership will appear here once category series data is available for the selected period."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3 animate-fade-in delay-300">
+              <BarChart3 className="w-5 h-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium mb-1">Largest Segment by Volume</p>
+                <p className="text-sm text-muted-foreground">
+                  {largestSegment
+                    ? `${largestSegment.title} recorded the highest volume at ${Math.round(
+                        largestSegment.salesVolume,
+                      ).toLocaleString()} units, representing ${largestSegment.marketShare.toFixed(1)}% of the market in the selected month.`
+                    : "Largest-volume segment will appear here once category series data is available for the selected period."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3 animate-fade-in delay-400">
+              <TrendingDown className="w-5 h-5 text-destructive mt-0.5" />
+              <div>
+                <p className="font-medium mb-1">Weakest MoM Segment</p>
+                <p className="text-sm text-muted-foreground">
+                  {weakestSegment
+                    ? `${weakestSegment.title} saw the softest month-on-month movement at ${weakestSegment.momGrowth >= 0 ? "+" : ""}${weakestSegment.momGrowth.toFixed(1)}%, with ${Math.round(
+                        weakestSegment.salesVolume,
+                      ).toLocaleString()} units recorded in the selected month.`
+                    : "Weakest month-on-month segment will appear here once category series data is available for the selected period."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3 animate-fade-in delay-500">
+              <Truck className="w-5 h-5 text-warning mt-0.5" />
+              <div>
+                <p className="font-medium mb-1">Top Share Segment</p>
+                <p className="text-sm text-muted-foreground">
+                  {topShareSegment
+                    ? `${topShareSegment.title} held the largest market share at ${topShareSegment.marketShare.toFixed(1)}%, supported by ${Math.round(
+                        topShareSegment.salesVolume,
+                      ).toLocaleString()} units in the selected period.`
+                    : "Top-share segment will appear here once category series data is available for the selected period."}
                 </p>
               </div>
             </div>

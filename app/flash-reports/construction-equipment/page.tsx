@@ -12,6 +12,8 @@ import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
+import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -168,10 +170,13 @@ export default function ConstructionEquipmentPage() {
   const [appError, setAppError] = useState<string | null>(null);
 
   const [graphId, setGraphId] = useState<number | null>(null);
+      const [segmentText, setSegmentText] = useState<any>(null);
+const [segmentTextLoading, setSegmentTextLoading] = useState(false);
+const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/flash-reports/config");
+      const res = await fetch(withCountry("/api/flash-reports/config", region));
       const cfg = await res.json();
       setGraphId(cfg?.ce ?? null);
     })();
@@ -184,6 +189,47 @@ export default function ConstructionEquipmentPage() {
     setMounted(true);
   }, []);
 
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
   // ---------- FETCH OEM DATA (market share) ----------
   useEffect(() => {
     let cancelled = false;
@@ -291,6 +337,8 @@ export default function ConstructionEquipmentPage() {
       currKey,
     };
   }, [oemRaw, oemCurrentMonth, oemCompare, month]);
+
+  const topOem = oemComputed?.chartData[0];
 
   const oemSummary = useMemo(() => {
     if (!oemComputed || !oemComputed.chartData.length) {
@@ -448,19 +496,15 @@ export default function ConstructionEquipmentPage() {
       })
       .sort((a, b) => b.current - a.current);
 
-    const evRow =
-      rows.find(
-        (r) =>
-          r.name.toLowerCase().includes("ev") ||
-          r.name.toLowerCase().includes("electric"),
-      ) || null;
+    const topRow = rows[0] || null;
 
     return {
       chartData: rows,
       prevKey,
       currKey,
-      evCurrent: evRow?.current ?? null,
-      evPrevious: evRow?.previous ?? null,
+      topCurrent: topRow?.current ?? null,
+      topPrevious: topRow?.previous ?? null,
+      topName: topRow?.name ?? null,
     };
   }, [evRaw, evCurrentMonth, evCompare, month]);
 
@@ -469,23 +513,17 @@ export default function ConstructionEquipmentPage() {
       return "No alternative fuel / EV share data available for the selected period.";
     }
 
-    const evRow =
-      evComputed.chartData.find(
-        (r) =>
-          r.name.toLowerCase().includes("ev") ||
-          r.name.toLowerCase().includes("electric"),
-      ) || evComputed.chartData[0];
-
+    const top = evComputed.chartData[0];
     const delta =
-      evRow.deltaPct == null || Number.isNaN(evRow.deltaPct)
+      top.deltaPct == null || Number.isNaN(top.deltaPct)
         ? 0
-        : evRow.deltaPct;
+        : top.deltaPct;
     const compareLabel =
       evCompare === "mom" ? "month-on-month" : "year-on-year";
 
-    return `${evRow.name} share is ${evRow.current.toFixed(
+    return `${top.name} leads this EV segment with ${top.current.toFixed(
       1,
-    )}% vs ${evRow.previous.toFixed(1)}% in ${
+    )}% share vs ${top.previous.toFixed(1)}% in ${
       evCompare === "mom" ? "previous month" : "same month last year"
     }, a ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% ${compareLabel} change.`;
   }, [evComputed, evCompare]);
@@ -707,17 +745,20 @@ export default function ConstructionEquipmentPage() {
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
   const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+  const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
+  const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
 
   const latestCE = basePoint?.data?.["CE"] ?? 0;
   const prevCE = prevPoint?.data?.["CE"] ?? 0;
 
-  const growthRate =
-    prevCE > 0 ? Math.round(((latestCE - prevCE) / prevCE) * 100) : 0;
+  const growthSummary = formatGrowthWithYoY(latestCE, prevCE, prevYearPoint?.data?.["CE"] ?? 0);
 
-  const evAdoptionCurrent =
-    evComputed?.evCurrent != null && !Number.isNaN(evComputed.evCurrent)
-      ? evComputed.evCurrent
-      : null;
+  const topEvHeaderLabel =
+    evComputed?.topName && evComputed?.topCurrent != null && !Number.isNaN(evComputed.topCurrent)
+      ? `${evComputed.topName} (${evComputed.topCurrent.toFixed(1)}%)`
+      : "—";
+
+  const leadingOemHeaderLabel = formatLeadingOemLabel(topOem);
 
   const pageMonthLabel = new Date(`${month}-01`).toLocaleDateString("en-US", {
     month: "long",
@@ -783,30 +824,34 @@ const showApplicationChartSection =
               <span className="text-muted-foreground">CE Growth Rate:</span>
               <span
                 className={`ml-2 font-medium ${
-                  growthRate >= 0 ? "text-success" : "text-destructive"
+                  growthSummary.mom != null && growthSummary.mom >= 0
+                    ? "text-success"
+                    : "text-destructive"
                 }`}
               >
-                {growthRate >= 0 ? "+" : ""}
-                {growthRate}% MoM
+                {growthSummary.text}
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">EV Adoption:</span>
+              <span className="text-muted-foreground">Leading OEM:</span>
               <span className="ml-2 font-medium text-primary">
-                {evAdoptionCurrent != null
-                  ? `${evAdoptionCurrent.toFixed(1)}%`
-                  : "–"}
+{leadingOemHeaderLabel}
               </span>
             </div>
           </div>
         </div>
+
+<SegmentCmsText
+  highlight={segmentText?.highlighted_construction_equipment}
+  html={segmentText?.construction_equipment}
+/>
 
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) OEM Performance – backend, market share */}
          {showOemChartSection && (
   <ChartWrapper
-    title="Construction Equipment OEM Performance"
+    title="Construction Equipment OEM Segment Share"
     summary={oemSummary}
     controls={
       <div className="flex items-center space-x-3">
@@ -846,6 +891,9 @@ const showApplicationChartSection =
         tooltipRenderer={renderOemTooltip}
       />
     ) : null}
+    <p className="mt-3 text-sm text-muted-foreground">
+  Note: Includes diesel, electric (EV), and other alternative-fuel vehicles.
+</p>
   </ChartWrapper>
 )}
 

@@ -12,6 +12,8 @@ import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
+import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -144,6 +146,7 @@ const suffix = useMemo(() => {
   const [overallLoading, setOverallLoading] = useState(false);
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
+  const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
 
   // ---- Application chart (backend: fetchAppData) ----
   const [appMonth, setAppMonth] = useState(month);
@@ -160,9 +163,13 @@ const suffix = useMemo(() => {
 
   const [graphId, setGraphId] = useState<number | null>(null);
 
+  const [segmentText, setSegmentText] = useState<any>(null);
+const [segmentTextLoading, setSegmentTextLoading] = useState(false);
+const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/flash-reports/config");
+      const res = await fetch(withCountry("/api/flash-reports/config", region));
       const cfg = await res.json();
       setGraphId(cfg?.tw ?? null);
     })();
@@ -443,19 +450,15 @@ const res = await fetch(url);
       })
       .sort((a, b) => b.current - a.current);
 
-    const evRow =
-      rows.find(
-        (r) =>
-          r.name.toLowerCase().includes("ev") ||
-          r.name.toLowerCase().includes("electric"),
-      ) || null;
+    const topRow = rows[0] || null;
 
     return {
       chartData: rows,
       prevKey,
       currKey,
-      evCurrent: evRow?.current ?? null,
-      evPrevious: evRow?.previous ?? null,
+      topCurrent: topRow?.current ?? null,
+      topPrevious: topRow?.previous ?? null,
+      topName: topRow?.name ?? null,
     };
   }, [evRaw, evCurrentMonth, evCompare, month]);
 
@@ -464,26 +467,61 @@ const res = await fetch(url);
       return "No alternative fuel / EV share data available for the selected period.";
     }
 
-    const evRow =
-      evComputed.chartData.find(
-        (r) =>
-          r.name.toLowerCase().includes("ev") ||
-          r.name.toLowerCase().includes("electric"),
-      ) || evComputed.chartData[0];
-
+    const top = evComputed.chartData[0];
     const delta =
-      evRow.deltaPct == null || Number.isNaN(evRow.deltaPct)
+      top.deltaPct == null || Number.isNaN(top.deltaPct)
         ? 0
-        : evRow.deltaPct;
+        : top.deltaPct;
     const compareLabel =
       evCompare === "mom" ? "month-on-month" : "year-on-year";
 
-    return `${evRow.name} share is ${evRow.current.toFixed(
+    return `${top.name} leads this EV segment with ${top.current.toFixed(
       1,
-    )}% vs ${evRow.previous.toFixed(1)}% in ${
+    )}% share vs ${top.previous.toFixed(1)}% in ${
       evCompare === "mom" ? "previous month" : "same month last year"
     }, a ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% ${compareLabel} change.`;
   }, [evComputed, evCompare]);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
 
   const renderEvTooltip = (props: any) => {
     const { active, payload } = props;
@@ -579,6 +617,39 @@ const res = await fetch(
       cancelled = true;
     };
   }, [month,region]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAltFuelSummary() {
+      try {
+        const res = await fetch(
+          withCountry(
+            `/api/fetchMarketBarData?segmentName=alternative%20fuel&baseMonth=${encodeURIComponent(
+              month,
+            )}`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
+
+        const json = await res.json();
+        if (!cancelled) {
+          setAltFuelSummaryData(json && Object.keys(json).length ? json : null);
+        }
+      } catch (err) {
+        console.error("Failed to load alternate fuel summary", err);
+        if (!cancelled) {
+          setAltFuelSummaryData(null);
+        }
+      }
+    }
+
+    loadAltFuelSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, [month, region]);
 
   // ---------- FETCH APPLICATION DATA ----------
   useEffect(() => {
@@ -702,17 +773,20 @@ const res = await fetch(
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
   const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+  const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
+  const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
 
   const latest2W = basePoint?.data?.["2W"] ?? 0;
   const prev2W = prevPoint?.data?.["2W"] ?? 0;
 
-  const growthRate =
-    prev2W > 0 ? Math.round(((latest2W - prev2W) / prev2W) * 100) : 0;
+  const growthSummary = formatGrowthWithYoY(latest2W, prev2W, prevYearPoint?.data?.["2W"] ?? 0);
 
-  const evAdoptionCurrent =
-    evComputed?.evCurrent != null && !Number.isNaN(evComputed.evCurrent)
-      ? evComputed.evCurrent
-      : null;
+  const topEvHeaderLabel =
+    evComputed?.topName && evComputed?.topCurrent != null && !Number.isNaN(evComputed.topCurrent)
+      ? `${evComputed.topName} (${evComputed.topCurrent.toFixed(1)}%)`
+      : "—";
+
+  const altFuelHeaderLabel = formatAltFuelHeaderLabel(altFuelSummaryData, "2W", month);
 
   const pageMonthLabel = new Date(`${month}-01`).toLocaleDateString("en-US", {
     month: "long",
@@ -785,30 +859,30 @@ const showApplicationChartSection =
               <span className="text-muted-foreground">2W Growth Rate:</span>
               <span
                 className={`ml-2 font-medium ${
-                  growthRate >= 0 ? "text-success" : "text-destructive"
+                  growthSummary.mom != null && growthSummary.mom >= 0
+                    ? "text-success"
+                    : "text-destructive"
                 }`}
               >
-                {growthRate >= 0 ? "+" : ""}
-                {growthRate}% MoM
+                {growthSummary.text}
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">EV Adoption:</span>
+              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
               <span className="ml-2 font-medium text-primary">
-                {evAdoptionCurrent != null
-                  ? `${evAdoptionCurrent.toFixed(1)}%`
-                  : "–"}
+{altFuelHeaderLabel}
               </span>
             </div>
           </div>
         </div>
+
 
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) OEM Performance – backend, market share */}
           {showOemChartSection && (
   <ChartWrapper
-    title="Two-Wheeler OEM Performance"
+    title="Two-Wheeler OEM Segment Share"
     summary={oemSummary}
     controls={
       <div className="flex items-center space-x-3">
@@ -848,13 +922,16 @@ const showApplicationChartSection =
         tooltipRenderer={renderOemTooltip}
       />
     ) : null}
+    <p className="mt-3 text-sm text-muted-foreground">
+  Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
+</p>
   </ChartWrapper>
 )}
 
           {/* 2) EV / alternative fuel share comparison – backend, segmentType=ev */}
           {showEvChartSection && (
   <ChartWrapper
-    title="Two-Wheeler EV Electric Share Comparison"
+    title="Two-Wheeler EV Electric OEM Market Share"
     summary={evSummary}
     controls={
       <div className="flex items-center space-x-3">

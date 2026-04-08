@@ -1,9 +1,10 @@
-import  db  from "@/lib/db";
+import db from "@/lib/db";
 import s3Client from "@/lib/s3Client";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
+import { normalizeCountryKey } from "@/lib/flashReportCountry";
 
 async function uploadToS3(file) {
   if (!file) return null;
@@ -23,12 +24,17 @@ async function uploadToS3(file) {
 
   await s3Client.send(new PutObjectCommand(uploadParams));
 
-  return s3Key; // return key or full URL if you have cloudfront/custom domain
+  return s3Key;
 }
 
 export async function PUT(req) {
   try {
     const formData = await req.formData();
+
+    const rawCountry = formData.get("country");
+    const countryKey = normalizeCountryKey(
+      typeof rawCountry === "string" ? rawCountry : "india"
+    );
 
     const mainBannerFile = formData.get("main_banner");
     const mobileBannerFile = formData.get("mobile_banner");
@@ -40,11 +46,29 @@ export async function PUT(req) {
       );
     }
 
-    // Upload files to S3
     const mainBannerUrl = await uploadToS3(mainBannerFile);
     const mobileBannerUrl = await uploadToS3(mobileBannerFile);
 
-    // Build query dynamically based on which files are uploaded
+    const [existingRows] = await db.execute(
+      `
+      SELECT id
+      FROM flash_reports_text
+      WHERE country_key = ?
+      LIMIT 1
+      `,
+      [countryKey]
+    );
+
+    if (existingRows.length === 0) {
+      await db.execute(
+        `
+        INSERT INTO flash_reports_text (country_key, updated_at)
+        VALUES (?, CURRENT_TIMESTAMP)
+        `,
+        [countryKey]
+      );
+    }
+
     let query = "UPDATE flash_reports_text SET ";
     const params = [];
 
@@ -59,12 +83,18 @@ export async function PUT(req) {
       params.push(mobileBannerUrl);
     }
 
-    query += " WHERE id = 1";
+    if (params.length > 0) {
+      query += ", ";
+    }
+
+    query += "updated_at = CURRENT_TIMESTAMP WHERE country_key = ?";
+    params.push(countryKey);
 
     await db.execute(query, params);
 
     return NextResponse.json({
       message: "Banners uploaded and saved",
+      country: countryKey,
       mainBannerUrl,
       mobileBannerUrl,
     });

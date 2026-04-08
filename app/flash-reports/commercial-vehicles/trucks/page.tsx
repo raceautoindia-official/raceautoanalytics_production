@@ -14,6 +14,8 @@ import { formatNumber } from "@/lib/mockData";
 import TipperTable from "@/components/charts/TipperTable";
 import TractorTrailerForecast from "@/components/charts/TractorTrailorTable";
 import { withCountry } from "@/lib/withCountry";
+import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -137,6 +139,7 @@ export default function TrucksPage() {
   const [overallLoading, setOverallLoading] = useState(false);
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
+  const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
 
   // ---- Segment split donut (LCV/MCV/HCV for trucks) ----
   const [segmentRows, setSegmentRows] = useState<CvSegmentRow[]>([]);
@@ -150,6 +153,9 @@ export default function TrucksPage() {
   const [appMonth, setAppMonth] = useState(""); // e.g. 'jan 2025'
 
   const [graphId, setGraphId] = useState<number | null>(null);
+      const [segmentText, setSegmentText] = useState<any>(null);
+const [segmentTextLoading, setSegmentTextLoading] = useState(false);
+const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
 
   useEffect(() => {
     setOemCurrentMonth(month);
@@ -157,7 +163,7 @@ export default function TrucksPage() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/flash-reports/config");
+      const res = await fetch(withCountry("/api/flash-reports/config", region));
       const cfg = await res.json();
       setGraphId(cfg?.truck ?? null);
     })();
@@ -216,6 +222,47 @@ export default function TrucksPage() {
       cancelled = true;
     };
   }, [oemCompare, oemCurrentMonth, month, region]);
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
 
 useEffect(() => {
   setSegmentRows([]);
@@ -583,14 +630,15 @@ useEffect(() => {
   const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
   const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+  const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
+  const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
 
   const latestTruck = pickSeries(basePoint, ["Truck", "truck"]);
   const prevTruck = pickSeries(prevPoint, ["Truck", "truck"]);
 
-  const growthRate =
-    prevTruck > 0
-      ? Math.round(((latestTruck - prevTruck) / prevTruck) * 100)
-      : 0;
+  const growthSummary = formatGrowthWithYoY(latestTruck, prevTruck, pickSeries(prevYearPoint, ["Truck", "truck"]));
+
+  const altFuelHeaderLabel = formatAltFuelHeaderLabel(altFuelSummaryData, "CV", month);
 
   const pageMonthLabel = new Date(`${month}-01`).toLocaleDateString("en-US", {
     month: "long",
@@ -662,28 +710,31 @@ const showApplicationChartSection =
               <span className="text-muted-foreground">Truck Growth Rate:</span>
               <span
                 className={`ml-2 font-medium ${
-                  growthRate >= 0 ? "text-success" : "text-destructive"
+                  growthSummary.mom != null && growthSummary.mom >= 0
+                    ? "text-success"
+                    : "text-destructive"
                 }`}
               >
-                {growthRate >= 0 ? "+" : ""}
-                {growthRate}% MoM
+                {growthSummary.text}
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">Leading Segment:</span>
+              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
               <span className="ml-2 font-medium text-primary">
-                {leadingSegment?.name ?? "—"}
+                {altFuelHeaderLabel}
               </span>
             </div>
           </div>
         </div>
+
+
 
         {/* Charts */}
         <div className="space-y-8">
           {/* 1) OEM Performance – backend market share */}
          {showOemChartSection && (
   <ChartWrapper
-    title="Truck OEM Performance"
+    title="Truck OEM Segment Share"
     summary={oemSummary}
     controls={
       <div className="flex items-center space-x-3">
@@ -719,6 +770,9 @@ const showApplicationChartSection =
         tooltipRenderer={renderOemTooltip}
       />
     ) : null}
+    <p className="mt-3 text-sm text-muted-foreground">
+  Note: Includes diesel, CNG, electric (EV), and other alternative-fuel vehicles.
+</p>
   </ChartWrapper>
 )}
 
@@ -762,7 +816,7 @@ const showApplicationChartSection =
           title="Trucks Application Chart"
           summary={
             leadingApp && appTotal
-              ? `${leadingApp.name} dominates at ${Math.round(
+              ? `${leadingApp.name} Application dominates at ${Math.round(
                   (leadingApp.value / appTotal) * 100,
                 )}% share, with other applications supporting logistics and construction growth.`
               : appError

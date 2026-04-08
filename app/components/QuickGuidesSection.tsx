@@ -15,12 +15,17 @@ import Link from "next/link";
 
 type CountryItem = {
   name: string;
-  code: string; // ISO 2 (lowercase)
+  code: string;
   slug: string;
   description: string;
 };
 
-/** Flag CDN helper */
+type RegionItem = {
+  name: string;
+  icon: string;
+  description: string;
+};
+
 function flagUrl(code: string, size: 40 | 80 = 40) {
   return `https://flagcdn.com/w${size}/${code}.png`;
 }
@@ -41,7 +46,7 @@ function FlagIcon({
       srcSet={`${flagUrl(code, 40)} 1x, ${flagUrl(code, 80)} 2x`}
       alt={alt}
       loading="lazy"
-      className={`${dim} rounded-md shadow-sm ring-1 ring-white/20`}
+      className={`${dim} rounded-md object-cover shadow-sm ring-1 ring-white/20`}
     />
   );
 }
@@ -77,7 +82,6 @@ function getPreviousMonthYyyyMm() {
   return `${year}-${month}`;
 }
 
-/** --- Country Modal --- */
 function CountryModal({
   country,
   onClose,
@@ -91,6 +95,7 @@ function CountryModal({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
+
     if (country) window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [country, onClose]);
@@ -146,7 +151,6 @@ function CountryModal({
   );
 }
 
-/** --- Flip Card --- */
 function FlipInfoCard({
   ariaLabel,
   bullets,
@@ -174,7 +178,7 @@ function FlipInfoCard({
   return (
     <div className="group relative">
       <div
-        className="relative min-h-[460px] sm:min-h-[420px] md:h-[480px] lg:h-[430px] w-full [perspective:1400px]"
+        className="relative min-h-[555px] sm:min-h-[555px] md:h-[540px] lg:h-[460px] w-full [perspective:1400px]"
         aria-label={ariaLabel}
       >
         <div
@@ -185,9 +189,8 @@ function FlipInfoCard({
               : "[transform:rotateY(0deg)]",
           ].join(" ")}
         >
-          {/* FRONT */}
           <div className="absolute inset-0 [backface-visibility:hidden]">
-            <div className="relative h-full rounded-2xl border border-white/10 bg-[#0b141f]/70 p-4 sm:p-5 md:p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl overflow-hidden transition-transform duration-300 group-hover:-translate-y-1">
+            <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0b141f]/70 p-4 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl transition-transform duration-300 group-hover:-translate-y-1 sm:p-5 md:p-6">
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.06]"
                 style={{
@@ -214,7 +217,7 @@ function FlipInfoCard({
                 <div className="mt-4 space-y-2 text-sm text-white/80">
                   {bullets.slice(0, 6).map((b, idx) => (
                     <div key={idx} className="flex gap-2">
-                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/50" />
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-white/50" />
                       <span>{b}</span>
                     </div>
                   ))}
@@ -222,12 +225,12 @@ function FlipInfoCard({
 
                 {extraFront ? <div className="mt-4">{extraFront}</div> : null}
 
-                <div className="mt-auto flex flex-col sm:flex-row sm:items-center gap-3 pt-5">
+                <div className="mt-5 flex flex-col gap-3 pt-5 sm:mt-auto sm:flex-row sm:items-center">
                   {enableReadMore && (
                     <button
                       type="button"
                       onClick={() => setFlipped(true)}
-                      className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-yellow-300/40 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_10px_30px_rgba(234,179,8,.28)] hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-yellow-300/60 transition"
+                      className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-yellow-300/40 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_10px_30px_rgba(234,179,8,.28)] transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-yellow-300/60"
                     >
                       View Demo
                       <ChevronRight className="h-4 w-4" />
@@ -236,7 +239,7 @@ function FlipInfoCard({
 
                   <a
                     href={ctaHref}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm text-white shadow-md shadow-blue-900/20 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/60 transition"
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm text-white shadow-md shadow-blue-900/20 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/60"
                   >
                     {ctaLabel}
                     <ChevronRight className="h-4 w-4" />
@@ -246,9 +249,8 @@ function FlipInfoCard({
             </div>
           </div>
 
-          {/* BACK */}
           <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-            <div className="relative h-full rounded-2xl border border-white/10 bg-[#0b141f]/70 p-4 sm:p-5 md:p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl overflow-hidden transition-transform duration-300 group-hover:-translate-y-1">
+            <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-[#0b141f]/70 p-4 shadow-[0_18px_60px_rgba(0,0,0,.55)] backdrop-blur-xl transition-transform duration-300 group-hover:-translate-y-1 sm:p-5 md:p-6">
               <div
                 className="pointer-events-none absolute inset-0 opacity-[0.06]"
                 style={{
@@ -269,7 +271,7 @@ function FlipInfoCard({
                   <button
                     type="button"
                     onClick={() => setFlipped(false)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
                     aria-label="Back"
                   >
                     Back
@@ -279,10 +281,8 @@ function FlipInfoCard({
                 <div className="mt-4 flex-1 min-h-0">
                   <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-black/20 p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium text-white/90">
-                          Instruction Video
-                        </div>
+                      <div className="text-sm font-medium text-white/90">
+                        Instruction Video
                       </div>
 
                       {embedUrl ? (
@@ -290,7 +290,7 @@ function FlipInfoCard({
                           href={videoUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
                         >
                           <PlayCircle className="h-4 w-4" />
                           Watch on YouTube
@@ -298,7 +298,7 @@ function FlipInfoCard({
                       ) : (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
                         >
                           <PlayCircle className="h-4 w-4" />
                           Watch
@@ -328,7 +328,7 @@ function FlipInfoCard({
               </div>
             </div>
           </div>
-          {/* /BACK */}
+          {/* back */}
         </div>
       </div>
     </div>
@@ -346,13 +346,32 @@ function CountryBadge({
     <button
       type="button"
       onClick={() => onClick(country)}
-      className="inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-white/90 shadow-sm transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1 sm:text-xs"
+      className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-full border border-white/15 bg-white/5 px-2 py-1.5 text-white/90 shadow-sm transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1"
       aria-label={`Open ${country.name} info`}
       title={country.name}
     >
       <FlagIcon code={country.code} alt={country.name} />
-      <span className="truncate">{country.name}</span>
+      <span className="ml-2 hidden truncate text-xs sm:inline">
+        {country.name}
+      </span>
     </button>
+  );
+}
+
+function RegionBadge({ region }: { region: RegionItem }) {
+  return (
+    <div
+      className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-full border border-white/15 bg-white/5 px-2 py-1.5 text-white/90 shadow-sm sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1"
+      title={region.name}
+      aria-label={region.name}
+    >
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-xs">
+        {region.icon}
+      </span>
+      <span className="ml-2 hidden truncate text-xs sm:inline">
+        {region.name}
+      </span>
+    </div>
   );
 }
 
@@ -476,6 +495,37 @@ export default function QuickGuidesSection() {
     [],
   );
 
+  const regions: RegionItem[] = useMemo(
+    () => [
+      {
+        name: "Asia",
+        icon: "🌏",
+        description: "Asia markets covered in forecast.",
+      },
+      {
+        name: "Europe",
+        icon: "🇪🇺",
+        description: "Europe markets covered in forecast.",
+      },
+      {
+        name: "Americas",
+        icon: "🌎",
+        description: "North and South American markets covered in forecast.",
+      },
+      {
+        name: "Africa",
+        icon: "🌍",
+        description: "African markets covered in forecast.",
+      },
+      {
+        name: "Oceania",
+        icon: "🦘",
+        description: "Oceania markets covered in forecast.",
+      },
+    ],
+    [],
+  );
+
   const flashBullets = useMemo(
     () => [
       "Select Country + Month to load country-wise flash report data.",
@@ -493,7 +543,6 @@ export default function QuickGuidesSection() {
       "Review confidence / risk indicators for better decisions.",
       "Cross-check forecasts against historical trend and seasonality.",
       "Export forecast view or share insights after finalizing.",
-      "Save scenarios for future comparisons and monthly tracking.",
     ],
     [],
   );
@@ -505,12 +554,10 @@ export default function QuickGuidesSection() {
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950/98 to-slate-950" />
         </div>
 
-        <div className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4 pt-10 md:pt-12">
-          {/* ===== Cards ===== */}
+        <div className="mx-auto max-w-none w-[95vw] px-2 pt-10 sm:px-3 md:pt-12 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
           <div className="grid grid-cols-1 gap-6 pb-10 md:grid-cols-2">
-            {/* Flash Reports */}
             <div className="space-y-3">
-              <h3 className="text-xl md:text-2xl font-bold tracking-tight text-white/95">
+              <h3 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
                 Flash Reports
               </h3>
 
@@ -519,7 +566,7 @@ export default function QuickGuidesSection() {
                 bullets={flashBullets}
                 ctaHref="/flash-reports/overview"
                 ctaLabel="Open Flash Reports"
-                enableReadMore={true}
+                enableReadMore
                 videoUrl="https://youtu.be/BBcHKQH90xo?si=o4T0_udCkwy-D9Hu"
                 backTitle="Flash Report Quick Walkthrough"
                 backSubtitle="Quick steps and video guide for flash reports"
@@ -529,7 +576,7 @@ export default function QuickGuidesSection() {
                       Primary countries (launching)
                     </div>
 
-                    <div className="mt-2 hidden grid-cols-4 gap-2 md:grid">
+                    <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-3 md:grid-cols-4">
                       {countries.map((c) => (
                         <CountryBadge
                           key={c.name}
@@ -547,9 +594,8 @@ export default function QuickGuidesSection() {
               />
             </div>
 
-            {/* Forecast */}
             <div className="space-y-3">
-              <h3 className="text-xl md:text-2xl font-bold tracking-tight text-white/95">
+              <h3 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
                 Forecast
               </h3>
 
@@ -558,17 +604,29 @@ export default function QuickGuidesSection() {
                 bullets={forecastBullets}
                 ctaHref="/forecast/overview"
                 ctaLabel="Open Forecast"
-                enableReadMore={true}
+                enableReadMore
                 videoUrl="https://youtu.be/06PIm3mTGcE?si=5QhUnDEAy6-ZIp72"
                 backTitle="Forecast Quick Walkthrough"
                 backSubtitle="Quick steps and video guide for forecast"
+                extraFront={
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-xs font-medium text-white/75">
+                      Forecast regions covered
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-3 md:grid-cols-5">
+                      {regions.map((r) => (
+                        <RegionBadge key={r.name} region={r} />
+                      ))}
+                    </div>
+                  </div>
+                }
               />
             </div>
           </div>
 
-          {/* ===== Value props ===== */}
           <div className="mt-14">
-            <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            <h3 className="text-2xl font-extrabold tracking-tight md:text-3xl">
               What you get in one place
             </h3>
             <p className="mt-2 max-w-3xl text-white/70">
@@ -603,9 +661,8 @@ export default function QuickGuidesSection() {
             </div>
           </div>
 
-          {/* ===== How it works ===== */}
           <div className="mt-14">
-            <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            <h3 className="text-2xl font-extrabold tracking-tight md:text-3xl">
               How it works
             </h3>
             <p className="mt-2 max-w-3xl text-white/70">
@@ -635,7 +692,6 @@ export default function QuickGuidesSection() {
             </div>
           </div>
 
-          {/* ===== CTA band ===== */}
           <div className="mt-14 pb-16">
             <div className="rounded-3xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

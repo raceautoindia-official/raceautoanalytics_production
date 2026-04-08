@@ -83,10 +83,25 @@ export function BarChart({
       ? Math.min(height, 260)
       : height;
 
-const xTickStyle = {
-  fontSize: isMobile ? 8 : 9,
-  fill: "hsl(var(--muted-foreground))",
-};
+  const verticalLabelCount = data?.length || 0;
+  const xAxisFontSize = isHorizontal
+    ? isMobile
+      ? 8
+      : 10
+    : isMobile
+      ? verticalLabelCount <= 6
+        ? 9
+        : 8
+      : verticalLabelCount <= 5
+        ? 12
+        : verticalLabelCount <= 8
+          ? 11
+          : 10;
+
+  const xTickStyle = {
+    fontSize: xAxisFontSize,
+    fill: "hsl(var(--muted-foreground))",
+  };
 
   const yTickStyle = {
     fontSize: isMobile ? 9 : 11,
@@ -138,10 +153,15 @@ const xTickStyle = {
         <RechartsBarChart
           data={data}
           margin={
-  isMobile
-    ? { top: 4, right: 8, left: isVertical ? 8 : 4, bottom: isHorizontal ? 30 : 5 }
-    : { top: 5, right: 20, left: 20, bottom: isHorizontal ? 30 : 5 }
-}
+            isMobile
+              ? {
+                  top: 4,
+                  right: 8,
+                  left: isVertical ? 8 : 4,
+                  bottom: isHorizontal ? 30 : 5,
+                }
+              : { top: 5, right: 20, left: 20, bottom: isHorizontal ? 30 : 5 }
+          }
           layout={layout}
         >
           {renderGradientDefs(gradientDirection, false)}
@@ -154,22 +174,44 @@ const xTickStyle = {
             />
           )}
           <XAxis
-  type={isHorizontal ? "category" : "number"}
-  dataKey={isHorizontal ? "name" : undefined}
-  tick={xTickStyle}
-  axisLine={{ stroke: "hsl(var(--border))" }}
-  tickLine={isMobile ? false : { stroke: "hsl(var(--border))" }}
-  tickMargin={isHorizontal ? 10 : isMobile ? 0 : 8}
-  interval={0}
-  angle={isHorizontal ? -35 : 0}
-  textAnchor={isHorizontal ? "end" : "middle"}
-  height={isHorizontal ? (isMobile ? 55 : 75) : undefined}
-  tickFormatter={(value: string | number) => {
-    const str = String(value);
-    const maxChars = isMobile ? 8 : 12;
-    return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
-  }}
-/>
+            type={isHorizontal ? "category" : "number"}
+            dataKey={isHorizontal ? "name" : undefined}
+            tick={xTickStyle}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+            tickLine={isMobile ? false : { stroke: "hsl(var(--border))" }}
+            tickMargin={isHorizontal ? 10 : isMobile ? 2 : 10}
+            interval={0}
+            angle={0}
+            textAnchor={isHorizontal ? "end" : "end"}
+            height={
+              isHorizontal
+                ? isMobile
+                  ? 55
+                  : 75
+                : isMobile
+                  ? 52
+                  : verticalLabelCount <= 6
+                    ? 68
+                    : 76
+            }
+            tickFormatter={(value: string | number) => {
+              const str = String(value);
+              const maxChars = isHorizontal
+                ? isMobile
+                  ? 8
+                  : 12
+                : isMobile
+                  ? verticalLabelCount <= 6
+                    ? 12
+                    : 10
+                  : verticalLabelCount <= 5
+                    ? 20
+                    : verticalLabelCount <= 8
+                      ? 16
+                      : 12;
+              return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
+            }}
+          />
 
           <YAxis
             type={isHorizontal ? "number" : "category"}
@@ -182,12 +224,12 @@ const xTickStyle = {
               isVertical
                 ? isMobile
                   ? 40 // narrower label column on mobile
-                  : 120
+                  : 150
                 : undefined
             }
             tickFormatter={(value: string | number) => {
               const str = String(value);
-              const maxChars = isMobile ? 10 : 12;
+              const maxChars = isMobile ? 10 : 18;
               return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
             }}
           />
@@ -201,7 +243,7 @@ const xTickStyle = {
             <Legend
               wrapperStyle={{
                 paddingTop: isMobile ? 16 : 20,
-                fontSize: isMobile ? 10 : 12,
+                fontSize: isMobile ? 10 : 14,
               }}
               iconSize={isMobile ? 8 : 10}
               iconType="rect"

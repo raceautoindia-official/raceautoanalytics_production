@@ -81,8 +81,9 @@ export function VehicleCategoryCard({
   };
 
   const chartColor = colorMap[color] || "#007AFF";
+  const isOverall = id === "overall-automotive-industry";
   const shouldShowLeader =
-    id !== "overall-automotive-industry" && !!String(metrics.topOEM || "").trim();
+    !isOverall && !!String(metrics.topOEM || "").trim();
   const isTopPerformer = metrics.rank > 0 && metrics.rank <= 2;
   const isTrending =
     metrics.rank === 1 &&
@@ -114,7 +115,8 @@ export function VehicleCategoryCard({
   const cardContent = (
     <div
       className={cn(
-        "relative h-full overflow-hidden rounded-2xl border p-6 transition-all duration-300",
+        "relative h-full overflow-hidden rounded-2xl border transition-all duration-300",
+        isOverall ? "p-5 md:p-6" : "p-6",
         disabled
           ? "cursor-not-allowed border-border/70 bg-card/70 opacity-95"
           : "border-border bg-card hover:border-primary/30 hover:bg-card/90 hover:shadow-2xl",
@@ -159,7 +161,7 @@ export function VehicleCategoryCard({
       )}
 
       <div className="relative z-10 flex h-full flex-col">
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className={cn("flex items-start justify-between gap-4", isOverall ? "mb-3" : "mb-4")}>
           <div className="flex items-start gap-4">
             <div
               className={cn(
@@ -211,7 +213,7 @@ export function VehicleCategoryCard({
           />
         </div>
 
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className={cn("flex flex-wrap gap-2", isOverall ? "mb-4" : "mb-5")}>
           {disabled ? (
             <>
               {/* <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">
@@ -223,7 +225,7 @@ export function VehicleCategoryCard({
             </>
           ) : (
             <>
-              {metrics.rank ? (
+              {/* {metrics.rank ? (
                 <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                   #{metrics.rank} in Growth
                 </span>
@@ -231,7 +233,7 @@ export function VehicleCategoryCard({
                 <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                   Growth Rank –
                 </span>
-              )}
+              )} */}
 
               {isTrending && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
@@ -326,7 +328,12 @@ export function VehicleCategoryCard({
           </>
         ) : (
           <>
-            <div className="mb-5 grid grid-cols-2 gap-4">
+            <div
+              className={cn(
+                "grid gap-4",
+                isOverall ? "mb-3 grid-cols-1 md:grid-cols-3" : "mb-5 grid-cols-2",
+              )}
+            >
               <div>
                 <div className="mb-1 text-xs text-muted-foreground">
                   Sales Volume
@@ -366,14 +373,16 @@ export function VehicleCategoryCard({
                 </div>
               </div>
 
-              <div>
-                <div className="mb-1 text-xs text-muted-foreground">
-                  Market Share
+              {!isOverall && (
+                <div>
+                  <div className="mb-1 text-xs text-muted-foreground">
+                    Market Share
+                  </div>
+                  <div className="text-xl font-bold">
+                    {metrics.marketShare.toFixed(1)}%
+                  </div>
                 </div>
-                <div className="text-xl font-bold">
-                  {metrics.marketShare.toFixed(1)}%
-                </div>
-              </div>
+              )}
 
               <div>
                 <div className="mb-1 text-xs text-muted-foreground">

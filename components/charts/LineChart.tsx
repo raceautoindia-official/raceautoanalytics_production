@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -49,7 +49,7 @@ const monthNames = [
 ];
 
 const catColors: Record<string, string> = {
-  "2W": "#545454",
+  "2W": "#846cff",
   "3W": "#ff1f23",
   PV: "#FFCE56",
   TRAC: "#4BC0C0",
@@ -94,6 +94,7 @@ const abbreviate = (v: number) =>
 function isYYYYMM(s?: string | null) {
   return !!s && /^\d{4}-\d{2}$/.test(s);
 }
+
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
@@ -318,81 +319,85 @@ export function LineChart({
     enabledTypes,
   ]);
 
-  const growthRates = useMemo(() => {
-    const calc = (start: number | null, end: number | null) =>
-      start != null && end != null && start !== 0
-        ? (end / start - 1) * 100
-        : null;
+  const baseMonthLabel = useMemo(() => {
+    if (!isYYYYMM(baseMonth)) return null;
+    const date = new Date(`${baseMonth}-01`);
+    return `${monthNames[date.getMonth()]}${date.getFullYear().toString().slice(-2)}`;
+  }, [baseMonth]);
 
-    let first: number | null = null;
-    let last: number | null = null;
+  const [hoveredMonth, setHoveredMonth] = useState<string | null>(baseMonthLabel);
 
-    let linearStart: number | null = null;
-    let linearEnd: number | null = null;
+  useEffect(() => {
+    setHoveredMonth(baseMonthLabel);
+  }, [baseMonthLabel]);
 
-    let scoreStart: number | null = null;
-    let scoreEnd: number | null = null;
+  const monthWiseGrowth = useMemo(() => {
+    const calcChangeAtIndex = (dataKey: string, index: number) => {
+      if (index < 0 || index >= chartData.length) return null;
 
-    let byofStart: number | null = null;
-    let byofEnd: number | null = null;
+      const current = Number(chartData[index]?.[dataKey]);
+      if (!Number.isFinite(current)) return null;
 
-    let aiStart: number | null = null;
-    let aiEnd: number | null = null;
+      for (let i = index - 1; i >= 0; i--) {
+        const previous = Number(chartData[i]?.[dataKey]);
+        if (!Number.isFinite(previous)) continue;
+        if (previous === 0) return null;
+        return ((current / previous) - 1) * 100;
+      }
 
-    let raceStart: number | null = null;
-    let raceEnd: number | null = null;
+      return null;
+    };
 
-    for (const row of chartData) {
-      if (first === null && row[selectedCat] != null) first = row[selectedCat];
+    const latestIndexForKey = (dataKey: string) => {
+      for (let i = chartData.length - 1; i >= 0; i--) {
+        const value = Number(chartData[i]?.[dataKey]);
+        if (Number.isFinite(value)) return i;
+      }
+      return -1;
+    };
 
-      if (linearStart === null && row[`${selectedCat}_forecast_linear`] != null)
-        linearStart = row[`${selectedCat}_forecast_linear`];
+    const hoveredIndex = hoveredMonth
+      ? chartData.findIndex((row) => row.month === hoveredMonth)
+      : -1;
 
-      if (scoreStart === null && row[`${selectedCat}_forecast_score`] != null)
-        scoreStart = row[`${selectedCat}_forecast_score`];
-
-      if (byofStart === null && row[`${selectedCat}_forecast_byof`] != null)
-        byofStart = row[`${selectedCat}_forecast_byof`];
-
-      if (aiStart === null && row[`${selectedCat}_forecast_ai`] != null)
-        aiStart = row[`${selectedCat}_forecast_ai`];
-
-      if (raceStart === null && row[`${selectedCat}_forecast_race`] != null)
-        raceStart = row[`${selectedCat}_forecast_race`];
-    }
-
-    for (let i = chartData.length - 1; i >= 0; i--) {
-      const row = chartData[i];
-      if (last === null && row[selectedCat] != null) last = row[selectedCat];
-
-      if (linearEnd === null && row[`${selectedCat}_forecast_linear`] != null)
-        linearEnd = row[`${selectedCat}_forecast_linear`];
-
-      if (scoreEnd === null && row[`${selectedCat}_forecast_score`] != null)
-        scoreEnd = row[`${selectedCat}_forecast_score`];
-
-      if (byofEnd === null && row[`${selectedCat}_forecast_byof`] != null)
-        byofEnd = row[`${selectedCat}_forecast_byof`];
-
-      if (aiEnd === null && row[`${selectedCat}_forecast_ai`] != null)
-        aiEnd = row[`${selectedCat}_forecast_ai`];
-
-      if (raceEnd === null && row[`${selectedCat}_forecast_race`] != null)
-        raceEnd = row[`${selectedCat}_forecast_race`];
-    }
+    const resolveIndex = (dataKey: string) => {
+      if (hoveredIndex >= 0) {
+        const hoveredValue = Number(chartData[hoveredIndex]?.[dataKey]);
+        if (Number.isFinite(hoveredValue)) return hoveredIndex;
+      }
+      return latestIndexForKey(dataKey);
+    };
 
     return {
-      historical: calc(first, last),
-      linear: calc(linearStart, linearEnd),
-      score: calc(scoreStart, scoreEnd),
-      byof: calc(byofStart, byofEnd),
-      ai: calc(aiStart, aiEnd),
-      race: calc(raceStart, raceEnd),
+      historical: calcChangeAtIndex(selectedCat, resolveIndex(selectedCat)),
+      linear: calcChangeAtIndex(
+        `${selectedCat}_forecast_linear`,
+        resolveIndex(`${selectedCat}_forecast_linear`),
+      ),
+      score: calcChangeAtIndex(
+        `${selectedCat}_forecast_score`,
+        resolveIndex(`${selectedCat}_forecast_score`),
+      ),
+      byof: calcChangeAtIndex(
+        `${selectedCat}_forecast_byof`,
+        resolveIndex(`${selectedCat}_forecast_byof`),
+      ),
+      ai: calcChangeAtIndex(
+        `${selectedCat}_forecast_ai`,
+        resolveIndex(`${selectedCat}_forecast_ai`),
+      ),
+      race: calcChangeAtIndex(
+        `${selectedCat}_forecast_race`,
+        resolveIndex(`${selectedCat}_forecast_race`),
+      ),
     };
-  }, [chartData, selectedCat]);
+  }, [chartData, hoveredMonth, selectedCat]);
 
   const formatGrowth = (value: number | null) =>
     value == null || Number.isNaN(value) ? "–" : `${value.toFixed(1)}%`;
+
+
+  
 
   const ForecastTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || !payload.length) return null;
@@ -491,7 +496,35 @@ export function LineChart({
       });
 
     return out;
-  }, [selectedCat, allowForecastByData, enabledTypes]);
+  }, [chartData, selectedCat, allowForecastByData, enabledTypes]);
+
+const yAxisDomain = useMemo(() => {
+    const numericValues = chartData
+      .flatMap((row) =>
+        lines.map((line) => {
+          const value = Number(row?.[line.key]);
+          return Number.isFinite(value) ? value : null;
+        }),
+      )
+      .filter((value): value is number => value != null);
+
+    if (!numericValues.length) return [0, "auto"] as const;
+
+    const minValue = Math.min(...numericValues);
+    const maxValue = Math.max(...numericValues);
+
+    if (minValue === maxValue) {
+      const singlePad = Math.max(Math.abs(minValue) * 0.1, 1);
+      return [Math.max(0, Math.floor(minValue - singlePad)), Math.ceil(maxValue + singlePad)] as const;
+    }
+
+    const range = maxValue - minValue;
+    const pad = Math.max(range * 0.18, maxValue * 0.03, 1);
+    const lower = Math.max(0, Math.floor(minValue - pad));
+    const upper = Math.ceil(maxValue + pad);
+
+    return [lower, upper] as const;
+  }, [chartData, lines]);
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -512,9 +545,9 @@ export function LineChart({
               style={{ color: catColors[selectedCat] ?? "#fff" }}
             >
               <span className="font-semibold">
-                {formatGrowth(growthRates.historical)}
+                {formatGrowth(monthWiseGrowth.historical)}
               </span>
-              <span className="opacity-80">Historical</span>
+              <span className="opacity-80">Δ Historical MoM</span>
             </span>
 
             {allowForecastByData && (
@@ -533,16 +566,16 @@ export function LineChart({
                   style={{ color: forecastColors.score }}
                 >
                   <span className="font-semibold">
-                    {formatGrowth(growthRates.score)}
+                    {formatGrowth(monthWiseGrowth.score)}
                   </span>
-                  <span className="opacity-80">Survey</span>
+                  <span className="opacity-80">ML Survey</span>
                 </span>
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
                   style={{ color: forecastColors.byof }}
                 >
                   <span className="font-semibold">
-                    {formatGrowth(growthRates.byof)}
+                    {formatGrowth(monthWiseGrowth.byof)}
                   </span>
                   <span className="opacity-80">BYF</span>
                 </span>
@@ -551,18 +584,18 @@ export function LineChart({
                   style={{ color: forecastColors.ai }}
                 >
                   <span className="font-semibold">
-                    {formatGrowth(growthRates.ai)}
+                    {formatGrowth(monthWiseGrowth.ai)}
                   </span>
-                  <span className="opacity-80">AI</span>
+                  <span className="opacity-80">AI MoM</span>
                 </span>
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
                   style={{ color: forecastColors.race }}
                 >
                   <span className="font-semibold">
-                    {formatGrowth(growthRates.race)}
+                    {formatGrowth(monthWiseGrowth.race)}
                   </span>
-                  <span className="opacity-80">Race</span>
+                  <span className="opacity-80">Race MoM</span>
                 </span>
                 {forecastLoading ? (
                   <span className="text-xs text-muted-foreground self-center">
@@ -574,64 +607,66 @@ export function LineChart({
           </div>
 
           {showSubmitScore && graphId && allowForecastByData ? (
-            <Link href={scoreCardHref} prefetch={false}>
-              <Button
-                size="xs"
-                variant="secondary"
-                className={cn(
-                  "group relative overflow-hidden rounded-full h-7 px-2.5 text-xs",
-                  "shadow-sm hover:shadow-md transition-all duration-200",
-                  // slightly stronger presence at rest
-                  "ring-1 ring-primary/45 hover:ring-primary/50",
-                  "border border-border/60",
-                  // very subtle lift
-                  "translate-y-[1px]",
-                )}
-              >
-                {/* subtle inner highlight (noticeable but still neutral) */}
-                <span className="pointer-events-none absolute inset-0">
-                  <span className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent opacity-80" />
-                </span>
+            <div className="group relative">
+              <Link href={scoreCardHref} prefetch={false}>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  // title="Predict your own forecast"
+                  aria-label="Predict your own forecast"
+                  className={cn(
+                    "group relative overflow-hidden rounded-full h-7 px-2.5 text-xs",
+                    "shadow-sm hover:shadow-md transition-all duration-200",
+                    "ring-1 ring-red-500/55 hover:ring-red-400/70",
+                    "border border-red-500/60 bg-red-950/40 text-red-100 hover:bg-red-900/55",
+                    "translate-y-[1px]",
+                  )}
+                >
+                  <span className="pointer-events-none absolute inset-0">
+                    <span className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent opacity-70" />
+                  </span>
 
-                {/* always-on ambient glow (slightly stronger than before) */}
-                <span className="pointer-events-none absolute inset-0">
-                  <span
-                    className={cn(
-                      "absolute -inset-6 rounded-full bg-primary/15 blur-xl",
-                      isReducedMotion
-                        ? "opacity-70"
-                        : "animate-pulse opacity-90",
-                    )}
-                  />
-                </span>
+                  <span className="pointer-events-none absolute inset-0">
+                    <span
+                      className={cn(
+                        "absolute -inset-6 rounded-full bg-red-500/20 blur-xl",
+                        isReducedMotion
+                          ? "opacity-70"
+                          : "animate-pulse opacity-90",
+                      )}
+                    />
+                  </span>
 
-                {/* always-on shimmer (a bit brighter + slower so it feels premium) */}
-                <span className="pointer-events-none absolute inset-0">
-                  <span
-                    className={cn(
-                      "absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent",
-                      isReducedMotion
-                        ? "opacity-0"
-                        : "-translate-x-[120%] animate-[shine_3.2s_linear_infinite]",
-                    )}
-                  />
-                </span>
+                  <span className="pointer-events-none absolute inset-0">
+                    <span
+                      className={cn(
+                        "absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent",
+                        isReducedMotion
+                          ? "opacity-0"
+                          : "-translate-x-[120%] animate-[shine_3.2s_linear_infinite]",
+                      )}
+                    />
+                  </span>
 
-                <span className="relative z-10 inline-flex items-center gap-1.5">
-                  <Sparkles
-                    className={cn(
-                      "h-3.5 w-3.5",
-                      "text-primary/90 drop-shadow-[0_0_10px_rgba(0,0,0,0.15)]",
-                      isReducedMotion
-                        ? ""
-                        : "animate-[twinkle_2.2s_ease-in-out_infinite]",
-                    )}
-                  />
-                  <span className="font-semibold">{submitScoreLabel}</span>
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </Button>
-            </Link>
+                  <span className="relative z-10 inline-flex items-center gap-1.5">
+                    <Sparkles
+                      className={cn(
+                        "h-3.5 w-3.5 text-red-200 drop-shadow-[0_0_10px_rgba(239,68,68,0.35)]",
+                        isReducedMotion
+                          ? ""
+                          : "animate-[twinkle_2.2s_ease-in-out_infinite]",
+                      )}
+                    />
+                    <span className="font-semibold">{submitScoreLabel}</span>
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </Button>
+              </Link>
+
+              <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 rounded-md border border-border bg-popover/95 px-2.5 py-1.5 text-[11px] font-medium text-foreground opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 whitespace-nowrap">
+                Predict your own forecast
+              </div>
+            </div>
           ) : null}
         </div>
       </div>
@@ -639,7 +674,15 @@ export function LineChart({
       {/* Chart */}
       <div className="w-full">
         <ResponsiveContainer width="100%" height={effectiveHeight}>
-          <RechartsLineChart data={chartData} margin={chartMargin}>
+          <RechartsLineChart
+            data={chartData}
+            margin={chartMargin}
+            onMouseMove={(state: any) => {
+              const label = state?.activeLabel;
+              setHoveredMonth(typeof label === "string" ? label : null);
+            }}
+            onMouseLeave={() => setHoveredMonth(baseMonthLabel)}
+          >
             {renderGradientDefs("vertical", true)}
 
             <CartesianGrid
@@ -662,6 +705,8 @@ export function LineChart({
               tickLine={isMobile ? false : { stroke: "hsl(var(--border))" }}
               tickFormatter={abbreviate}
               width={isMobile ? 40 : 60}
+              domain={yAxisDomain as any}
+              allowDataOverflow={false}
             />
 
             <Tooltip content={<ForecastTooltip />} />

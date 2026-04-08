@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const [rows] = await db.execute(
-      `SELECT id, title, body, icon, theme, sort_order
+      `SELECT id, title, body, icon, theme, sort_order, link_url, updated_at
        FROM home_optional_insights
        WHERE is_active = 1
        ORDER BY sort_order ASC, id ASC`
