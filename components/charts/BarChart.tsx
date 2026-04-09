@@ -71,7 +71,7 @@ export function BarChart({
   const isHorizontal = layout === "horizontal";
   const isMobile = useIsMobile();
 
-  const rowHeight = isMobile ? 28 : 40; // tighter rows on mobile
+  const rowHeight = isMobile ? 28 : 40;
   const minHeight = isMobile ? Math.min(height, 260) : height;
 
   const computedHeight = isVertical
@@ -93,14 +93,38 @@ export function BarChart({
         ? 9
         : 8
       : verticalLabelCount <= 5
-        ? 12
+        ? 10
         : verticalLabelCount <= 8
-          ? 11
+          ? 9
           : 10;
+
+  const hasLongHorizontalLabels = isHorizontal
+    ? (data || []).some(
+        (item: any) => String(item?.name ?? "").length > (isMobile ? 10 : 14),
+      )
+    : false;
+
+  const hasNumericHorizontalLabels = isHorizontal
+    ? (data || []).every((item: any) =>
+        /^\d+(?:\.\d+)?$/.test(String(item?.name ?? "").trim()),
+      )
+    : false;
+
+  const shouldAngleHorizontalTicks =
+    isHorizontal &&
+    !hasNumericHorizontalLabels &&
+    ((data?.length || 0) >= (isMobile ? 6 : 8) || hasLongHorizontalLabels);
+
+  const horizontalTickAngle = shouldAngleHorizontalTicks
+    ? isMobile
+      ? -24
+      : -30
+    : 0;
 
   const xTickStyle = {
     fontSize: xAxisFontSize,
-    fill: "hsl(var(--muted-foreground))",
+    fill: isHorizontal ? "#ffffff" : "hsl(var(--muted-foreground))",
+    fontWeight: 400,
   };
 
   const yTickStyle = {
@@ -147,6 +171,38 @@ export function BarChart({
 
   const gradientDirection = layout === "vertical" ? "vertical" : "horizontal";
 
+  const horizontalBottomSpace = shouldAngleHorizontalTicks
+    ? isMobile
+      ? 48
+      : 38
+    : hasNumericHorizontalLabels
+      ? isMobile
+        ? 6
+        : 4
+      : isMobile
+        ? 18
+        : 14;
+
+  const horizontalTickHeight = shouldAngleHorizontalTicks
+    ? isMobile
+      ? 72
+      : 82
+    : hasNumericHorizontalLabels
+      ? isMobile
+        ? 24
+        : 26
+      : isMobile
+        ? 42
+        : 50;
+
+  const horizontalTickMargin = shouldAngleHorizontalTicks
+    ? 14
+    : hasNumericHorizontalLabels
+      ? isMobile
+        ? 2
+        : 4
+      : 10;
+
   return (
     <div className={cn("w-full", className)} style={{ height: computedHeight }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -158,9 +214,14 @@ export function BarChart({
                   top: 4,
                   right: 8,
                   left: isVertical ? 8 : 4,
-                  bottom: isHorizontal ? 30 : 5,
+                  bottom: isHorizontal ? horizontalBottomSpace : 5,
                 }
-              : { top: 5, right: 20, left: 20, bottom: isHorizontal ? 30 : 5 }
+              : {
+                  top: 0,
+                  right: 20,
+                  left: 20,
+                  bottom: isHorizontal ? horizontalBottomSpace : 5,
+                }
           }
           layout={layout}
         >
@@ -173,21 +234,26 @@ export function BarChart({
               strokeOpacity={0.3}
             />
           )}
+
           <XAxis
             type={isHorizontal ? "category" : "number"}
             dataKey={isHorizontal ? "name" : undefined}
             tick={xTickStyle}
             axisLine={{ stroke: "hsl(var(--border))" }}
             tickLine={isMobile ? false : { stroke: "hsl(var(--border))" }}
-            tickMargin={isHorizontal ? 10 : isMobile ? 2 : 10}
+            tickMargin={isHorizontal ? horizontalTickMargin : isMobile ? 2 : 10}
             interval={0}
-            angle={0}
-            textAnchor={isHorizontal ? "end" : "end"}
+            angle={isHorizontal ? horizontalTickAngle : 0}
+            textAnchor={
+              isHorizontal
+                ? shouldAngleHorizontalTicks
+                  ? "end"
+                  : "middle"
+                : "end"
+            }
             height={
               isHorizontal
-                ? isMobile
-                  ? 55
-                  : 75
+                ? horizontalTickHeight
                 : isMobile
                   ? 52
                   : verticalLabelCount <= 6
@@ -195,11 +261,27 @@ export function BarChart({
                     : 76
             }
             tickFormatter={(value: string | number) => {
-              const str = String(value);
+              const str = String(value).trim();
+
+              if (isHorizontal && hasNumericHorizontalLabels) {
+                const n = Number(str);
+                if (Number.isFinite(n)) {
+                  return `${n}%`;
+                }
+              }
+
               const maxChars = isHorizontal
-                ? isMobile
-                  ? 8
-                  : 12
+                ? shouldAngleHorizontalTicks
+                  ? isMobile
+                    ? 14
+                    : 18
+                  : hasNumericHorizontalLabels
+                    ? isMobile
+                      ? 6
+                      : 8
+                    : isMobile
+                      ? 8
+                      : 12
                 : isMobile
                   ? verticalLabelCount <= 6
                     ? 12
@@ -209,6 +291,7 @@ export function BarChart({
                     : verticalLabelCount <= 8
                       ? 16
                       : 12;
+
               return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
             }}
           />
@@ -223,7 +306,7 @@ export function BarChart({
             width={
               isVertical
                 ? isMobile
-                  ? 40 // narrower label column on mobile
+                  ? 40
                   : 150
                 : undefined
             }
@@ -235,20 +318,26 @@ export function BarChart({
           />
 
           <Tooltip
-            // If a custom tooltipRenderer is provided, use that; else fallback
             content={tooltipRenderer ? tooltipRenderer : DefaultTooltip}
           />
 
           {showLegend && (
             <Legend
               wrapperStyle={{
-                paddingTop: isMobile ? 16 : 20,
+                paddingTop: isHorizontal
+                  ? shouldAngleHorizontalTicks
+                    ? 10
+                    : hasNumericHorizontalLabels
+                      ? 6
+                      : 10
+                  : 0,
                 fontSize: isMobile ? 10 : 14,
               }}
               iconSize={isMobile ? 8 : 10}
               iconType="rect"
             />
           )}
+
           {bars.map((bar, index) => {
             const fillColor = getGradientFillFromColor(
               bar.color,

@@ -100,7 +100,7 @@ const CATEGORIES = [
     id: "construction-equipment",
     title: "Construction Equipment",
     description:
-      "Heavy-duty machines used for excavation, grading, and movement on construction sites",
+      "Excavator, Cranes, Backhoe Loader, Wheel Loader, Dump Truck, BullDozer",
     icon: Truck, // placeholder, or your Construction icon
     color: "text-teal-400",
     bgColor: "bg-teal-400/10",
@@ -1066,7 +1066,7 @@ export default function FlashReportsPage() {
                             1,
                           )}% month-on-month based on total industry volumes. Historical trend and next ${
                             overallMeta?.horizon ?? overallForecastHorizon
-                          } months of flash forecast are shown below.`
+                          } months forecast are shown below. Includes Two Wheeler, Three Wheeler, Commercial Vehicles (Bus and Truck, including Tipper and Tractor-Trailer) and Passenger Vehicles.`
                         : `Overall automotive market ${
                             overallGrowthRate >= 0 ? "expanded" : "contracted"
                           } by ${

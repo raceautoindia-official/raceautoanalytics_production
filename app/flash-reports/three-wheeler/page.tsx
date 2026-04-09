@@ -706,17 +706,18 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
     }));
   }, [appRaw, appSelectedKey]);
 
-  const appSummary = useMemo(() => {
-    if (!appBarData.length) {
-      return "No three-wheeler application split data available for the selected month.";
-    }
-    const sorted = [...appBarData].sort((a, b) => b.value - a.value);
-    const top = sorted[0];
-    const total = sorted.reduce((sum, r) => sum + (r.value || 0), 0);
-    const share = total > 0 ? Math.round((top.value / total) * 100) : 0;
+const appSummary = useMemo(() => {
+  if (!appBarData.length) {
+    return "No three-wheeler application split data available for the selected month.";
+  }
+  const sorted = [...appBarData].sort((a, b) => b.value - a.value);
+  const top = sorted[0];
+  const total = sorted.reduce((sum, r) => sum + (r.value || 0), 0);
+  const share = total > 0 ? (top.value / total) * 100 : 0;
+  const shareText = Number(share.toFixed(2)).toString();
 
-    return `${top.name} leads three-wheeler usage with ~${share}% share in ${appSelectedKey}.`;
-  }, [appBarData, appSelectedKey]);
+  return `${top.name} Application leads three-wheeler usage with ${shareText}% share in ${appSelectedKey}.`;
+}, [appBarData, appSelectedKey]);
 
   // ---------- SUMMARY METRICS (3W volumes + EV adoption) ----------
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;
@@ -725,11 +726,12 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
   const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
   const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
 
   const latest3W = basePoint?.data?.["3W"] ?? 0;
   const prev3W = prevPoint?.data?.["3W"] ?? 0;
 
-  const growthSummary = formatGrowthWithYoY(latest3W, prev3W, prevYearPoint?.data?.["3W"] ?? 0);
+  const growthSummary = formatGrowthWithYoY(latest3W, prev3W, prevYearBaseData?.["3W"] ?? prevYearPoint?.data?.["3W"] ?? null);
 
   const topEvHeaderLabel =
     evComputed?.topName && evComputed?.topCurrent != null && !Number.isNaN(evComputed.topCurrent)
@@ -868,7 +870,7 @@ const showApplicationChartSection =
         tooltipRenderer={renderOemTooltip}
       />
     ) : null}
-    <p className="mt-3 text-sm text-muted-foreground">
+    <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
   Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
 </p>
   </ChartWrapper>

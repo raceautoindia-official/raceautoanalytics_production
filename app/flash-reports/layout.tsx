@@ -4,6 +4,7 @@ import { Providers } from "@/components/providers/Providers";
 import NavBar from "@/app/components/Navbar";
 import React, { Suspense } from "react";
 
+
 export const dynamic = "force-dynamic";
 
 const inter = Inter({
@@ -24,7 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <NavBar />
       <Suspense fallback={null}>
         <Providers>
-          <main className="pt-5">{children}</main>
+          <main className="pt-5">{children} </main>
         </Providers>
       </Suspense>
     </div>

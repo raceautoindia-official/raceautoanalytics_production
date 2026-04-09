@@ -14,8 +14,14 @@ type SummaryOptions = {
   metricLabel: string;
 };
 
-function formatDelta(delta: number, decimals = 1) {
-  return `${delta >= 0 ? "+" : ""}${delta.toFixed(decimals)}%`;
+function formatPercentExact(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${Number(value)}%`;
+}
+
+function formatDelta(delta: number) {
+  const n = Number(delta);
+  return `${n >= 0 ? "+" : ""}${n}%`;
 }
 
 function isOthers(name: string) {
@@ -49,8 +55,6 @@ export function buildLeadershipGrowthSummary({
   const leader = validRows[0];
   const compareLabel =
     compareMode === "mom" ? "month-on-month" : "year-on-year";
-  const versusLabel =
-    compareMode === "mom" ? "previous month" : "same month last year";
 
   const growthCandidates = validRows.filter((row) =>
     Number.isFinite(row.deltaPct as number),
@@ -63,58 +67,52 @@ export function buildLeadershipGrowthSummary({
   )[0];
 
   if (!growthPerformer) {
-    return `${leader.name} leads with ${leader.current.toFixed(
-      1,
-    )}% ${metricLabel}.`;
+    return `${leader.name} leads with ${formatPercentExact(
+      leader.current,
+    )} ${metricLabel}.`;
   }
 
   const growthDelta = growthPerformer.deltaPct ?? 0;
 
   if (growthPerformer.name === leader.name) {
     if (growthDelta > 0) {
-      return `${leader.name} leads with ${leader.current.toFixed(
-        1,
-      )}% ${metricLabel} and is also the fastest-growing performer, up ${formatDelta(
+      return `${leader.name} leads with ${formatPercentExact(
+        leader.current,
+      )} ${metricLabel} and is also the fastest-growing performer, up ${formatDelta(
         growthDelta,
-      )} ${compareLabel} versus ${versusLabel}.`;
+      )} ${compareLabel}.`;
     }
     if (growthDelta === 0) {
-      return `${leader.name} leads with ${leader.current.toFixed(
-        1,
-      )}% ${metricLabel} and remained flat ${compareLabel} versus ${versusLabel}.`;
+      return `${leader.name} leads with ${formatPercentExact(
+        leader.current,
+      )} ${metricLabel} and remained flat ${compareLabel}.`;
     }
-    return `${leader.name} leads with ${leader.current.toFixed(
-      1,
-    )}% ${metricLabel} despite a ${formatDelta(
+    return `${leader.name} leads with ${formatPercentExact(
+      leader.current,
+    )} ${metricLabel} despite a ${formatDelta(
       growthDelta,
-    )} ${compareLabel} move versus ${versusLabel}.`;
+    )} ${compareLabel} move.`;
   }
 
   if (growthDelta > 0) {
-    return `${leader.name} leads with ${leader.current.toFixed(
-      1,
-    )}% ${metricLabel}, while ${growthPerformer.name} is the fastest-growing performer at ${formatDelta(
+    return `${leader.name} leads with ${formatPercentExact(
+      leader.current,
+    )} ${metricLabel}, while ${growthPerformer.name} is the fastest-growing performer at ${formatDelta(
       growthDelta,
-    )} ${compareLabel} to ${growthPerformer.current.toFixed(
-      1,
-    )}% versus ${versusLabel}.`;
+    )} ${compareLabel}.`;
   }
 
   if (growthDelta === 0) {
-    return `${leader.name} leads with ${leader.current.toFixed(
-      1,
-    )}% ${metricLabel}, while ${growthPerformer.name} remained flat ${compareLabel} at ${growthPerformer.current.toFixed(
-      1,
-    )}% versus ${versusLabel}.`;
+    return `${leader.name} leads with ${formatPercentExact(
+      leader.current,
+    )} ${metricLabel}, while ${growthPerformer.name} remained flat ${compareLabel}.`;
   }
 
-  return `${leader.name} leads with ${leader.current.toFixed(
-    1,
-  )}% ${metricLabel}, while ${growthPerformer.name} recorded the mildest decline at ${formatDelta(
+  return `${leader.name} leads with ${formatPercentExact(
+    leader.current,
+  )} ${metricLabel}, while ${growthPerformer.name} recorded the mildest decline at ${formatDelta(
     growthDelta,
-  )} ${compareLabel} to ${growthPerformer.current.toFixed(
-    1,
-  )}% versus ${versusLabel}.`;
+  )} ${compareLabel}.`;
 }
 
 export function formatSignedPercent(
@@ -148,7 +146,7 @@ export function formatGrowthWithYoY(
   return {
     mom,
     yoy,
-    text: `${formatSignedPercent(mom, decimals)} MoM`,
+    text: `${formatSignedPercent(mom, decimals)} MoM | ${formatSignedPercent(yoy, decimals)} YoY`,
   };
 }
 
@@ -198,7 +196,7 @@ export function formatAltFuelHeaderLabel(
 ) {
   const value = getAltFuelMonthShare(altFuelData, categoryKey, baseMonth);
   if (value == null) return "—";
-  return `${value.toFixed(1)}%`;
+  return `${Number(value)}%`;
 }
 
 export function formatLeadingOemLabel(
@@ -220,5 +218,5 @@ export function formatLeadingOemLabel(
   if (!candidate?.name) return "—";
   if (candidate.current == null || Number.isNaN(candidate.current))
     return String(candidate.name);
-  return `${candidate.name} (${Number(candidate.current).toFixed(1)}%)`;
+  return `${candidate.name} (${Number(candidate.current)}%)`;
 }

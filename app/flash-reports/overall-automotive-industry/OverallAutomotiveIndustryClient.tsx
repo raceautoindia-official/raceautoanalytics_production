@@ -321,7 +321,7 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
               <span className="font-bold">{symbol}</span>
               <span className="font-medium">Change:</span>
               <span className="font-semibold">
-                {Math.abs(delta).toFixed(1)} pts
+                {Math.abs(delta).toFixed(1)} %
               </span>
             </div>
           )}
@@ -429,7 +429,7 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
                 ? altFuelComparison.leftMonth
                   ? `Comparison of segment-wise alternative fuel share between ${altFuelComparison.leftMonth} and ${altFuelComparison.rightMonth}.`
                   : `Segment-wise alternative fuel share for ${altFuelComparison.rightMonth}.`
-                : "No alternative fuel data available for the latest period."
+                : "Detailed data is available on request. Reach us at info@raceautoindia.com"
             }
           >
             {altFuelLoading ? (
@@ -468,17 +468,17 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
               />
             ) : (
               <p className="text-sm text-muted-foreground">
-                No data available for this segment.
+               
               </p>
             )}
           </ChartWrapper>
-
+{/* 
         {overallTextData?.overall_oem_secondary && (
   <div
     className="mt-4 prose prose-invert max-w-none text-sm text-muted-foreground"
     dangerouslySetInnerHTML={{ __html: overallTextData.overall_oem_secondary }}
   />
-)}
+)} */}
            
         </div>
       </div>

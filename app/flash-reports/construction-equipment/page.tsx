@@ -710,17 +710,18 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
     }));
   }, [appRaw, appSelectedKey]);
 
-  const appSummary = useMemo(() => {
-    if (!appBarData.length) {
-      return "Detailed application split data is available on request. Reach us at info@raceautoindia.com";
-    }
-    const sorted = [...appBarData].sort((a, b) => b.value - a.value);
-    const top = sorted[0];
-    const total = sorted.reduce((sum, r) => sum + (r.value || 0), 0);
-    const share = total > 0 ? Math.round((top.value / total) * 100) : 0;
+const appSummary = useMemo(() => {
+  if (!appBarData.length) {
+    return "Detailed application split data is available on request. Reach us at info@raceautoindia.com";
+  }
+  const sorted = [...appBarData].sort((a, b) => b.value - a.value);
+  const top = sorted[0];
+  const total = sorted.reduce((sum, r) => sum + (r.value || 0), 0);
+  const share = total > 0 ? (top.value / total) * 100 : 0;
+  const shareText = Number(share.toFixed(2)).toString();
 
-    return `${top.name} leads construction equipment usage with ~${share}% share in ${appSelectedKey}.`;
-  }, [appBarData, appSelectedKey]);
+  return `${top.name} Application leads construction equipment usage with ${shareText}% share in ${appSelectedKey}.`;
+}, [appBarData, appSelectedKey]);
 
   // ---------- SUMMARY METRICS (CE volumes + EV adoption) ----------
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;
@@ -729,11 +730,12 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
   const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
   const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
 
   const latestCE = basePoint?.data?.["CE"] ?? 0;
   const prevCE = prevPoint?.data?.["CE"] ?? 0;
 
-  const growthSummary = formatGrowthWithYoY(latestCE, prevCE, prevYearPoint?.data?.["CE"] ?? 0);
+  const growthSummary = formatGrowthWithYoY(latestCE, prevCE, prevYearBaseData?.["CE"] ?? prevYearPoint?.data?.["CE"] ?? null);
 
   const topEvHeaderLabel =
     evComputed?.topName && evComputed?.topCurrent != null && !Number.isNaN(evComputed.topCurrent)

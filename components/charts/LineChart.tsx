@@ -63,7 +63,7 @@ const catColors: Record<string, string> = {
 const forecastColors = {
   linear: "#00BFFF",
   score: "#FF69B4",
-  byof: "#4000ff",
+  byof: "#f1ff58",
   ai: "#00d800",
   race: "#ffffff",
 };
@@ -622,13 +622,13 @@ const yAxisDomain = useMemo(() => {
                   variant="secondary"
                   // title="Predict your own forecast"
                   aria-label="Predict your own forecast"
-                  className={cn(
-                    "group relative overflow-hidden rounded-full h-7 px-2.5 text-xs",
-                    "shadow-sm hover:shadow-md transition-all duration-200",
-                    "ring-1 ring-red-500/55 hover:ring-red-400/70",
-                    "border border-red-500/60 bg-red-950/40 text-red-100 hover:bg-red-900/55",
-                    "translate-y-[1px]",
-                  )}
+                 className={cn(
+  "group relative overflow-hidden rounded-full h-7 px-2.5 text-xs",
+  "shadow-[0_8px_22px_rgba(239,68,68,0.38)] hover:shadow-[0_10px_26px_rgba(239,68,68,0.48)] transition-all duration-200",
+  "ring-1 ring-red-400 border border-red-300/80",
+  "bg-red-600 text-white hover:bg-red-500",
+  "translate-y-[1px]",
+)}
                 >
                   <span className="pointer-events-none absolute inset-0">
                     <span className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent opacity-70" />
@@ -658,13 +658,13 @@ const yAxisDomain = useMemo(() => {
 
                   <span className="relative z-10 inline-flex items-center gap-1.5">
                     <Sparkles
-                      className={cn(
-                        "h-3.5 w-3.5 text-red-200 drop-shadow-[0_0_10px_rgba(239,68,68,0.35)]",
-                        isReducedMotion
-                          ? ""
-                          : "animate-[twinkle_2.2s_ease-in-out_infinite]",
-                      )}
-                    />
+  className={cn(
+    "h-3.5 w-3.5 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.45)]",
+    isReducedMotion
+      ? ""
+      : "animate-[twinkle_2.2s_ease-in-out_infinite]",
+  )}
+/>
                     <span className="font-semibold">{submitScoreLabel}</span>
                     <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                   </span>

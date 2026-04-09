@@ -627,11 +627,16 @@ useEffect(() => {
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
   const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
   const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
 
   const latestBus = pickSeries(basePoint, ["Bus", "bus"]);
   const prevBus = pickSeries(prevPoint, ["Bus", "bus"]);
 
-  const growthSummary = formatGrowthWithYoY(latestBus, prevBus, pickSeries(prevYearPoint, ["Bus", "bus"]));
+  const growthSummary = formatGrowthWithYoY(
+    latestBus,
+    prevBus,
+    pickSeries({ data: prevYearBaseData } as any, ["Bus", "bus"]) ?? pickSeries(prevYearPoint, ["Bus", "bus"]),
+  );
 
   const leadingOemHeaderLabel = formatLeadingOemLabel(oemComputed?.chartData ?? []);
 
@@ -809,15 +814,18 @@ const showApplicationChartSection =
       <div className={showSegmentChartSection ? "lg:col-span-2" : "lg:col-span-3"}>
         <ChartWrapper
           title="Buses Application Chart"
-          summary={
-            leadingApp && appTotal
-              ? `${leadingApp.name} Application dominates at ${Math.round(
-                  (leadingApp.value / appTotal) * 100,
-                )}% share, with other applications supporting public and school transport demand.`
-              : appError
-                ? appError
-                : "No application distribution data available."
-          }
+         summary={
+  leadingApp && appTotal
+    ? (() => {
+        const share = appTotal > 0 ? (leadingApp.value / appTotal) * 100 : 0;
+        const shareText = Number(share.toFixed(2)).toString();
+
+        return `${leadingApp.name} Application dominates at ${shareText}% share, with other applications supporting public and school transport demand.`;
+      })()
+    : appError
+      ? appError
+      : "No application distribution data available."
+}
         >
           {appError ? (
             <p className="text-sm text-destructive">{appError}</p>

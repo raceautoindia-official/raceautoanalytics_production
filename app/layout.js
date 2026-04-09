@@ -11,6 +11,8 @@ import Script from "next/script";
 import RouteAuthGate from "@/components/auth/RouteAuthGate";
 import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
 import SubscriptionModal from "@/components/subscription/SubscriptionModal";
+import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
+
 
 const inter = Inter({
   subsets: ["latin"],
@@ -131,7 +133,9 @@ export default function RootLayout({ children }) {
             <AuthModalProvider>
               <SubscriptionModalProvider>
                 <RouteAuthGate />
+                 <ScrollToTopButton />
                 {children}
+               
                 <SubscriptionModal />
               </SubscriptionModalProvider>
             </AuthModalProvider>

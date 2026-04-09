@@ -27,6 +27,8 @@ export type OverallChartMeta = {
   allowForecast: boolean; // true only when baseMonth is latest available month (5th cutoff)
   horizon: number; // months ahead (used only if allowForecast)
   windowMonths: string[]; // final months used in chart
+  prevYearBaseMonth?: string; // YYYY-MM for same month last year
+  prevYearBaseData?: Record<string, number>; // same-month-last-year values for base month series
 };
 
 export type OverallChartResponse = {
@@ -176,6 +178,7 @@ export async function getOverallChartDataWithMeta(opts?: {
   const baseMonth = isYYYYMM(opts?.baseMonth)
     ? String(opts?.baseMonth)
     : prevMonthIST;
+  const prevYearBaseMonth = `${String(baseMonth).slice(0, 4) - 1}-${String(baseMonth).slice(5, 7)}`;
 
   const allowForecast = !opts?.forceHistorical && baseMonth === prevMonthIST;
 
@@ -265,7 +268,7 @@ export async function getOverallChartDataWithMeta(opts?: {
     if (!mainRoot) {
       return {
         data: windowMonths.map((m) => ({ month: m, data: {} })),
-        meta: { baseMonth, allowForecast, horizon, windowMonths },
+        meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
       };
     }
 
@@ -284,7 +287,7 @@ export async function getOverallChartDataWithMeta(opts?: {
     if (!flashReports) {
       return {
         data: windowMonths.map((m) => ({ month: m, data: {} })),
-        meta: { baseMonth, allowForecast, horizon, windowMonths },
+        meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
       };
     }
 
@@ -312,7 +315,7 @@ export async function getOverallChartDataWithMeta(opts?: {
         // non-india requested but not present -> empty
         return {
           data: windowMonths.map((m) => ({ month: m, data: {} })),
-          meta: { baseMonth, allowForecast, horizon, windowMonths },
+          meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
         };
       }
 
@@ -329,20 +332,14 @@ export async function getOverallChartDataWithMeta(opts?: {
     if (!overall) {
       return {
         data: windowMonths.map((m) => ({ month: m, data: {} })),
-        meta: { baseMonth, allowForecast, horizon, windowMonths },
+        meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
       };
     }
 
-    DBG("country:", opts?.country, "rootNode:", rootNode?.id, rootNode?.name);
-    DBG("overall:", overall?.id, overall?.name);
-
-    const byMonth = new Map<string, Record<string, number>>();
-
-    // ✅ robust: drive traversal from windowMonths (YYYY-MM)
-    for (const yyyymm of windowMonths) {
+    const readMonthData = (yyyymm: string): Record<string, number> | null => {
       const [yy, mmStr] = String(yyyymm).split("-");
       const mm = Number(mmStr);
-      if (!yy || !Number.isFinite(mm) || mm < 1 || mm > 12) continue;
+      if (!yy || !Number.isFinite(mm) || mm < 1 || mm > 12) return null;
 
       const yearNode =
         hierarchyData.find(
@@ -351,7 +348,7 @@ export async function getOverallChartDataWithMeta(opts?: {
             String(n.name || "").trim() === String(yy).trim(),
         ) || null;
 
-      if (!yearNode) continue;
+      if (!yearNode) return null;
 
       const monthShort = monthsList[mm - 1];
       const monthNode =
@@ -361,13 +358,12 @@ export async function getOverallChartDataWithMeta(opts?: {
             String(n.name || "").toLowerCase().trim() === monthShort,
         ) || null;
 
-      if (!monthNode) continue;
+      if (!monthNode) return null;
 
       const streamPath = buildPath(monthNode.id);
       const matchedEntry = volumeByStream.get(String(streamPath));
-      if (!matchedEntry?.data) continue;
+      if (!matchedEntry?.data) return null;
 
-      // handle both shapes: {data:{...}} and {...}
       const raw1 = (matchedEntry.data as any).data ?? matchedEntry.data;
       const rawData =
         raw1 &&
@@ -385,7 +381,6 @@ export async function getOverallChartDataWithMeta(opts?: {
         if (Number.isFinite(num)) data[catKey] = num;
       }
 
-      // ✅ TOTAL RULE unchanged
       if (!Number.isFinite(data["Total"])) {
         const baseKeys = ["2W", "3W", "PV", "TRAC", "CE"];
         const baseSum = baseKeys.reduce((sum, k) => sum + (data[k] || 0), 0);
@@ -397,7 +392,18 @@ export async function getOverallChartDataWithMeta(opts?: {
         data["Total"] = cv > 0 ? baseSum + cv : baseSum + truck + bus;
       }
 
-      byMonth.set(yyyymm, data);
+      return Object.keys(data).length ? data : null;
+    };
+
+    DBG("country:", opts?.country, "rootNode:", rootNode?.id, rootNode?.name);
+    DBG("overall:", overall?.id, overall?.name);
+
+    const byMonth = new Map<string, Record<string, number>>();
+
+    // ✅ robust: drive traversal from windowMonths (YYYY-MM)
+    for (const yyyymm of windowMonths) {
+      const data = readMonthData(yyyymm);
+      if (data) byMonth.set(yyyymm, data);
     }
 
     const points: OverallChartPoint[] = windowMonths.map((m) => ({
@@ -405,9 +411,18 @@ export async function getOverallChartDataWithMeta(opts?: {
       data: byMonth.get(m) ?? {},
     }));
 
+    const prevYearBaseData = readMonthData(prevYearBaseMonth) ?? undefined;
+
     return {
       data: points,
-      meta: { baseMonth, allowForecast, horizon, windowMonths },
+      meta: {
+        baseMonth,
+        allowForecast,
+        horizon,
+        windowMonths,
+        prevYearBaseMonth,
+        prevYearBaseData,
+      },
     };
   };
 

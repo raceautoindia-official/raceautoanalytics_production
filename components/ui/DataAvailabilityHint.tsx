@@ -8,7 +8,7 @@ export function DataAvailabilityHint({ points }: { points: Array<{ month: string
   if (filled === total) return null;
   if (filled === 0) return (
     <div className="mt-2 text-xs text-muted-foreground">
-      Detailed application split data is available on request. Reach us at info@raceautoindia.com
+      Detailed data is available on request. Reach us at info@raceautoindia.com
     </div>
   );
 

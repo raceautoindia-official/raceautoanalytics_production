@@ -213,7 +213,7 @@ export function VehicleCategoryCard({
           />
         </div>
 
-        <div className={cn("flex flex-wrap gap-2", isOverall ? "mb-4" : "mb-5")}>
+        <div className={cn("flex flex-wrap gap-2", isOverall ? "" : "")}>
           {disabled ? (
             <>
               {/* <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">
@@ -235,26 +235,26 @@ export function VehicleCategoryCard({
                 </span>
               )} */}
 
-              {isTrending && (
+              {/* {isTrending && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
                   <Zap className="h-3.5 w-3.5" />
                   Top Gainer
                 </span>
-              )}
+              )} */}
 
-              {subCategories && subCategories.length > 0 && (
+              {/* {subCategories && subCategories.length > 0 && (
                 <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium capitalize text-muted-foreground">
                   {subCategories.length} segments
                 </span>
-              )}
+              )} */}
             </>
           )}
         </div>
 
         {disabled ? (
           <>
-            <div className="mb-5 rounded-xl border border-dashed border-amber-400/20 bg-amber-500/5 p-4">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <div className="rounded-xl border border-dashed border-amber-400/20 bg-amber-500/5 p-4">
+              <div className=" flex items-center gap-2 text-sm font-semibold text-foreground">
                 <Clock3 className="h-4 w-4 text-amber-300" />
                 Segment not released for this market
               </div>

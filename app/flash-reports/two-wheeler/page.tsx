@@ -738,17 +738,20 @@ const res = await fetch(
     }));
   }, [appRaw, appSelectedKey]);
 
-  const appSummary = useMemo(() => {
-    if (!appBarData.length) {
-      return "Detailed application split data is available on request. Reach us at info@raceautoindia.com";
-    }
-    const sorted = [...appBarData].sort((a, b) => b.value - a.value);
-    const top = sorted[0];
-    const total = sorted.reduce((sum, r) => sum + (r.value || 0), 0);
-    const share = total > 0 ? Math.round((top.value / total) * 100) : 0;
+const appSummary = useMemo(() => {
+  if (!appBarData.length) {
+    return "Detailed application split data is available on request. Reach us at info@raceautoindia.com";
+  }
 
-    return `${top.name} leads two-wheeler usage with ~${share}% share in ${appSelectedKey}.`;
-  }, [appBarData, appSelectedKey]);
+  const sorted = [...appBarData].sort((a, b) => b.value - a.value);
+  const top = sorted[0];
+  const total = sorted.reduce((sum, r) => sum + (r.value || 0), 0);
+
+  const share = total > 0 ? (top.value / total) * 100 : 0;
+  const shareText = Number(share.toFixed(2)).toString();
+
+  return `${top.name} Application leads two-wheeler usage with ${shareText}% share in ${appSelectedKey}.`;
+}, [appBarData, appSelectedKey]);
 
   // ---------- SUMMARY METRICS (2W volumes + EV adoption) ----------
   const summaryBaseMonth = overallMeta?.baseMonth ?? month;
@@ -757,11 +760,12 @@ const res = await fetch(
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
   const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
   const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
 
   const latest2W = basePoint?.data?.["2W"] ?? 0;
   const prev2W = prevPoint?.data?.["2W"] ?? 0;
 
-  const growthSummary = formatGrowthWithYoY(latest2W, prev2W, prevYearPoint?.data?.["2W"] ?? 0);
+  const growthSummary = formatGrowthWithYoY(latest2W, prev2W, prevYearBaseData?.["2W"] ?? prevYearPoint?.data?.["2W"] ?? null);
 
   const topEvHeaderLabel =
     evComputed?.topName && evComputed?.topCurrent != null && !Number.isNaN(evComputed.topCurrent)
@@ -904,7 +908,7 @@ const showApplicationChartSection =
         tooltipRenderer={renderOemTooltip}
       />
     ) : null}
-    <p className="mt-3 text-sm text-muted-foreground">
+    <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
   Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
 </p>
   </ChartWrapper>

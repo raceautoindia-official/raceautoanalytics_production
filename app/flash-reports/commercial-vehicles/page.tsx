@@ -556,6 +556,7 @@ useEffect(() => {
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
   const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
   const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
 
 const toNum = (v: any) => {
   const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
@@ -565,7 +566,7 @@ const toNum = (v: any) => {
 const latestCV = toNum(basePoint?.data?.["CV"]);
 const prevCV = toNum(prevPoint?.data?.["CV"]);
 
-  const growthSummary = formatGrowthWithYoY(latestCV, prevCV, toNum(prevYearPoint?.data?.["CV"]));
+  const growthSummary = formatGrowthWithYoY(latestCV, prevCV, toNum(prevYearBaseData?.["CV"] ?? prevYearPoint?.data?.["CV"]));
 
   const altFuelHeaderLabel = formatAltFuelHeaderLabel(altFuelSummaryData, "CV", month);
 

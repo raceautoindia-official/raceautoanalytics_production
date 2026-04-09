@@ -518,11 +518,16 @@ useEffect(() => {
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
   const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
   const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
 
   const latestTractor = pickSeries(basePoint, ["TRAC", "tractor"]);
   const prevTractor = pickSeries(prevPoint, ["TRAC", "tractor"]);
 
-  const growthSummary = formatGrowthWithYoY(latestTractor, prevTractor, pickSeries(prevYearPoint, ["TRAC", "tractor"]));
+  const growthSummary = formatGrowthWithYoY(
+    latestTractor,
+    prevTractor,
+    pickSeries({ data: prevYearBaseData } as any, ["TRAC", "tractor"]) ?? pickSeries(prevYearPoint, ["TRAC", "tractor"]),
+  );
 
   const leadingOemHeaderLabel = formatLeadingOemLabel(topOem);
 
@@ -708,19 +713,20 @@ useEffect(() => {
   <div className="grid gap-8">
     <ChartWrapper
       title="Tractor Application Chart"
-      summary={
-        leadingApp && appTotal
-          ? `${
-              leadingApp.name
-            } remains the primary application at ${Math.round(
-              (leadingApp.value / appTotal) * 100,
-            )}% of tractor usage, with ${
-              secondApp?.name ?? "other uses"
-            } gaining traction in non-agri markets.`
-          : appError
-            ? appError
-            : "No tractor application distribution data available."
-      }
+    summary={
+  leadingApp && appTotal
+    ? (() => {
+        const share = appTotal > 0 ? (leadingApp.value / appTotal) * 100 : 0;
+        const shareText = Number(share.toFixed(2)).toString();
+
+        return `${leadingApp.name} Application remains the primary application at ${shareText}% of tractor usage, with ${
+          secondApp?.name ?? "other uses"
+        } gaining traction in non-agri markets.`;
+      })()
+    : appError
+      ? appError
+      : "No tractor application distribution data available."
+}
     >
       {appError ? (
         <p className="text-sm text-destructive">{appError}</p>

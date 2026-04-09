@@ -695,6 +695,7 @@ useEffect(() => {
   const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
   const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
   const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
 
   const latestPV = pickSeries(basePoint, [
     "PV",
@@ -858,7 +859,7 @@ const showApplicationChartSection =
         />
       </>
     ) : null}
-    <p className="mt-3 text-sm text-muted-foreground">
+    <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
   Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
 </p>
   </ChartWrapper>
@@ -959,16 +960,19 @@ const showApplicationChartSection =
     <ChartWrapper
       title="Passenger Vehicle Application Chart"
       summary={
-        leadingApp && appTotal
-          ? `${leadingApp.name} Application dominates at ${Math.round(
-              (leadingApp.value / appTotal) * 100,
-            )}% of passenger vehicle applications, with ${
-              secondApp?.name ?? "other uses"
-            } gaining traction.`
-          : appError
-            ? appError
-            : "No passenger vehicle application distribution data available."
-      }
+  leadingApp && appTotal
+    ? (() => {
+        const share = appTotal > 0 ? (leadingApp.value / appTotal) * 100 : 0;
+        const shareText = Number(share.toFixed(2)).toString();
+
+        return `${leadingApp.name} Application dominates at ${shareText}% of passenger vehicle applications, with ${
+          secondApp?.name ?? "other uses"
+        } gaining traction.`;
+      })()
+    : appError
+      ? appError
+      : "No passenger vehicle application distribution data available."
+}
     >
       {appError ? (
         <p className="text-sm text-destructive">{appError}</p>
