@@ -13,6 +13,7 @@ import type {
   MarketBarRawData,
 } from "@/lib/flashReportsServer";
 import { withCountry } from "@/lib/withCountry";
+import { formatGrowthWithYoY } from "@/lib/flashReportSummary";
 
 interface OverallAutomotiveIndustryClientProps {
   initialOverallData: OverallChartPoint[];
@@ -151,19 +152,30 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
   };
 }, [region]);
 
-  const summaryBaseMonth = overallMeta?.baseMonth ?? month;
-  const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
-  const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
-  const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+const summaryBaseMonth = overallMeta?.baseMonth ?? month;
+const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
+const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
+const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
 
-  const latestTotal = basePoint?.data?.Total ?? 0;
-  const previousTotal = prevPoint?.data?.Total ?? 0;
+const prevYearBaseMonth = overallMeta?.prevYearBaseMonth ?? null;
+const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
+const prevYearIdx = prevYearBaseMonth
+  ? overallData.findIndex((p) => p?.month === prevYearBaseMonth)
+  : -1;
+const prevYearPoint = prevYearIdx >= 0 ? overallData[prevYearIdx] : null;
 
-  let momGrowthLabel = "–";
-  if (latestTotal && previousTotal) {
-    const growth = (latestTotal / previousTotal - 1) * 100;
-    momGrowthLabel = `${growth.toFixed(1)}%`;
-  }
+const latestTotal = Number(basePoint?.data?.Total ?? NaN);
+const previousTotal = Number(prevPoint?.data?.Total ?? NaN);
+const previousYearTotal = Number(
+  prevYearBaseData?.["Total"] ?? prevYearPoint?.data?.["Total"] ?? NaN,
+);
+
+const growthSummary = formatGrowthWithYoY(
+  latestTotal,
+  previousTotal,
+  previousYearTotal,
+  1,
+);
 
   const pageMonth = useMemo(() => {
     try {
@@ -374,17 +386,15 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">Growth Rate:</span>
-              <span
-                className={`ml-2 font-medium ${
-                  momGrowthLabel.startsWith("-")
-                    ? "text-destructive"
-                    : "text-success"
-                }`}
-              >
-                {momGrowthLabel} MoM
-              </span>
-            </div>
+  <span className="text-muted-foreground">Growth Rate:</span>
+  <span
+    className={`ml-2 font-medium ${
+      (growthSummary.mom ?? 0) < 0 ? "text-destructive" : "text-success"
+    }`}
+  >
+    {growthSummary.text}
+  </span>
+</div>
             <div>
   <span className="text-muted-foreground">Leading Alternative Fuel Adoption:</span>
   <span className="ml-2 font-medium text-primary">
