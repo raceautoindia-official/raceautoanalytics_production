@@ -254,6 +254,26 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
     };
   }, [altFuelData]);
 
+  const leadingAltFuelLabel = useMemo(() => {
+  if (!altFuelComparison?.data?.length) return "—";
+
+  const labelMap: Record<string, string> = {
+    "2W": "2W",
+    "3W": "3W",
+    PV: "PV",
+    Tractor: "Tractor",
+    CV: "CV",
+  };
+
+  const leader = [...altFuelComparison.data].sort(
+    (a, b) => Number(b.current ?? 0) - Number(a.current ?? 0),
+  )[0];
+
+  if (!leader || !Number.isFinite(Number(leader.current))) return "—";
+
+  return `${labelMap[leader.name] ?? leader.name} (${Number(leader.current).toFixed(1)}%)`;
+}, [altFuelComparison]);
+
   const renderAltFuelTooltip = (props: any) => {
     const { active, payload } = props;
     if (!active || !payload || !payload.length) return null;
@@ -366,9 +386,11 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">EV Penetration:</span>
-              <span className="ml-2 font-medium text-primary">4.2%</span>
-            </div>
+  <span className="text-muted-foreground">Leading Alternative Fuel Adoption:</span>
+  <span className="ml-2 font-medium text-primary">
+    {leadingAltFuelLabel}
+  </span>
+</div>
           </div>
         </div>
 

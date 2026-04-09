@@ -987,7 +987,7 @@ const showApplicationChartSection =
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No application data available for this period.
+                 
                 </p>
               )}
             </ChartWrapper>

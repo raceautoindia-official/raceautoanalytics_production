@@ -332,29 +332,37 @@ export function LineChart({
   }, [baseMonthLabel]);
 
   const monthWiseGrowth = useMemo(() => {
-    const calcChangeAtIndex = (dataKey: string, index: number) => {
-      if (index < 0 || index >= chartData.length) return null;
+    const getFiniteValue = (dataKey: string, index: number) => {
+  const raw = chartData[index]?.[dataKey];
+  if (raw == null || raw === "") return null;
 
-      const current = Number(chartData[index]?.[dataKey]);
-      if (!Number.isFinite(current)) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+};
 
-      for (let i = index - 1; i >= 0; i--) {
-        const previous = Number(chartData[i]?.[dataKey]);
-        if (!Number.isFinite(previous)) continue;
-        if (previous === 0) return null;
-        return ((current / previous) - 1) * 100;
-      }
+const calcChangeAtIndex = (dataKey: string, index: number) => {
+  if (index < 0 || index >= chartData.length) return null;
 
-      return null;
-    };
+  const current = getFiniteValue(dataKey, index);
+  if (current == null) return null;
 
-    const latestIndexForKey = (dataKey: string) => {
-      for (let i = chartData.length - 1; i >= 0; i--) {
-        const value = Number(chartData[i]?.[dataKey]);
-        if (Number.isFinite(value)) return i;
-      }
-      return -1;
-    };
+  for (let i = index - 1; i >= 0; i--) {
+    const previous = getFiniteValue(dataKey, i);
+    if (previous == null) continue;
+    if (previous === 0) return null;
+    return ((current / previous) - 1) * 100;
+  }
+
+  return null;
+};
+
+const latestIndexForKey = (dataKey: string) => {
+  for (let i = chartData.length - 1; i >= 0; i--) {
+    const value = getFiniteValue(dataKey, i);
+    if (value != null) return i;
+  }
+  return -1;
+};
 
     const hoveredIndex = hoveredMonth
       ? chartData.findIndex((row) => row.month === hoveredMonth)
@@ -362,9 +370,9 @@ export function LineChart({
 
     const resolveIndex = (dataKey: string) => {
       if (hoveredIndex >= 0) {
-        const hoveredValue = Number(chartData[hoveredIndex]?.[dataKey]);
-        if (Number.isFinite(hoveredValue)) return hoveredIndex;
-      }
+  const hoveredValue = getFiniteValue(dataKey, hoveredIndex);
+  if (hoveredValue != null) return hoveredIndex;
+}
       return latestIndexForKey(dataKey);
     };
 
