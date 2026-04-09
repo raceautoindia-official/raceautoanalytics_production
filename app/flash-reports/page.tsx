@@ -1154,7 +1154,7 @@ export default function FlashReportsPage() {
         </div>
 
         {/* Category Grid */}
-        <div className="mb-12">
+        <div className="mb-4">
           <h2 className="text-xl font-semibold mb-6">Vehicle Categories</h2>
 
           {(() => {

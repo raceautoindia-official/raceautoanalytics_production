@@ -189,12 +189,12 @@ export function VehicleCategoryCard({
                   {title}
                 </h3>
 
-                {!disabled && isTopPerformer && (
+                {/* {!disabled && isTopPerformer && (
                   <Award className="h-4 w-4 text-warning" />
                 )}
                 {!disabled && isTrending && (
                   <Zap className="h-4 w-4 text-success" />
-                )}
+                )} */}
               </div>
 
               <p className="text-sm leading-relaxed text-muted-foreground">
