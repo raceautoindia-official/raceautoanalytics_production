@@ -23,7 +23,11 @@ import { useAppContext } from "@/components/providers/Providers";
 import { cn } from "@/lib/utils";
 import { withCountry } from "@/lib/withCountry";
 
-const ThreeWheelerIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
+const ThreeWheelerIcon = ({
+  className = "h-5 w-5",
+}: {
+  className?: string;
+}) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -111,8 +115,6 @@ type OverallApiPoint = {
   };
 };
 
-
-
 // Flattened shape we’ll actually use in the dashboard
 type OverallRow = {
   month: string; // "YYYY-MM"
@@ -192,9 +194,7 @@ function getOverallTotalFromAnyRow(row: any): number {
   if (!row) return 0;
 
   const raw =
-    row?.data && typeof row.data === "object"
-      ? row.data?.Total
-      : row?.Total;
+    row?.data && typeof row.data === "object" ? row.data?.Total : row?.Total;
 
   const num = Number(raw);
   return Number.isFinite(num) ? num : 0;
@@ -284,119 +284,122 @@ export default function FlashReportsPage() {
     useState<OverallRow | null>(null);
   const [segmentLeaders, setSegmentLeaders] = useState<SegmentLeaderMap>({});
 
-const [topOEMs, setTopOEMs] = useState<TopOem[]>([]);
-const [topOemError, setTopOemError] = useState<string | null>(null);
-const [topOemLoading, setTopOemLoading] = useState(false);
-const [overallChartPoints, setOverallChartPoints] = useState<OverallApiPoint[]>(
-  [],
-);
-const [flashChartConfig, setFlashChartConfig] =
-  useState<FlashReportChartConfig>({
-    overall: null,
-    horizonDefault: 6,
-  });
+  const [topOEMs, setTopOEMs] = useState<TopOem[]>([]);
+  const [topOemError, setTopOemError] = useState<string | null>(null);
+  const [topOemLoading, setTopOemLoading] = useState(false);
+  const [overallChartPoints, setOverallChartPoints] = useState<
+    OverallApiPoint[]
+  >([]);
+  const [flashChartConfig, setFlashChartConfig] =
+    useState<FlashReportChartConfig>({
+      overall: null,
+      horizonDefault: 6,
+    });
 
-const [segmentAvailability, setSegmentAvailability] =
-  useState<SegmentAvailabilityMap>({});
-const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [segmentAvailability, setSegmentAvailability] =
+    useState<SegmentAvailabilityMap>({});
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
-const overallForecastHorizon =
-  Number.isFinite(Number(flashChartConfig?.horizonDefault)) &&
-  Number(flashChartConfig?.horizonDefault) > 0
-    ? Number(flashChartConfig.horizonDefault)
-    : 6;
+  const overallForecastHorizon =
+    Number.isFinite(Number(flashChartConfig?.horizonDefault)) &&
+    Number(flashChartConfig?.horizonDefault) > 0
+      ? Number(flashChartConfig.horizonDefault)
+      : 6;
 
-    const isOverallChartValid = isChartMeaningful(overallChartPoints);
+  const isOverallChartValid = isChartMeaningful(overallChartPoints);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
 
-  async function loadFlashChartConfig() {
-    try {
-      const res = await fetch(withCountry("/api/flash-reports/config", region), {
-  cache: "no-store",
-});
+    async function loadFlashChartConfig() {
+      try {
+        const res = await fetch(
+          withCountry("/api/flash-reports/config", region),
+          {
+            cache: "no-store",
+          },
+        );
 
-      if (!res.ok) {
-        throw new Error(`Failed to load flash chart config: ${res.status}`);
-      }
+        if (!res.ok) {
+          throw new Error(`Failed to load flash chart config: ${res.status}`);
+        }
 
-      const json = await res.json();
+        const json = await res.json();
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      setFlashChartConfig({
-        overall:
-          json?.overall != null && Number.isFinite(Number(json.overall))
-            ? Number(json.overall)
-            : null,
-        horizonDefault:
-          json?.horizonDefault != null &&
-          Number.isFinite(Number(json.horizonDefault))
-            ? Number(json.horizonDefault)
-            : 6,
-      });
-    } catch (error) {
-      console.error("Failed to load flash chart config", error);
-      if (!cancelled) {
         setFlashChartConfig({
-          overall: null,
-          horizonDefault: 6,
+          overall:
+            json?.overall != null && Number.isFinite(Number(json.overall))
+              ? Number(json.overall)
+              : null,
+          horizonDefault:
+            json?.horizonDefault != null &&
+            Number.isFinite(Number(json.horizonDefault))
+              ? Number(json.horizonDefault)
+              : 6,
         });
+      } catch (error) {
+        console.error("Failed to load flash chart config", error);
+        if (!cancelled) {
+          setFlashChartConfig({
+            overall: null,
+            horizonDefault: 6,
+          });
+        }
       }
     }
-  }
 
-  loadFlashChartConfig();
+    loadFlashChartConfig();
 
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
 
-  async function loadSegmentAvailability() {
-    try {
-      setAvailabilityLoading(true);
+    async function loadSegmentAvailability() {
+      try {
+        setAvailabilityLoading(true);
 
-      const res = await fetch(
-        withCountry(
-          `/api/flash-reports/segment-availability?month=${encodeURIComponent(
-            month,
-          )}`,
-          region,
-        ),
-        { cache: "no-store" },
-      );
+        const res = await fetch(
+          withCountry(
+            `/api/flash-reports/segment-availability?month=${encodeURIComponent(
+              month,
+            )}`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
 
-      const json = await res.json();
-      if (cancelled) return;
+        const json = await res.json();
+        if (cancelled) return;
 
-      setSegmentAvailability(json?.segments || {});
-    } catch (err) {
-      console.error("Failed to load segment availability", err);
-      if (!cancelled) {
-        setSegmentAvailability({});
-      }
-    } finally {
-      if (!cancelled) {
-        setAvailabilityLoading(false);
+        setSegmentAvailability(json?.segments || {});
+      } catch (err) {
+        console.error("Failed to load segment availability", err);
+        if (!cancelled) {
+          setSegmentAvailability({});
+        }
+      } finally {
+        if (!cancelled) {
+          setAvailabilityLoading(false);
+        }
       }
     }
-  }
 
-  loadSegmentAvailability();
+    loadSegmentAvailability();
 
-  return () => {
-    cancelled = true;
-  };
-}, [month, region]);
+    return () => {
+      cancelled = true;
+    };
+  }, [month, region]);
 
   useEffect(() => {
     let cancelled = false;
@@ -418,16 +421,16 @@ useEffect(() => {
         setOverallLastYearRow(null);
 
         const url1 = withCountry(
-  `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}`,
-  region,
-);
+          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}`,
+          region,
+        );
 
-const url2 = lastYearKey
-  ? withCountry(
-      `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(lastYearKey)}&horizon=6&forceHistorical=1`,
-      region,
-    )
-  : null;
+        const url2 = lastYearKey
+          ? withCountry(
+              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(lastYearKey)}&horizon=6&forceHistorical=1`,
+              region,
+            )
+          : null;
 
         const [res, lastYearRes] = await Promise.all([
           fetch(url1, { cache: "no-store" }),
@@ -441,11 +444,13 @@ const url2 = lastYearKey
         }
 
         const json = await res.json();
-const apiData = (json?.data || []) as OverallApiPoint[];
-setOverallMeta(json?.meta || null);
+        const apiData = (json?.data || []) as OverallApiPoint[];
+        setOverallMeta(json?.meta || null);
 
-const sortedApiData = [...apiData].sort((a, b) => a.month.localeCompare(b.month));
-setOverallChartPoints(sortedApiData);
+        const sortedApiData = [...apiData].sort((a, b) =>
+          a.month.localeCompare(b.month),
+        );
+        setOverallChartPoints(sortedApiData);
         // Parse and cache last year's same-month row (used for YoY on tiles)
         if (lastYearKey && lastYearRes && lastYearRes.ok) {
           const lyJson = await lastYearRes.json();
@@ -490,12 +495,12 @@ setOverallChartPoints(sortedApiData);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-  setOverallError(
-    "Failed to load overall industry volumes from backend.",
-  );
-  setOverallData([]);
-  setOverallChartPoints([]);
-}
+          setOverallError(
+            "Failed to load overall industry volumes from backend.",
+          );
+          setOverallData([]);
+          setOverallChartPoints([]);
+        }
       } finally {
         if (!cancelled) setOverallLoading(false);
       }
@@ -505,7 +510,7 @@ setOverallChartPoints(sortedApiData);
     return () => {
       cancelled = true;
     };
- }, [month, region, overallForecastHorizon]);
+  }, [month, region, overallForecastHorizon]);
 
   useEffect(() => {
     let cancelled = false;
@@ -515,28 +520,30 @@ setOverallChartPoints(sortedApiData);
         const shortMonth = getShortMonthFromYyyyMm(month);
 
         const entries = await Promise.all(
-          Object.entries(SEGMENT_OEM_QUERY_MAP).map(async ([categoryId, segmentName]) => {
-            try {
-              const url = withCountry(
-                `/api/fetchMarketData?segmentName=${encodeURIComponent(
-                  segmentName,
-                )}&segmentType=market share&mode=mom&baseMonth=${encodeURIComponent(
-                  month,
-                )}&selectedMonth=${shortMonth}`,
-                region,
-              );
+          Object.entries(SEGMENT_OEM_QUERY_MAP).map(
+            async ([categoryId, segmentName]) => {
+              try {
+                const url = withCountry(
+                  `/api/fetchMarketData?segmentName=${encodeURIComponent(
+                    segmentName,
+                  )}&segmentType=market share&mode=mom&baseMonth=${encodeURIComponent(
+                    month,
+                  )}&selectedMonth=${shortMonth}`,
+                  region,
+                );
 
-              const res = await fetch(url, { cache: "no-store" });
-              if (!res.ok) return [categoryId, ""] as const;
+                const res = await fetch(url, { cache: "no-store" });
+                if (!res.ok) return [categoryId, ""] as const;
 
-              const json = await res.json();
-              const leader = getTopOemNameFromRows(json, month);
+                const json = await res.json();
+                const leader = getTopOemNameFromRows(json, month);
 
-              return [categoryId, leader] as const;
-            } catch {
-              return [categoryId, ""] as const;
-            }
-          }),
+                return [categoryId, leader] as const;
+              } catch {
+                return [categoryId, ""] as const;
+              }
+            },
+          ),
         );
 
         if (cancelled) return;
@@ -720,7 +727,8 @@ setOverallChartPoints(sortedApiData);
           momGrowth: 0,
           yoyGrowth: 0,
           marketShare: 0,
-          topOEM: category.id === "overall-automotive-industry" ? "" : "Coming soon",
+          topOEM:
+            category.id === "overall-automotive-industry" ? "" : "Coming soon",
           evPenetration: undefined,
           currentMonthSales: 0,
           previousMonthSales: 0,
@@ -991,18 +999,18 @@ setOverallChartPoints(sortedApiData);
   const topOemName = topOEMs[0]?.name;
   const topOemDelta = topOEMs[0]?.changePercent ?? 0;
 
-function isChartMeaningful(data: any[]) {
-  if (!Array.isArray(data) || data.length === 0) return false;
+  function isChartMeaningful(data: any[]) {
+    if (!Array.isArray(data) || data.length === 0) return false;
 
-  const values = data
-    .map((row) => getOverallTotalFromAnyRow(row))
-    .filter((v) => Number.isFinite(v));
+    const values = data
+      .map((row) => getOverallTotalFromAnyRow(row))
+      .filter((v) => Number.isFinite(v));
 
-  if (!values.length) return false;
+    if (!values.length) return false;
 
-  // hide only if every point is zero
-  return values.some((v) => v > 0);
-}
+    // hide only if every point is zero
+    return values.some((v) => v > 0);
+  }
 
   return (
     <div className="min-h-screen py-0">
@@ -1010,7 +1018,9 @@ function isChartMeaningful(data: any[]) {
         {/* Header */}
         <div className="mb-8">
           <Breadcrumbs
-            items={[{ label: "Flash Reports", href: `/flash-reports${suffix}` }]}
+            items={[
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
+            ]}
             className="mb-4"
           />
 
@@ -1041,59 +1051,59 @@ function isChartMeaningful(data: any[]) {
           <div className="grid lg:grid-cols-1 gap-8">
             <div className="lg:col-span-2">
               <ChartWrapper
-                title="Cross-Category Sales Performance"
+                title="Automotive-Category Sales Performance"
                 summary={
-  overallError
-    ? overallError
-    : !isOverallChartValid
-      ? "Cross-category performance data is not yet available for the selected market and month."
-      : overallMeta?.allowForecast
-        ? `Overall automotive market ${
-            overallGrowthRate >= 0 ? "expanded" : "contracted"
-          } by ${
-            overallGrowthRate >= 0 ? "+" : ""
-          }${overallGrowthRate.toFixed(
-            1,
-          )}% month-on-month based on total industry volumes. Historical trend and next ${
-            overallMeta?.horizon ?? overallForecastHorizon
-          } months of flash forecast are shown below.`
-        : `Overall automotive market ${
-            overallGrowthRate >= 0 ? "expanded" : "contracted"
-          } by ${
-            overallGrowthRate >= 0 ? "+" : ""
-          }${overallGrowthRate.toFixed(
-            1,
-          )}% month-on-month based on total industry volumes.`
-}
+                  overallError
+                    ? overallError
+                    : !isOverallChartValid
+                      ? "Automotive-category performance data is not yet available for the selected market and month."
+                      : overallMeta?.allowForecast
+                        ? `Overall automotive market ${
+                            overallGrowthRate >= 0 ? "expanded" : "contracted"
+                          } by ${
+                            overallGrowthRate >= 0 ? "+" : ""
+                          }${overallGrowthRate.toFixed(
+                            1,
+                          )}% month-on-month based on total industry volumes. Historical trend and next ${
+                            overallMeta?.horizon ?? overallForecastHorizon
+                          } months of flash forecast are shown below.`
+                        : `Overall automotive market ${
+                            overallGrowthRate >= 0 ? "expanded" : "contracted"
+                          } by ${
+                            overallGrowthRate >= 0 ? "+" : ""
+                          }${overallGrowthRate.toFixed(
+                            1,
+                          )}% month-on-month based on total industry volumes.`
+                }
               >
                 {overallLoading ? (
                   <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
                     Loading industry volumes…
                   </div>
                 ) : isOverallChartValid ? (
-  <LineChart
-    overallData={overallChartPoints}
-    category="Total"
-    height={300}
-    allowForecast={!!overallMeta?.allowForecast}
-    baseMonth={overallMeta?.baseMonth ?? month}
-    horizon={overallMeta?.horizon ?? overallForecastHorizon}
-    graphId={flashChartConfig?.overall ?? null}
-    country={region}
-    showSubmitScore={false}
-  />
-) : (
-  <div className="flex h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
-    <div className="mb-2 text-sm font-semibold text-foreground">
-      Data not available yet
-    </div>
-    <div className="text-xs text-muted-foreground text-center max-w-md">
-      Cross-category performance data for the selected country and time period is
-      not yet available. This section will be enabled once sufficient market data
-      is released.
-    </div>
-  </div>
-)}
+                  <LineChart
+                    overallData={overallChartPoints}
+                    category="Total"
+                    height={300}
+                    allowForecast={!!overallMeta?.allowForecast}
+                    baseMonth={overallMeta?.baseMonth ?? month}
+                    horizon={overallMeta?.horizon ?? overallForecastHorizon}
+                    graphId={flashChartConfig?.overall ?? null}
+                    country={region}
+                    showSubmitScore={false}
+                  />
+                ) : (
+                  <div className="flex h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+                    <div className="mb-2 text-sm font-semibold text-foreground">
+                      Data not available yet
+                    </div>
+                    <div className="text-xs text-muted-foreground text-center max-w-md">
+                      Automotive-category performance data for the selected country
+                      and time period is not yet available. This section will be
+                      enabled once sufficient market data is released.
+                    </div>
+                  </div>
+                )}
               </ChartWrapper>
             </div>
 
@@ -1195,7 +1205,8 @@ function isChartMeaningful(data: any[]) {
                         metrics={metrics}
                         index={index + 1}
                         disabled={
-                          !availabilityLoading && availability?.isAvailable === false
+                          !availabilityLoading &&
+                          availability?.isAvailable === false
                         }
                         disabledMessage={availability?.message}
                       />

@@ -12,7 +12,7 @@ import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
-import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
 import { DataAvailabilityHint } from "@/components/ui/DataAvailabilityHint";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
@@ -495,25 +495,16 @@ useEffect(() => {
   const topOem = oemComputed?.chartData[0];
   const topOemDelta = topOem?.deltaPct ?? 0;
 
-  const oemSummary = useMemo(() => {
-    if (!oemComputed || !oemComputed.chartData.length) {
-      return "No tractor OEM market share data available for the selected period.";
-    }
-    const top = oemComputed.chartData[0];
-    const delta = top.deltaPct ?? 0;
-    const compareLabel =
-      oemCompare === "mom" ? "month-on-month" : "year-on-year";
-
-    return `${top.name} dominates tractors with ${top.current.toFixed(
-      1,
-    )}% market share, showing ${
-      Number.isNaN(delta)
-        ? "no"
-        : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`
-    } ${compareLabel} change versus ${
-      oemCompare === "mom" ? "previous month" : "same month last year"
-    }.`;
-  }, [oemComputed, oemCompare]);
+  const oemSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: oemComputed?.chartData ?? [],
+      compareMode: oemCompare,
+      emptyMessage: "No tractor OEM market share data available for the selected period.",
+      metricLabel: "market share",
+    }),
+  [oemComputed, oemCompare],
+);
 
   const renderOemTooltip = useMemo(
     () => createCompareTooltip(oemComputed),

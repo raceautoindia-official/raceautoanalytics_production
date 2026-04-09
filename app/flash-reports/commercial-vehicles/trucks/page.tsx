@@ -14,7 +14,7 @@ import { formatNumber } from "@/lib/mockData";
 import TipperTable from "@/components/charts/TipperTable";
 import TractorTrailerForecast from "@/components/charts/TractorTrailorTable";
 import { withCountry } from "@/lib/withCountry";
-import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 const MONTHS_SHORT = [
   "jan",
@@ -335,25 +335,16 @@ useEffect(() => {
     return { chartData: rows, totalCurrent, totalPrev, prevKey, currKey };
   }, [oemRaw, oemCurrentMonth, oemCompare, month]);
 
-  const oemSummary = useMemo(() => {
-    if (!oemComputed || !oemComputed.chartData.length) {
-      return "No truck OEM market share data available for the selected period.";
-    }
-    const top = oemComputed.chartData[0];
-    const delta = top.deltaPct ?? 0;
-    const compareLabel =
-      oemCompare === "mom" ? "month-on-month" : "year-on-year";
-
-    return `${top.name} leads the truck segment with ${top.current.toFixed(
-      1,
-    )}% market share, showing ${
-      Number.isNaN(delta)
-        ? "no"
-        : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`
-    } ${compareLabel} change versus ${
-      oemCompare === "mom" ? "previous month" : "same month last year"
-    }.`;
-  }, [oemComputed, oemCompare]);
+  const oemSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: oemComputed?.chartData ?? [],
+      compareMode: oemCompare,
+      emptyMessage: "No truck OEM market share data available for the selected period.",
+      metricLabel: "market share",
+    }),
+  [oemComputed, oemCompare],
+);
 
   const renderOemTooltip = (props: any) => {
     const { active, payload } = props;
@@ -638,6 +629,8 @@ useEffect(() => {
 
   const growthSummary = formatGrowthWithYoY(latestTruck, prevTruck, pickSeries(prevYearPoint, ["Truck", "truck"]));
 
+  const leadingOemHeaderLabel = formatLeadingOemLabel(oemComputed?.chartData ?? []);
+
   const altFuelHeaderLabel = formatAltFuelHeaderLabel(altFuelSummaryData, "CV", month);
 
   const pageMonthLabel = new Date(`${month}-01`).toLocaleDateString("en-US", {
@@ -719,9 +712,9 @@ const showApplicationChartSection =
               </span>
             </div>
             <div>
-              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
+              <span className="text-muted-foreground">Leading OEM:</span>
               <span className="ml-2 font-medium text-primary">
-                {altFuelHeaderLabel}
+                {leadingOemHeaderLabel}
               </span>
             </div>
           </div>

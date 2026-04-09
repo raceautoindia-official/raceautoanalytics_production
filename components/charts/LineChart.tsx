@@ -586,7 +586,7 @@ const yAxisDomain = useMemo(() => {
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.ai)}
                   </span>
-                  <span className="opacity-80">AI MoM</span>
+                  <span className="opacity-80">Δ AI MoM</span>
                 </span>
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
@@ -595,7 +595,7 @@ const yAxisDomain = useMemo(() => {
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.race)}
                   </span>
-                  <span className="opacity-80">Race MoM</span>
+                  <span className="opacity-80">Δ Race MoM</span>
                 </span>
                 {forecastLoading ? (
                   <span className="text-xs text-muted-foreground self-center">

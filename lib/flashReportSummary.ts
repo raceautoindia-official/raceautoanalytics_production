@@ -154,9 +154,17 @@ export function formatAltFuelHeaderLabel(
 }
 
 export function formatLeadingOemLabel(
-  topRow: { name?: string | null; current?: number | null } | null | undefined,
+  topRowOrRows:
+    | { name?: string | null; current?: number | null }
+    | Array<{ name?: string | null; current?: number | null }>
+    | null
+    | undefined,
 ) {
-  if (!topRow?.name) return "—";
-  if (topRow.current == null || Number.isNaN(topRow.current)) return String(topRow.name);
-  return `${topRow.name} (${Number(topRow.current).toFixed(1)}%)`;
+  const candidate = Array.isArray(topRowOrRows)
+    ? topRowOrRows.find((row) => row?.name && !isOthers(String(row.name)) && String(row.name).trim().toLowerCase() !== "other") ?? topRowOrRows[0]
+    : topRowOrRows;
+
+  if (!candidate?.name) return "—";
+  if (candidate.current == null || Number.isNaN(candidate.current)) return String(candidate.name);
+  return `${candidate.name} (${Number(candidate.current).toFixed(1)}%)`;
 }

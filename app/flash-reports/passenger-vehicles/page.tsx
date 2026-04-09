@@ -17,7 +17,7 @@ import {
 } from "@/lib/mockData";
 import { ChartSummary } from "@/components/charts/ChartSummary";
 import { withCountry } from "@/lib/withCountry";
-import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
 const MONTHS_SHORT = [
@@ -462,27 +462,16 @@ useEffect(() => {
   const marketTop = marketComputed?.chartData[0];
   const marketTopDelta = marketTop?.deltaPct ?? 0;
 
-  const marketSummary = useMemo(() => {
-    if (!marketComputed || !marketComputed.chartData.length) {
-      return "No passenger vehicle OEM market share data available for the selected period.";
-    }
-    const top = marketComputed.chartData[0];
-    const delta = top.deltaPct ?? 0;
-    const compareLabel =
-      marketCompare === "mom" ? "month-on-month" : "year-on-year";
-
-    return `${
-      top.name
-    } maintains leadership in passenger vehicles with ${top.current.toFixed(
-      1,
-    )}% market share, showing ${
-      Number.isNaN(delta)
-        ? "no"
-        : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`
-    } ${compareLabel} change versus ${
-      marketCompare === "mom" ? "previous month" : "same month last year"
-    }.`;
-  }, [marketComputed, marketCompare]);
+  const marketSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: marketComputed?.chartData ?? [],
+      compareMode: marketCompare,
+      emptyMessage: "No passenger vehicle OEM market share data available for the selected period.",
+      metricLabel: "market share",
+    }),
+  [marketComputed, marketCompare],
+);
 
   const renderMarketTooltip = useMemo(
     () => createCompareTooltip(marketComputed),
@@ -499,27 +488,16 @@ useEffect(() => {
   const evTop = evComputed?.chartData[0];
   const evTopDelta = evTop?.deltaPct ?? 0;
 
-  const evSummary = useMemo(() => {
-    if (!evComputed || !evComputed.chartData.length) {
-      return "No passenger vehicle EV share data available for the selected period.";
-    }
-    const top = evComputed.chartData[0];
-    const delta = top.deltaPct ?? 0;
-    const compareLabel =
-      evCompare === "mom" ? "month-on-month" : "year-on-year";
-
-    return `${
-      top.name
-    } leads the passenger vehicle EV segment with ${top.current.toFixed(
-      1,
-    )}% share, showing ${
-      Number.isNaN(delta)
-        ? "no"
-        : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`
-    } ${compareLabel} change versus ${
-      evCompare === "mom" ? "previous month" : "same month last year"
-    }.`;
-  }, [evComputed, evCompare]);
+  const evSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: evComputed?.chartData ?? [],
+      compareMode: evCompare,
+      emptyMessage: "No passenger vehicle EV share data available for the selected period.",
+      metricLabel: "share",
+    }),
+  [evComputed, evCompare],
+);
 
   const renderEvTooltip = useMemo(
     () => createCompareTooltip(evComputed),

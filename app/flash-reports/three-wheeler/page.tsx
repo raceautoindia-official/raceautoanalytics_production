@@ -12,7 +12,7 @@ import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
-import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
 const MONTHS_SHORT = [
@@ -298,25 +298,16 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
     };
   }, [oemRaw, oemCurrentMonth, oemCompare, month]);
 
-  const oemSummary = useMemo(() => {
-    if (!oemComputed || !oemComputed.chartData.length) {
-      return "No three-wheeler OEM market share data available for the selected period.";
-    }
-    const top = oemComputed.chartData[0];
-    const delta = top.deltaPct ?? 0;
-    const compareLabel =
-      oemCompare === "mom" ? "month-on-month" : "year-on-year";
-
-    return `${top.name} leads three-wheelers with ${top.current.toFixed(
-      1,
-    )}% market share, showing ${
-      Number.isNaN(delta)
-        ? "no"
-        : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`
-    } ${compareLabel} change versus ${
-      oemCompare === "mom" ? "previous month" : "same month last year"
-    }.`;
-  }, [oemComputed, oemCompare]);
+  const oemSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: oemComputed?.chartData ?? [],
+      compareMode: oemCompare,
+      emptyMessage: "No three-wheeler OEM market share data available for the selected period.",
+      metricLabel: "market share",
+    }),
+  [oemComputed, oemCompare],
+);
 
   const renderOemTooltip = (props: any) => {
     const { active, payload } = props;
@@ -472,25 +463,16 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
     };
   }, [evRaw, evCurrentMonth, evCompare, month]);
 
-  const evSummary = useMemo(() => {
-    if (!evComputed || !evComputed.chartData.length) {
-      return "No alternative fuel / EV share data available for the selected period.";
-    }
-
-    const top = evComputed.chartData[0];
-    const delta =
-      top.deltaPct == null || Number.isNaN(top.deltaPct)
-        ? 0
-        : top.deltaPct;
-    const compareLabel =
-      evCompare === "mom" ? "month-on-month" : "year-on-year";
-
-    return `${top.name} leads this EV segment with ${top.current.toFixed(
-      1,
-    )}% share vs ${top.previous.toFixed(1)}% in ${
-      evCompare === "mom" ? "previous month" : "same month last year"
-    }, a ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% ${compareLabel} change.`;
-  }, [evComputed, evCompare]);
+  const evSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: evComputed?.chartData ?? [],
+      compareMode: evCompare,
+      emptyMessage: "No alternative fuel / EV share data available for the selected period.",
+      metricLabel: "share",
+    }),
+  [evComputed, evCompare],
+);
 
   const renderEvTooltip = (props: any) => {
     const { active, payload } = props;
