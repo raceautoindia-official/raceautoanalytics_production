@@ -123,7 +123,7 @@ export function BarChart({
 
   const xTickStyle = {
     fontSize: xAxisFontSize,
-    fill: isHorizontal ? "#ffffff" : "hsl(var(--muted-foreground))",
+    fill: isHorizontal ? "hsl(var(--muted-foreground))" : "hsl(var(--muted-foreground))",
     fontWeight: 400,
   };
 

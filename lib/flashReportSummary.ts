@@ -14,14 +14,21 @@ type SummaryOptions = {
   metricLabel: string;
 };
 
-function formatPercentExact(value: number | null | undefined) {
+function cleanPercent(value: number | null | undefined, maxDecimals = 2) {
   if (value == null || Number.isNaN(value)) return "—";
-  return `${Number(value)}%`;
+  return Number(Number(value).toFixed(maxDecimals)).toString();
+}
+
+function formatPercentExact(value: number | null | undefined) {
+  const cleaned = cleanPercent(value, 2);
+  return cleaned === "—" ? "—" : `${cleaned}%`;
 }
 
 function formatDelta(delta: number) {
-  const n = Number(delta);
-  return `${n >= 0 ? "+" : ""}${n}%`;
+  const cleaned = cleanPercent(delta, 2);
+  if (cleaned === "—") return "—";
+  const numeric = Number(cleaned);
+  return `${numeric >= 0 ? "+" : ""}${cleaned}%`;
 }
 
 function isOthers(name: string) {
@@ -120,7 +127,7 @@ export function formatSignedPercent(
   decimals = 0,
 ) {
   if (value == null || Number.isNaN(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`;
+  return `${value >= 0 ? "+" : ""}${Number(value.toFixed(decimals)).toString()}%`;
 }
 
 export function formatGrowthWithYoY(
@@ -196,7 +203,7 @@ export function formatAltFuelHeaderLabel(
 ) {
   const value = getAltFuelMonthShare(altFuelData, categoryKey, baseMonth);
   if (value == null) return "—";
-  return `${Number(value)}%`;
+  return `${cleanPercent(value, 2)}%`;
 }
 
 export function formatLeadingOemLabel(
@@ -218,5 +225,5 @@ export function formatLeadingOemLabel(
   if (!candidate?.name) return "—";
   if (candidate.current == null || Number.isNaN(candidate.current))
     return String(candidate.name);
-  return `${candidate.name} (${Number(candidate.current)}%)`;
+  return `${candidate.name} (${cleanPercent(Number(candidate.current), 2)}%)`;
 }
