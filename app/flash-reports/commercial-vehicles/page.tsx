@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { withCountry } from "@/lib/withCountry";
-import { formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -322,25 +322,17 @@ useEffect(() => {
     };
   }, [oemRaw, oemCurrentMonth, oemCompare, month]);
 
-  const oemSummary = useMemo(() => {
-    if (!oemComputed || !oemComputed.chartData.length) {
-      return "No commercial vehicle OEM market share data available for the selected period.";
-    }
-    const top = oemComputed.chartData[0];
-    const delta = top.deltaPct ?? 0;
-    const compareLabel =
-      oemCompare === "mom" ? "month-on-month" : "year-on-year";
-
-    return `${top.name} leads commercial vehicles with ${top.current.toFixed(
-      1,
-    )}% market share, showing ${
-      Number.isNaN(delta)
-        ? "no"
-        : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`
-    } ${compareLabel} change versus ${
-      oemCompare === "mom" ? "previous month" : "same month last year"
-    }.`;
-  }, [oemComputed, oemCompare]);
+const oemSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: oemComputed?.chartData ?? [],
+      compareMode: oemCompare,
+      emptyMessage:
+        "No commercial vehicle OEM market share data available for the selected period.",
+      metricLabel: "market share",
+    }),
+  [oemComputed, oemCompare],
+);
 
   useEffect(() => {
   setSegmentData([]);

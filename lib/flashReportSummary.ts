@@ -22,6 +22,11 @@ function isOthers(name: string) {
   return name.trim().toLowerCase() === "others";
 }
 
+function isOtherLike(name: string) {
+  const normalized = name.trim().toLowerCase();
+  return normalized === "others" || normalized === "other";
+}
+
 export function buildLeadershipGrowthSummary({
   rows,
   compareMode,
@@ -31,50 +36,91 @@ export function buildLeadershipGrowthSummary({
   if (!rows?.length) return emptyMessage;
 
   const validRows = rows.filter(
-    (row) => row && row.name && !isOthers(row.name) && Number.isFinite(row.current),
+    (row) =>
+      row &&
+      row.name &&
+      !isOthers(row.name) &&
+      !isOtherLike(row.name) &&
+      Number.isFinite(row.current),
   );
 
   if (!validRows.length) return emptyMessage;
 
   const leader = validRows[0];
-  const compareLabel = compareMode === "mom" ? "month-on-month" : "year-on-year";
-  const versusLabel = compareMode === "mom" ? "previous month" : "same month last year";
+  const compareLabel =
+    compareMode === "mom" ? "month-on-month" : "year-on-year";
+  const versusLabel =
+    compareMode === "mom" ? "previous month" : "same month last year";
 
-  const growthCandidates = validRows.filter((row) => Number.isFinite(row.deltaPct as number));
-  const distinctGrowthCandidates = growthCandidates.filter((row) => row.name !== leader.name);
-  const growthSource = distinctGrowthCandidates.length ? distinctGrowthCandidates : growthCandidates;
-  const growthPerformer = [...growthSource].sort(
-    (a, b) => (b.deltaPct ?? Number.NEGATIVE_INFINITY) - (a.deltaPct ?? Number.NEGATIVE_INFINITY),
+  const growthCandidates = validRows.filter((row) =>
+    Number.isFinite(row.deltaPct as number),
+  );
+
+  const growthPerformer = [...growthCandidates].sort(
+    (a, b) =>
+      (b.deltaPct ?? Number.NEGATIVE_INFINITY) -
+      (a.deltaPct ?? Number.NEGATIVE_INFINITY),
   )[0];
 
   if (!growthPerformer) {
-    return `${leader.name} leads with ${leader.current.toFixed(1)}% ${metricLabel}.`;
+    return `${leader.name} leads with ${leader.current.toFixed(
+      1,
+    )}% ${metricLabel}.`;
   }
 
   const growthDelta = growthPerformer.deltaPct ?? 0;
 
   if (growthPerformer.name === leader.name) {
     if (growthDelta > 0) {
-      return `${leader.name} leads with ${leader.current.toFixed(1)}% ${metricLabel} and is also the fastest-growing performer, up ${formatDelta(growthDelta)} ${compareLabel} versus ${versusLabel}.`;
+      return `${leader.name} leads with ${leader.current.toFixed(
+        1,
+      )}% ${metricLabel} and is also the fastest-growing performer, up ${formatDelta(
+        growthDelta,
+      )} ${compareLabel} versus ${versusLabel}.`;
     }
     if (growthDelta === 0) {
-      return `${leader.name} leads with ${leader.current.toFixed(1)}% ${metricLabel} and remained flat ${compareLabel} versus ${versusLabel}.`;
+      return `${leader.name} leads with ${leader.current.toFixed(
+        1,
+      )}% ${metricLabel} and remained flat ${compareLabel} versus ${versusLabel}.`;
     }
-    return `${leader.name} leads with ${leader.current.toFixed(1)}% ${metricLabel} despite a ${formatDelta(growthDelta)} ${compareLabel} move versus ${versusLabel}.`;
+    return `${leader.name} leads with ${leader.current.toFixed(
+      1,
+    )}% ${metricLabel} despite a ${formatDelta(
+      growthDelta,
+    )} ${compareLabel} move versus ${versusLabel}.`;
   }
 
   if (growthDelta > 0) {
-    return `${leader.name} leads with ${leader.current.toFixed(1)}% ${metricLabel}, while ${growthPerformer.name} is the fastest-growing performer at ${formatDelta(growthDelta)} ${compareLabel} to ${growthPerformer.current.toFixed(1)}% versus ${versusLabel}.`;
+    return `${leader.name} leads with ${leader.current.toFixed(
+      1,
+    )}% ${metricLabel}, while ${growthPerformer.name} is the fastest-growing performer at ${formatDelta(
+      growthDelta,
+    )} ${compareLabel} to ${growthPerformer.current.toFixed(
+      1,
+    )}% versus ${versusLabel}.`;
   }
 
   if (growthDelta === 0) {
-    return `${leader.name} leads with ${leader.current.toFixed(1)}% ${metricLabel}, while ${growthPerformer.name} remained flat ${compareLabel} at ${growthPerformer.current.toFixed(1)}% versus ${versusLabel}.`;
+    return `${leader.name} leads with ${leader.current.toFixed(
+      1,
+    )}% ${metricLabel}, while ${growthPerformer.name} remained flat ${compareLabel} at ${growthPerformer.current.toFixed(
+      1,
+    )}% versus ${versusLabel}.`;
   }
 
-  return `${leader.name} leads with ${leader.current.toFixed(1)}% ${metricLabel}, while ${growthPerformer.name} recorded the mildest decline at ${formatDelta(growthDelta)} ${compareLabel} to ${growthPerformer.current.toFixed(1)}% versus ${versusLabel}.`;
+  return `${leader.name} leads with ${leader.current.toFixed(
+    1,
+  )}% ${metricLabel}, while ${growthPerformer.name} recorded the mildest decline at ${formatDelta(
+    growthDelta,
+  )} ${compareLabel} to ${growthPerformer.current.toFixed(
+    1,
+  )}% versus ${versusLabel}.`;
 }
 
-export function formatSignedPercent(value: number | null | undefined, decimals = 0) {
+export function formatSignedPercent(
+  value: number | null | undefined,
+  decimals = 0,
+) {
   if (value == null || Number.isNaN(value)) return "—";
   return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`;
 }
@@ -89,13 +135,15 @@ export function formatGrowthWithYoY(
   const prev = Number(previous ?? NaN);
   const prevYr = Number(previousYear ?? NaN);
 
-  const mom = Number.isFinite(curr) && Number.isFinite(prev) && prev > 0
-    ? ((curr - prev) / prev) * 100
-    : null;
+  const mom =
+    Number.isFinite(curr) && Number.isFinite(prev) && prev > 0
+      ? ((curr - prev) / prev) * 100
+      : null;
 
-  const yoy = Number.isFinite(curr) && Number.isFinite(prevYr) && prevYr > 0
-    ? ((curr - prevYr) / prevYr) * 100
-    : null;
+  const yoy =
+    Number.isFinite(curr) && Number.isFinite(prevYr) && prevYr > 0
+      ? ((curr - prevYr) / prevYr) * 100
+      : null;
 
   return {
     mom,
@@ -161,10 +209,16 @@ export function formatLeadingOemLabel(
     | undefined,
 ) {
   const candidate = Array.isArray(topRowOrRows)
-    ? topRowOrRows.find((row) => row?.name && !isOthers(String(row.name)) && String(row.name).trim().toLowerCase() !== "other") ?? topRowOrRows[0]
+    ? topRowOrRows.find(
+        (row) =>
+          row?.name &&
+          !isOthers(String(row.name)) &&
+          String(row.name).trim().toLowerCase() !== "other",
+      ) ?? topRowOrRows[0]
     : topRowOrRows;
 
   if (!candidate?.name) return "—";
-  if (candidate.current == null || Number.isNaN(candidate.current)) return String(candidate.name);
+  if (candidate.current == null || Number.isNaN(candidate.current))
+    return String(candidate.name);
   return `${candidate.name} (${Number(candidate.current).toFixed(1)}%)`;
 }
