@@ -2,6 +2,8 @@
 import axios from "axios";
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
+import db from "@/lib/db";
+import crypto from "crypto";
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
@@ -60,7 +62,46 @@ export async function GET(req) {
       return NextResponse.json({ error: "User not authenticated via external API" }, { status: 401 });
     }
 
-    // 4. Create JWT
+    // 4. Check session lock in local users table (upsert by email)
+    const [localUsers] = await db.execute(
+      "SELECT * FROM users WHERE email = ?",
+      [externalUser.email]
+    );
+
+    let localUser;
+    if (localUsers.length > 0) {
+      localUser = localUsers[0];
+    } else {
+      const [result] = await db.execute(
+        "INSERT INTO users (email) VALUES (?)",
+        [externalUser.email]
+      );
+      localUser = { id: result.insertId, email: externalUser.email };
+    }
+
+    // Block login if an active session already exists on another device
+    if (localUser.active_session_id && localUser.session_expires_at) {
+      const expiresAt = new Date(localUser.session_expires_at);
+      if (expiresAt > new Date()) {
+        const blockedUrl = new URL("/", req.url);
+        blockedUrl.searchParams.set(
+          "error",
+          "You are already logged in on another device. Please log out from that device first."
+        );
+        return NextResponse.redirect(blockedUrl);
+      }
+    }
+
+    // Generate a new session ID and store it with a 7-day expiry
+    const sessionId = crypto.randomUUID();
+    const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await db.execute(
+      "UPDATE users SET active_session_id = ?, session_expires_at = ?, last_login_at = NOW() WHERE id = ?",
+      [sessionId, sessionExpiresAt, localUser.id]
+    );
+
+    // 5. Create JWT
     const token = jwt.sign(
       {
         id: externalUser.id,
@@ -75,7 +116,7 @@ export async function GET(req) {
     const redirectUrl = new URL(`${process.env.NEXT_PUBLIC_BACKEND_URL}`, req.url);
     const response = NextResponse.redirect(redirectUrl);
 
-    // 5. Set cookies
+    // 6. Set cookies
     response.cookies.set("authToken", token, {
       sameSite: "Strict",
       maxAge: 7 * 24 * 60 * 60,

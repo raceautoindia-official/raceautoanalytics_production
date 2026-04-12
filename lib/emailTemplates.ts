@@ -1,3 +1,43 @@
+export function passwordResetEmail(args: { email: string; resetUrl: string }) {
+  const app = process.env.APP_NAME || "RaceAutoAnalytics";
+
+  const subject = `[${app}] Password Reset Request`;
+
+  const html = `
+  <div style="font-family:Arial,sans-serif; background:#050B1A; padding:24px; color:#EAF0FF;">
+    <div style="max-width:640px; margin:0 auto; background:#0B1228; border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden;">
+      <div style="padding:18px 18px 0 18px;">
+        <h2 style="margin:0; font-size:18px;">Password Reset</h2>
+        <p style="margin:8px 0 0 0; color:rgba(234,240,255,0.75); font-size:13px;">
+          We received a request to reset the password for <b>${args.email}</b>.
+          Click the button below to set a new password.
+        </p>
+      </div>
+      <div style="padding:18px;">
+        <div style="margin-bottom:16px;">
+          <a href="${args.resetUrl}"
+            style="display:inline-block; background:#4F67FF; color:#fff; text-decoration:none;
+                   padding:10px 18px; border-radius:12px; font-weight:bold; font-size:13px;">
+            Reset Password
+          </a>
+        </div>
+        <p style="margin:0; font-size:12px; color:rgba(234,240,255,0.5); line-height:1.5;">
+          This link expires in <b>1 hour</b>. If you did not request a password reset,
+          you can safely ignore this email — your password will not be changed.
+        </p>
+        <p style="margin:10px 0 0 0; font-size:11px; color:rgba(234,240,255,0.35); word-break:break-all;">
+          ${args.resetUrl}
+        </p>
+      </div>
+    </div>
+  </div>
+  `;
+
+  const text = `Password Reset\n\nReset your password here:\n${args.resetUrl}\n\nThis link expires in 1 hour.\nIf you did not request this, ignore this email.`;
+
+  return { subject, html, text };
+}
+
 export function adminNewTrialRequestEmail(lead: {
   name: string;
   email: string;

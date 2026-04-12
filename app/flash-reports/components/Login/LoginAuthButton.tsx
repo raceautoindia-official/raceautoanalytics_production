@@ -20,7 +20,12 @@ const LoginNavButton = () => {
 
   if (!isMounted) return null;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } catch {
+      // If the API call fails, still clear the cookie locally
+    }
     Cookies.remove("authToken");
     setToken(null);
     close();

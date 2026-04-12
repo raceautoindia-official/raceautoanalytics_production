@@ -55,7 +55,11 @@ const SignupForm = ({ onSuccess }) => {
       onSuccess?.();
       window.location.reload();
     } catch (error) {
-      if (error?.response) {
+      const serverMsg =
+        error?.response?.data?.message || error?.response?.data?.error;
+      if (serverMsg) {
+        setError(serverMsg);
+      } else if (error?.response) {
         if (error.response.status === 409) {
           setError("Account already exists.");
         } else if (error.response.status === 400) {
@@ -114,7 +118,12 @@ const SignupForm = ({ onSuccess }) => {
           touched,
           errors,
           isSubmitting,
-        }) => (
+        }) => {
+          const handleInputChange = (e) => {
+            setError("");
+            handleChange(e);
+          };
+          return (
           <form noValidate onSubmit={formikSubmit} className="space-y-3">
             {/* Username */}
             <div>
@@ -123,7 +132,7 @@ const SignupForm = ({ onSuccess }) => {
                 type="text"
                 name="username"
                 value={values.username}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 placeholder="Enter username"
                 className={`${inputBase} ${
                   touched.username && errors.username ? inputErr : inputOk
@@ -141,7 +150,7 @@ const SignupForm = ({ onSuccess }) => {
                 type="email"
                 name="email"
                 value={values.email}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 placeholder="Enter email"
                 className={`${inputBase} ${
                   touched.email && errors.email ? inputErr : inputOk
@@ -159,7 +168,7 @@ const SignupForm = ({ onSuccess }) => {
                 type="password"
                 name="password"
                 value={values.password}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 placeholder="Password"
                 className={`${inputBase} ${
                   touched.password && errors.password ? inputErr : inputOk
@@ -177,7 +186,7 @@ const SignupForm = ({ onSuccess }) => {
                 type="password"
                 name="confirmPassword"
                 value={values.confirmPassword}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 placeholder="Confirm password"
                 className={`${inputBase} ${
                   touched.confirmPassword && errors.confirmPassword
@@ -213,7 +222,8 @@ const SignupForm = ({ onSuccess }) => {
               <GoogleLoginButton />
             </div>
           </form>
-        )}
+          );
+        }}
       </Formik>
     </div>
   );
