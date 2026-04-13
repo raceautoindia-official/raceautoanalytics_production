@@ -27,9 +27,9 @@ const LoginNavButton = () => {
       // If the API call fails, still clear the cookie locally
     }
     Cookies.remove("authToken");
-    setToken(null);
-    close();
-    router.refresh();
+    // Full reload clears all client-side hook state (entitlement, assigned
+    // countries, etc.) so no stale previous-user data lingers.
+    window.location.reload();
   };
 
   const baseBtnClasses =

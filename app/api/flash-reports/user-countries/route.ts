@@ -22,8 +22,14 @@ function getEmailFromCookie(): string | null {
 
 /**
  * GET /api/flash-reports/user-countries
- * Returns the list of countries the logged-in user has permanently assigned
- * as Flash Report country slots.
+ * Returns the list of countries accessible to the logged-in user as Flash
+ * Report country slots.
+ *
+ * Shared-user inheritance:
+ *   If the user has no own rows AND their entitlement shows accessType="shared"
+ *   with a parentEmail, we return the parent owner's assigned countries.
+ *   This allows shared users to access inherited country slots without
+ *   self-assigning.
  */
 export async function GET() {
   const email = getEmailFromCookie();
@@ -32,15 +38,56 @@ export async function GET() {
   }
 
   try {
-    const [rows] = await db.query(
+    // 1. Query the user's own directly assigned countries first.
+    const [ownRows] = await db.query(
       `SELECT id, country_id, slot_index, effective_plan_at_selection, access_type, source_owner_email, created_at
        FROM flash_report_user_countries
        WHERE email = ?
        ORDER BY slot_index ASC`,
       [email],
-    );
+    ) as any[];
 
-    return NextResponse.json({ email, countries: rows });
+    if (Array.isArray(ownRows) && ownRows.length > 0) {
+      // Direct user or shared user who already has own rows — return as-is.
+      return NextResponse.json({ email, countries: ownRows });
+    }
+
+    // 2. No own rows — check if this is a shared user who should inherit from
+    //    the plan owner's assigned countries.
+    let parentEmail: string | null = null;
+    try {
+      const entitlement = await fetchRaiFlashEntitlement(email);
+      if (
+        entitlement.accessType === "shared" &&
+        entitlement.parentEmail &&
+        entitlement.isSubscribed &&
+        entitlement.effectiveStatus === "active"
+      ) {
+        parentEmail = entitlement.parentEmail;
+      }
+    } catch {
+      // Entitlement fetch failed — safe fallback: return empty, do not block.
+    }
+
+    if (!parentEmail) {
+      // Not a shared user or entitlement unavailable — return empty.
+      return NextResponse.json({ email, countries: [] });
+    }
+
+    // 3. Return the plan owner's assigned countries as the inherited country list.
+    const [parentRows] = await db.query(
+      `SELECT id, country_id, slot_index, effective_plan_at_selection, access_type, source_owner_email, created_at
+       FROM flash_report_user_countries
+       WHERE email = ?
+       ORDER BY slot_index ASC`,
+      [parentEmail],
+    ) as any[];
+
+    return NextResponse.json({
+      email,
+      countries: Array.isArray(parentRows) ? parentRows : [],
+      inheritedFrom: parentEmail,
+    });
   } catch (err: any) {
     console.error("GET /api/flash-reports/user-countries error:", err);
     return NextResponse.json(

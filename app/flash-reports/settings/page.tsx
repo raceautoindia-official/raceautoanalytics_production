@@ -3,14 +3,11 @@
 /**
  * /flash-reports/settings
  *
- * Shows the user's Flash Report subscription status and fixed country slots.
- * - Displays effective plan, access type, parent email if shared
- * - Shows used / total / remaining country slots
- * - Already-assigned countries are read-only (no edit/remove)
- * - Allows adding remaining slots if any are available
+ * Shows the logged-in user's account details, subscription status, and
+ * fixed Flash Report country slot assignments.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useFlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import FlashCountrySelectModal from "@/app/flash-reports/components/FlashCountrySelectModal";
@@ -28,6 +25,21 @@ const ACCESS_TYPE_LABEL: Record<string, string> = {
   none: "No Active Subscription",
 };
 
+/** Decode JWT payload without signature validation — matches existing app pattern. */
+function decodeJwtEmail(): string | null {
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)authToken=([^;]+)/);
+    if (!match) return null;
+    const b64 = match[1].split(".")[1];
+    if (!b64) return null;
+    const json = atob(b64.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json);
+    return payload?.email ? String(payload.email) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function FlashReportsSettingsPage() {
   const {
     entitlement,
@@ -39,6 +51,12 @@ export default function FlashReportsSettingsPage() {
   } = useFlashEntitlement();
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [loggedInEmail, setLoggedInEmail] = useState<string | null>(null);
+
+  // Decode email from JWT cookie once on mount (client-side only)
+  useEffect(() => {
+    setLoggedInEmail(decodeJwtEmail());
+  }, []);
 
   if (!isLoggedIn) {
     return (
@@ -101,11 +119,42 @@ export default function FlashReportsSettingsPage() {
           Flash Report Settings
         </h1>
         <p className="mt-1.5 text-sm text-[#EAF0FF]/50">
-          Your subscription status and fixed country slot assignments.
+          Your account details, subscription status, and country slot assignments.
         </p>
 
-        {/* Subscription Info Card */}
+        {/* Account / User Details Card */}
         <div className="mt-8 rounded-2xl border border-white/10 bg-[#0B1228] p-6">
+          <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide mb-4">
+            Account
+          </div>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+            <InfoRow
+              label="Email"
+              value={
+                loggedInEmail ? (
+                  <span className="text-[#EAF0FF]">{loggedInEmail}</span>
+                ) : (
+                  <span className="text-[#EAF0FF]/40">—</span>
+                )
+              }
+            />
+            <InfoRow
+              label="Account Type"
+              value={
+                isSubscribed ? (
+                  <span className="text-[#7B93FF]">
+                    {isSharedUser ? "Shared Member" : "Subscriber"}
+                  </span>
+                ) : (
+                  <span className="text-[#EAF0FF]/50">Free</span>
+                )
+              }
+            />
+          </div>
+        </div>
+
+        {/* Subscription Info Card */}
+        <div className="mt-5 rounded-2xl border border-white/10 bg-[#0B1228] p-6">
           <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide mb-4">
             Subscription
           </div>
@@ -124,7 +173,7 @@ export default function FlashReportsSettingsPage() {
             <InfoRow label="Access Type" value={accessLabel} />
             {entitlement?.parentEmail && (
               <InfoRow
-                label="Shared via"
+                label="Plan Owner"
                 value={
                   <span className="text-[#7B93FF]">
                     {entitlement.parentEmail}
@@ -175,7 +224,9 @@ export default function FlashReportsSettingsPage() {
               {assignedCountries.length > 0 ? (
                 <div>
                   <div className="text-xs text-[#EAF0FF]/35 mb-3 uppercase tracking-wide">
-                    Assigned countries (fixed — cannot be changed)
+                    {isSharedUser
+                      ? "Assigned countries (inherited from plan owner)"
+                      : "Assigned countries (fixed — cannot be changed)"}
                   </div>
                   <div className="space-y-2">
                     {assignedCountries.map((c) => (
@@ -198,7 +249,9 @@ export default function FlashReportsSettingsPage() {
                 </div>
               ) : (
                 <div className="text-sm text-[#EAF0FF]/50">
-                  No countries assigned yet.
+                  {isSharedUser
+                    ? "No countries have been assigned to your membership yet. Contact your plan owner."
+                    : "No countries assigned yet."}
                 </div>
               )}
 
@@ -213,13 +266,14 @@ export default function FlashReportsSettingsPage() {
                 </button>
               )}
 
-              {/* Shared users: read-only notice */}
+              {/* Shared users: read-only notice when slots remain */}
               {isSharedUser && remainingSlots > 0 && (
                 <div className="mt-4 text-xs text-[#EAF0FF]/35 leading-relaxed">
-                  Country assignment is managed by your plan owner. Contact
+                  Country assignment is managed by your plan owner. Contact{" "}
                   {entitlement?.parentEmail ? (
-                    <span className="text-[#7B93FF]"> {entitlement.parentEmail}</span>
-                  ) : " your plan owner"} to add more countries.
+                    <span className="text-[#7B93FF]">{entitlement.parentEmail}</span>
+                  ) : "your plan owner"}{" "}
+                  to add more countries.
                 </div>
               )}
 
