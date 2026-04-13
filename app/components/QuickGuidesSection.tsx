@@ -176,9 +176,9 @@ function FlipInfoCard({
   const embedUrl = getYouTubeEmbedUrl(videoUrl || "");
 
   return (
-    <div className="group relative">
+    <div className="group relative h-full">
       <div
-        className="relative min-h-[555px] sm:min-h-[555px] md:h-[540px] lg:h-[460px] w-full [perspective:1400px]"
+        className="relative w-full min-h-[555px] sm:min-h-[540px] md:min-h-[520px] lg:min-h-[455px] xl:min-h-[430px] 2xl:min-h-[415px] [perspective:1400px]"
         aria-label={ariaLabel}
       >
         <div
@@ -225,7 +225,7 @@ function FlipInfoCard({
 
                 {extraFront ? <div className="mt-4">{extraFront}</div> : null}
 
-                <div className="mt-5 flex flex-col gap-3 pt-5 sm:mt-auto sm:flex-row sm:items-center">
+                <div className="mt-5 flex flex-col gap-3 pt-4 sm:flex-row sm:items-center">
                   {enableReadMore && (
                     <button
                       type="button"
@@ -529,7 +529,7 @@ export default function QuickGuidesSection() {
   const flashBullets = useMemo(
     () => [
       "Select Country + Month to load country-wise flash report data.",
-      "Compare MoM/YoY trends across segments and categories.",
+      // "Compare MoM/YoY trends across segments and categories.",
       "Open category cards to drill into 2W / 3W / PV / CV / TRAC / CE.",
     ],
     [],
@@ -555,8 +555,8 @@ export default function QuickGuidesSection() {
         </div>
 
         <div className="mx-auto max-w-none w-[95vw] px-2 pt-10 sm:px-3 md:pt-12 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
-          <div className="grid grid-cols-1 gap-6 pb-10 md:grid-cols-2">
-            <div className="space-y-3">
+          <div className="grid grid-cols-1 items-stretch gap-6 pb-10 md:grid-cols-2">
+            <div className="flex h-full flex-col space-y-3">
               <h3 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
                 Flash Reports
               </h3>
@@ -594,7 +594,7 @@ export default function QuickGuidesSection() {
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="flex h-full flex-col space-y-3">
               <h3 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
                 Forecast
               </h3>
