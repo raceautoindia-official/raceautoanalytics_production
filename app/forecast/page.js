@@ -1733,6 +1733,24 @@ export default function ForecastPage() {
               Please choose a category, select a region/country or "All
               Regions," then pick a graph.
             </p>
+          ) : chartData.length === 0 ? (
+            <div className="flex h-[320px] items-center justify-center rounded-xl bg-[#0D1630] border border-white/8">
+              <div className="text-center px-6 max-w-sm">
+                <div className="mb-3 text-3xl">📊</div>
+                <p className="text-sm font-medium text-[#EAF0FF]/80">
+                  This data will be available soon.
+                </p>
+                <p className="mt-2 text-xs text-[#EAF0FF]/45">
+                  For early access, contact{" "}
+                  <a
+                    href="mailto:info@raceautoindia.com"
+                    className="text-[#7B93FF] hover:underline"
+                  >
+                    info@raceautoindia.com
+                  </a>
+                </p>
+              </div>
+            </div>
           ) : (
             <AnimatePresence mode="wait">
               <motion.div

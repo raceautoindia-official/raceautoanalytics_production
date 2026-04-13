@@ -16,6 +16,8 @@ export interface FlashEntitlementContextValue {
   defaultCountry: string;
   loading: boolean;
   isLoggedIn: boolean;
+  /** Admin override — bypasses country locking for support/testing. Session-scoped. */
+  isAdmin: boolean;
 }
 
 export const FlashEntitlementContext =

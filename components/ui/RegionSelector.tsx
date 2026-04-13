@@ -23,11 +23,14 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
 
   // Auto-inherit locking from FlashEntitlementContext when inside flash-reports.
   // Explicit prop takes precedence; context is used as fallback.
+  // Admin override bypasses all country locking.
   const flashCtx = useFlashEntitlementContext();
-  const lockedToCountries =
-    lockedProp !== undefined
-      ? lockedProp
-      : flashCtx?.lockedToCountries ?? null;
+  const isAdmin = flashCtx?.isAdmin ?? false;
+  const lockedToCountries = isAdmin
+    ? null
+    : lockedProp !== undefined
+    ? lockedProp
+    : flashCtx?.lockedToCountries ?? null;
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState<CountryOpt[]>([
     { value: "india", label: "India", flag: "🇮🇳" },

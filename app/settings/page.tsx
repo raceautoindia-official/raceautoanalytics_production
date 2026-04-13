@@ -11,6 +11,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import NavBar from "@/app/components/Navbar";
 import { useFlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import { useForecastEntitlement } from "@/app/hooks/useForecastEntitlement";
 import type { ForecastEntitlement, AssignedRegion } from "@/app/hooks/useForecastEntitlement";
@@ -117,6 +118,8 @@ export default function AccountSettingsPage() {
     "—";
 
   return (
+    <>
+    <NavBar />
     <div className="min-h-screen bg-[#060D1F] px-4 py-10">
       <div className="mx-auto max-w-[680px]">
         {/* Breadcrumb */}
@@ -341,6 +344,7 @@ export default function AccountSettingsPage() {
           />
         )}
     </div>
+    </>
   );
 }
 

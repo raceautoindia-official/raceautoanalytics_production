@@ -11,9 +11,11 @@
  * - Shows FlashCountrySelectModal when: DIRECT subscribed + zero assigned countries
  * - Shows SharedNoCountriesModal when: SHARED subscribed + zero assigned countries
  * - Shows FlashSubscriptionGate when: logged in but no active subscription
+ * - Admin override: 3-second logo long-press + passkey bypasses country locking (sessionStorage)
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useFlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import { useAppContext } from "@/components/providers/Providers";
 import {
@@ -28,6 +30,10 @@ interface Props {
   children: React.ReactNode;
 }
 
+const ADMIN_SESSION_KEY = "flash_admin_override";
+const ADMIN_PASSKEY = "imThe8055";
+const LOGO_HOLD_MS = 3000;
+
 export default function FlashSubscriptionManager({ children }: Props) {
   const {
     entitlement,
@@ -41,6 +47,43 @@ export default function FlashSubscriptionManager({ children }: Props) {
 
   // Track whether the initial country-select modal was shown and completed
   const [modalDismissed, setModalDismissed] = useState(false);
+
+  // ── Admin override state ──────────────────────────────────────────────────
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [adminKeyInput, setAdminKeyInput] = useState("");
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Restore admin state from sessionStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsAdmin(sessionStorage.getItem(ADMIN_SESSION_KEY) === "1");
+    }
+  }, []);
+
+  function startPressTimer() {
+    pressTimerRef.current = setTimeout(() => {
+      setAdminModalOpen(true);
+    }, LOGO_HOLD_MS);
+  }
+
+  function cancelPressTimer() {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+  }
+
+  function handleAdminSubmit() {
+    if (adminKeyInput === ADMIN_PASSKEY) {
+      setIsAdmin(true);
+      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+      setAdminModalOpen(false);
+      setAdminKeyInput("");
+    } else {
+      setAdminKeyInput("");
+    }
+  }
 
   const isSubscribed =
     !!entitlement?.isSubscribed && entitlement.effectiveStatus === "active";
@@ -68,18 +111,21 @@ export default function FlashSubscriptionManager({ children }: Props) {
   }, [isLoggedIn, loading, entitlement, isSubscribed, assignedCountries]);
 
   // Guard: after loading, if region is outside the locked set, correct to defaultCountry
+  // Admin override skips this redirect entirely.
   useEffect(() => {
     if (loading) return;
+    if (isAdmin) return; // admin can browse any country
     if (!lockedToCountries) return; // no restriction active
     if (lockedToCountries.includes(region)) return; // already valid
     // Current region is not in the user's allowed slots — redirect to default
     setRegion(defaultCountry);
-  }, [loading, lockedToCountries, region, defaultCountry, setRegion]);
+  }, [loading, isAdmin, lockedToCountries, region, defaultCountry, setRegion]);
 
   // On initial load: if user is subscribed and has assigned slots, set region to default
   // (handles entry from navbar/home buttons that default to India)
   useEffect(() => {
     if (loading) return;
+    if (isAdmin) return; // admin can stay wherever they are
     if (!isSubscribed || !assignedCountries.length) return;
     if (lockedToCountries && !lockedToCountries.includes(region)) {
       setRegion(defaultCountry);
@@ -105,6 +151,7 @@ export default function FlashSubscriptionManager({ children }: Props) {
     defaultCountry,
     loading,
     isLoggedIn,
+    isAdmin,
   };
 
   return (
@@ -134,6 +181,61 @@ export default function FlashSubscriptionManager({ children }: Props) {
       {/* Teaser + paywall popup for logged-in free/inactive users */}
       {isLoggedIn && !loading && entitlement && !isSubscribed && (
         <FlashSubscriptionGate entitlement={entitlement} />
+      )}
+
+      {/* Admin logo trigger — fixed bottom-right watermark, 3-second long-press */}
+      <div
+        className="fixed bottom-4 right-4 z-40 select-none cursor-pointer opacity-0 hover:opacity-20 transition-opacity duration-300"
+        style={{ userSelect: "none", WebkitUserSelect: "none" }}
+        onMouseDown={startPressTimer}
+        onMouseUp={cancelPressTimer}
+        onMouseLeave={cancelPressTimer}
+        onTouchStart={(e) => { e.preventDefault(); startPressTimer(); }}
+        onTouchEnd={cancelPressTimer}
+        title=""
+        aria-hidden
+      >
+        <Image
+          src="/images/logo.webp"
+          alt=""
+          width={80}
+          height={20}
+          draggable={false}
+        />
+      </div>
+
+      {/* Admin passkey modal */}
+      {adminModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-xs rounded-2xl border border-white/10 bg-[#0B1228] p-6 shadow-2xl">
+            <h2 className="mb-4 text-sm font-semibold text-[#EAF0FF]">
+              Admin Override
+            </h2>
+            <input
+              type="password"
+              placeholder="Enter passkey…"
+              value={adminKeyInput}
+              onChange={(e) => setAdminKeyInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdminSubmit()}
+              autoFocus
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#EAF0FF] placeholder-[#EAF0FF]/30 outline-none focus:border-[#4F67FF]/60 mb-4"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleAdminSubmit}
+                className="flex-1 rounded-xl bg-[#4F67FF] py-2 text-sm font-semibold text-white hover:bg-[#3B55FF] transition"
+              >
+                Unlock
+              </button>
+              <button
+                onClick={() => { setAdminModalOpen(false); setAdminKeyInput(""); }}
+                className="flex-1 rounded-xl border border-white/10 py-2 text-sm text-[#EAF0FF]/60 hover:bg-white/5 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </FlashEntitlementContext.Provider>
   );
