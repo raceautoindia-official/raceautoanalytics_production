@@ -478,13 +478,287 @@ export async function getOverallText(country?: string) {
   return res.json();
 }
 
+
+
+export type OverallAlternatePenetrationResult = {
+  value: number | null;
+  baseMonth: string;
+};
+
+function isOverallAlternatePenetrationNodeName(raw: any) {
+  const key = normName(raw);
+  return [
+    "overallalterfuelpeneration",
+    "overallalternatepeneration",
+    "overallalterfuelpenetration",
+    "overallalternatepenetration",
+    "overallaltfuelpeneration",
+    "overallaltfuelpenetration",
+  ].includes(key);
+}
+
+function unwrapVolumePayload(raw: any): any {
+  const level1 = raw?.data ?? raw;
+  const level2 =
+    level1 && typeof level1 === "object" && level1.data && typeof level1.data === "object"
+      ? level1.data
+      : level1;
+  return level2;
+}
+
+function toFiniteNumberLoose(value: any): number | null {
+  const num = toNumLoose(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function extractOverallAlternatePenetrationValue(raw: any): number | null {
+  if (raw == null) return null;
+
+  const direct = toFiniteNumberLoose(raw);
+  if (direct != null) return direct;
+
+  if (typeof raw !== "object") return null;
+
+  const entries = Object.entries(raw as Record<string, any>);
+  const preferredKeys = new Set([
+    "total",
+    "value",
+    "overall",
+    "penetration",
+    "peneration",
+    "alternatepenetration",
+    "alternatepeneration",
+    "share",
+    "percentage",
+    "percent",
+    "pct",
+  ]);
+
+  for (const [key, value] of entries) {
+    if (preferredKeys.has(normName(key))) {
+      const num = toFiniteNumberLoose(value);
+      if (num != null) return num;
+    }
+  }
+
+  for (const [key, value] of entries) {
+    if (["data", "row", "rows"].includes(normName(key))) {
+      const nested = extractOverallAlternatePenetrationValue(value);
+      if (nested != null) return nested;
+    }
+  }
+
+  const flatNumbers = entries
+    .map(([, value]) => toFiniteNumberLoose(value))
+    .filter((value): value is number => value != null);
+
+  if (flatNumbers.length === 1) return flatNumbers[0];
+
+  for (const [, value] of entries) {
+    if (value && typeof value === "object") {
+      const nested = extractOverallAlternatePenetrationValue(value);
+      if (nested != null) return nested;
+    }
+  }
+
+  return null;
+}
+
+export async function getOverallAlternatePenetration(
+  baseMonth?: string,
+  country?: string,
+): Promise<OverallAlternatePenetrationResult> {
+  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  if (!baseUrl) throw new Error("NEXT_PUBLIC_BACKEND_URL is not set");
+
+  const token = process.env.BACKEND_API_TOKEN;
+  if (!token) throw new Error("BACKEND_API_TOKEN is not set");
+
+  const effectiveBaseMonth = isYYYYMM(baseMonth) ? String(baseMonth) : getPrevMonthIST();
+  const [year, month] = effectiveBaseMonth.split("-");
+  const monthIndex = Number(month) - 1;
+
+  if (!year || !Number.isFinite(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    return { value: null, baseMonth: effectiveBaseMonth };
+  }
+
+  const countryKey = normalizeCountryKey(country);
+  const wantsNonIndia = !!country && countryKey !== "india";
+
+  const backendBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const siteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? "http://localhost:3000";
+  const siteUrl = siteUrlRaw.replace(/\/$/, "");
+
+  const loadBackend = async () => {
+    const [hierarchyRes, volumeRes] = await Promise.all([
+      fetch(`${backendBase}api/contentHierarchy`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }),
+      fetch(`${backendBase}api/volumeData`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }),
+    ]);
+
+    if (!hierarchyRes.ok || !volumeRes.ok) {
+      throw new Error("Failed to fetch backend hierarchy/volume");
+    }
+
+    return {
+      hierarchyData: await hierarchyRes.json(),
+      volumeData: await volumeRes.json(),
+    };
+  };
+
+  const loadLocal = async () => {
+    const [hierarchyRes, volumeRes] = await Promise.all([
+      fetch(`${siteUrl}/api/contentHierarchy`, { cache: "no-store" }),
+      fetch(`${siteUrl}/api/volumeData`, { cache: "no-store" }),
+    ]);
+
+    if (!hierarchyRes.ok || !volumeRes.ok) {
+      throw new Error("Failed to fetch local hierarchy/volume");
+    }
+
+    return {
+      hierarchyData: await hierarchyRes.json(),
+      volumeData: await volumeRes.json(),
+    };
+  };
+
+  const computeFrom = (
+    hierarchyData: any[],
+    volumeData: any[],
+  ): OverallAlternatePenetrationResult => {
+    const sid = (v: any) => String(v ?? "");
+    const eqId = (a: any, b: any) => sid(a) === sid(b);
+
+    const buildPath = (id: number | string) => {
+      const path: Array<number | string> = [];
+      let current = hierarchyData.find((n: any) => eqId(n.id, id));
+      while (current) {
+        path.unshift(current.id);
+        const pid = current.parent_id;
+        if (pid == null) break;
+        current = hierarchyData.find((n: any) => eqId(n.id, pid));
+      }
+      return path.join(",");
+    };
+
+    const volumeByStream = new Map<string, any>();
+    for (const row of volumeData || []) {
+      volumeByStream.set(String(row.stream), row);
+    }
+
+    const mainRoot =
+      hierarchyData.find((n: any) => normName(n?.name) === "mainroot") ||
+      hierarchyData.find(
+        (n: any) => String(n?.name || "").toLowerCase().trim() === "main root",
+      ) ||
+      null;
+
+    if (!mainRoot) return { value: null, baseMonth: effectiveBaseMonth };
+
+    const flashReports =
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, mainRoot.id) && normName(n?.name) === "flashreports",
+      ) ||
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, mainRoot.id) &&
+          String(n?.name || "").toLowerCase().trim() === "flash-reports",
+      ) ||
+      null;
+
+    if (!flashReports) return { value: null, baseMonth: effectiveBaseMonth };
+
+    let rootNode: any = flashReports;
+
+    if (wantsNonIndia) {
+      const countriesNode =
+        hierarchyData.find(
+          (n: any) =>
+            eqId(n.parent_id, flashReports.id) && normName(n?.name) === "countries",
+        ) || null;
+
+      const countryNode =
+        countriesNode
+          ? hierarchyData.find(
+              (n: any) =>
+                eqId(n.parent_id, countriesNode.id) &&
+                normName(n?.name) === normName(countryKey),
+            ) || null
+          : null;
+
+      if (!countryNode) return { value: null, baseMonth: effectiveBaseMonth };
+      rootNode = countryNode;
+    }
+
+    const penetrationNode =
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, rootNode.id) && isOverallAlternatePenetrationNodeName(n?.name),
+      ) || null;
+
+    if (!penetrationNode) return { value: null, baseMonth: effectiveBaseMonth };
+
+    const yearNode =
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, penetrationNode.id) && String(n?.name || "").trim() == year,
+      ) || null;
+
+    if (!yearNode) return { value: null, baseMonth: effectiveBaseMonth };
+
+    const monthNode =
+      hierarchyData.find(
+        (n: any) =>
+          eqId(n.parent_id, yearNode.id) &&
+          String(n?.name || "").toLowerCase().trim() === monthsList[monthIndex],
+      ) || null;
+
+    if (!monthNode) return { value: null, baseMonth: effectiveBaseMonth };
+
+    const matched = volumeByStream.get(String(buildPath(monthNode.id)));
+    if (!matched?.data) return { value: null, baseMonth: effectiveBaseMonth };
+
+    const rawData = unwrapVolumePayload(matched.data);
+    const value = extractOverallAlternatePenetrationValue(rawData);
+
+    return {
+      value,
+      baseMonth: effectiveBaseMonth,
+    };
+  };
+
+  if (!wantsNonIndia) {
+    const backend = await loadBackend();
+    return computeFrom(backend.hierarchyData, backend.volumeData);
+  }
+
+  const backend = await loadBackend();
+  const backendResult = computeFrom(backend.hierarchyData, backend.volumeData);
+  if (backendResult.value != null) return backendResult;
+
+  const local = await loadLocal();
+  return computeFrom(local.hierarchyData, local.volumeData);
+}
+
 export type MarketBarRawData = {
   [category: string]: { [monthLabel: string]: number };
 };
 
 export async function getMarketBarRawData(
   segmentName: string,
-  baseMonth: string,
+  baseMonth?: string,
   country?: string,
 ): Promise<MarketBarRawData | null> {
   try {
@@ -495,9 +769,9 @@ export async function getMarketBarRawData(
 
     const qs = new URLSearchParams({
       segmentName,
-      baseMonth,
     });
 
+    if (baseMonth) qs.set("baseMonth", baseMonth);
     if (country) qs.set("country", String(country).trim().toLowerCase());
 
     const res = await fetch(`${siteUrl}/api/fetchMarketBarData?${qs.toString()}`, {

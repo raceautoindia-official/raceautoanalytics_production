@@ -2,6 +2,7 @@ import {
   getOverallChartDataWithMeta,
   getOverallText,
   getMarketBarRawData,
+  getOverallAlternatePenetration,
 } from "@/lib/flashReportsServer";
 import { OverallAutomotiveIndustryClient } from "./OverallAutomotiveIndustryClient";
 
@@ -22,7 +23,7 @@ export default async function OverallAutomotiveIndustryPage({
       ? searchParams.region
       : undefined;
 
-  const [overallResult, overAllText, altFuelRaw] = await Promise.all([
+  const [overallResult, overAllText, altFuelRaw, overallAlternatePenetration] = await Promise.all([
     getOverallChartDataWithMeta({
       baseMonth,
       horizon: 6,
@@ -30,6 +31,7 @@ export default async function OverallAutomotiveIndustryPage({
     }),
     getOverallText(regionOrCountry),
     getMarketBarRawData("alternative fuel", baseMonth, regionOrCountry),
+    getOverallAlternatePenetration(baseMonth, regionOrCountry),
   ]);
 
   return (
@@ -37,6 +39,7 @@ export default async function OverallAutomotiveIndustryPage({
       initialOverallData={overallResult.data}
       overAllText={overAllText}
       altFuelRaw={altFuelRaw}
+      initialOverallAlternatePenetration={overallAlternatePenetration}
     />
   );
 }

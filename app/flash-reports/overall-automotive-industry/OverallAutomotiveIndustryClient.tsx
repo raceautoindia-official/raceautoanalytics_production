@@ -11,6 +11,7 @@ import { useAppContext } from "@/components/providers/Providers";
 import type {
   OverallChartPoint,
   MarketBarRawData,
+  OverallAlternatePenetrationResult,
 } from "@/lib/flashReportsServer";
 import { withCountry } from "@/lib/withCountry";
 import { formatGrowthWithYoY } from "@/lib/flashReportSummary";
@@ -19,6 +20,7 @@ interface OverallAutomotiveIndustryClientProps {
   initialOverallData: OverallChartPoint[];
   overAllText: any;
   altFuelRaw: MarketBarRawData | null;
+  initialOverallAlternatePenetration: OverallAlternatePenetrationResult;
 }
 
 const ALT_FUEL_CATEGORIES = ["2W", "3W", "PV", "Tractor", "CV"];
@@ -27,6 +29,7 @@ export function OverallAutomotiveIndustryClient({
   initialOverallData,
   overAllText,
   altFuelRaw,
+  initialOverallAlternatePenetration,
 }: OverallAutomotiveIndustryClientProps) {
   const { region, month } = useAppContext();
 
@@ -194,6 +197,13 @@ const growthSummary = formatGrowthWithYoY(
   );
   const [altFuelLoading, setAltFuelLoading] = useState(false);
 
+  const [overallAlternatePenetration, setOverallAlternatePenetration] =
+    useState<OverallAlternatePenetrationResult>(
+      initialOverallAlternatePenetration ?? { value: null, baseMonth: month },
+    );
+  const [overallAlternatePenetrationLoading, setOverallAlternatePenetrationLoading] =
+    useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -228,6 +238,63 @@ const growthSummary = formatGrowthWithYoY(
       cancelled = true;
     };
   }, [month, region]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOverallAlternatePenetration() {
+      try {
+        setOverallAlternatePenetrationLoading(true);
+
+        const res = await fetch(
+          withCountry(
+            `/api/flash-reports/overall-alternate-penetration?month=${encodeURIComponent(
+              month,
+            )}`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch overall alternate penetration: ${res.status}`);
+        }
+
+        const json = await res.json();
+        if (cancelled) return;
+
+        setOverallAlternatePenetration({
+          value:
+            typeof json?.value === "number" && Number.isFinite(json.value)
+              ? json.value
+              : null,
+          baseMonth: json?.baseMonth || month,
+        });
+      } catch (error) {
+        console.error("Failed to refetch overall alternate penetration", error);
+        if (!cancelled) {
+          setOverallAlternatePenetration({
+            value: null,
+            baseMonth: month,
+          });
+        }
+      } finally {
+        if (!cancelled) setOverallAlternatePenetrationLoading(false);
+      }
+    }
+
+    loadOverallAlternatePenetration();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [month, region]);
+
+  const overallAlternatePenetrationLabel = useMemo(() => {
+    const value = Number(overallAlternatePenetration?.value);
+    if (!Number.isFinite(value)) return "—";
+    return `${value.toFixed(1)}%`;
+  }, [overallAlternatePenetration]);
 
   const altFuelComparison = useMemo(() => {
     if (!altFuelData) return null;
@@ -265,26 +332,6 @@ const growthSummary = formatGrowthWithYoY(
       data,
     };
   }, [altFuelData]);
-
-  const leadingAltFuelLabel = useMemo(() => {
-  if (!altFuelComparison?.data?.length) return "—";
-
-  const labelMap: Record<string, string> = {
-    "2W": "2W",
-    "3W": "3W",
-    PV: "PV",
-    Tractor: "Tractor",
-    CV: "CV",
-  };
-
-  const leader = [...altFuelComparison.data].sort(
-    (a, b) => Number(b.current ?? 0) - Number(a.current ?? 0),
-  )[0];
-
-  if (!leader || !Number.isFinite(Number(leader.current))) return "—";
-
-  return `${labelMap[leader.name] ?? leader.name} (${Number(leader.current).toFixed(1)}%)`;
-}, [altFuelComparison]);
 
   const renderAltFuelTooltip = (props: any) => {
     const { active, payload } = props;
@@ -396,9 +443,11 @@ const growthSummary = formatGrowthWithYoY(
   </span>
 </div>
             <div>
-  <span className="text-muted-foreground">Leading Alternative Fuel Adoption:</span>
+  <span className="text-muted-foreground">Overall Alternate Penetration:</span>
   <span className="ml-2 font-medium text-primary">
-    {leadingAltFuelLabel}
+    {overallAlternatePenetrationLoading && overallAlternatePenetrationLabel === "—"
+      ? "Loading…"
+      : overallAlternatePenetrationLabel}
   </span>
 </div>
           </div>
