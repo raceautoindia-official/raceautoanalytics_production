@@ -8,6 +8,12 @@ export interface FlashEntitlementContextValue {
   assignedCountries: AssignedCountry[];
   /** null = no restriction (loading / not in flash-reports) */
   lockedToCountries: string[] | null;
+  /**
+   * The effective default country for this user in Flash Reports.
+   * - "india" for free / not-logged-in users
+   * - First assigned slot (slot_index=0) for direct/shared subscribed users
+   */
+  defaultCountry: string;
   loading: boolean;
   isLoggedIn: boolean;
 }

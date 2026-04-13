@@ -4,12 +4,10 @@ import React, { useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import GoogleLogin from "./GoogleLogin"; // keep existing component
-import ForgotPasswordForm from "./ForgotPasswordForm";
 
 export default function LoginForm({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [view, setView] = useState("login"); // "login" | "forgot"
 
   const [values, setValues] = useState({ email: "", password: "" });
 
@@ -40,17 +38,6 @@ export default function LoginForm({ onSuccess }) {
       setLoading(false);
     }
   };
-
-  if (view === "forgot") {
-    return (
-      <ForgotPasswordForm
-        onBack={() => {
-          setView("login");
-          setError("");
-        }}
-      />
-    );
-  }
 
   return (
     <div>
@@ -88,16 +75,14 @@ export default function LoginForm({ onSuccess }) {
             <label className="text-xs font-medium text-white/70">
               Password
             </label>
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setView("forgot");
-              }}
+            <a
+              href="https://raceautoindia.com/forgot-password"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-xs text-[#4F67FF] hover:text-[#7B90FF] transition"
             >
               Forgot Password?
-            </button>
+            </a>
           </div>
           <input
             name="password"

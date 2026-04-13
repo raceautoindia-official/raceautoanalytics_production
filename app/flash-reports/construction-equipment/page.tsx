@@ -712,7 +712,7 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
 
 const appSummary = useMemo(() => {
   if (!appBarData.length) {
-    return "Detailed application split data is available on request. Reach us at info@raceautoindia.com";
+    return "This segment data will be available soon. For early access, contact info@raceautoindia.com.";
   }
   const sorted = [...appBarData].sort((a, b) => b.value - a.value);
   const top = sorted[0];

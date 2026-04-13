@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Hexagon, Menu, X } from "lucide-react";
+import { Hexagon, Menu, User, X } from "lucide-react";
 import LoginNavButton from "@/app/flash-reports/components/Login/LoginAuthButton";
 import SubscribeButton from "@/components/subscription/SubscribeButton";
 
@@ -152,6 +152,14 @@ export default function NavBar() {
   Subscribe
 </SubscribeButton>
                 <LoginNavButton />
+                {/* Profile / Settings icon */}
+                <Link
+                  href="/flash-reports/settings"
+                  aria-label="Flash Report settings"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                >
+                  <User className="h-4 w-4" />
+                </Link>
               </div>
 
               {/* Mobile actions */}

@@ -71,6 +71,8 @@ export default function FlashReportsSettingsPage() {
 
   const isSubscribed =
     !!entitlement?.isSubscribed && entitlement.effectiveStatus === "active";
+  const isDirectUser = entitlement?.accessType === "direct";
+  const isSharedUser = entitlement?.accessType === "shared";
   const limit = entitlement?.flashReportCountryLimit ?? 0;
   const usedSlots = assignedCountries.length;
   const remainingSlots = limit - usedSlots;
@@ -200,8 +202,8 @@ export default function FlashReportsSettingsPage() {
                 </div>
               )}
 
-              {/* Add remaining slots button */}
-              {remainingSlots > 0 && (
+              {/* Add remaining slots — DIRECT users only; shared users cannot self-assign */}
+              {isDirectUser && remainingSlots > 0 && (
                 <button
                   onClick={() => setShowAddModal(true)}
                   className="mt-5 px-5 py-2.5 rounded-xl bg-[#4F67FF] text-white text-sm font-semibold hover:bg-[#3B55FF] transition shadow-[0_8px_24px_rgba(79,103,255,0.2)]"
@@ -209,6 +211,16 @@ export default function FlashReportsSettingsPage() {
                   Assign {remainingSlots} More{" "}
                   {remainingSlots === 1 ? "Country" : "Countries"}
                 </button>
+              )}
+
+              {/* Shared users: read-only notice */}
+              {isSharedUser && remainingSlots > 0 && (
+                <div className="mt-4 text-xs text-[#EAF0FF]/35 leading-relaxed">
+                  Country assignment is managed by your plan owner. Contact
+                  {entitlement?.parentEmail ? (
+                    <span className="text-[#7B93FF]"> {entitlement.parentEmail}</span>
+                  ) : " your plan owner"} to add more countries.
+                </div>
               )}
 
               {remainingSlots === 0 && (
@@ -232,8 +244,8 @@ export default function FlashReportsSettingsPage() {
         </div>
       </div>
 
-      {/* Add-countries modal (reuses FlashCountrySelectModal) */}
-      {showAddModal && entitlement && (
+      {/* Add-countries modal — direct users only */}
+      {showAddModal && entitlement && isDirectUser && (
         <FlashCountrySelectModal
           entitlement={entitlement}
           assignedCountries={assignedCountries}
