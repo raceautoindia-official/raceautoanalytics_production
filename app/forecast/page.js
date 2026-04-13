@@ -40,7 +40,6 @@ export default function ForecastPage() {
   // Region-based entitlement from layout context (null = free user, no restriction)
   const {
     lockedToRegions,
-    defaultRegion,
     loading: forecastEntitlementLoading,
   } = useForecastEntitlementContext();
   const router = useRouter();
@@ -617,17 +616,17 @@ export default function ForecastPage() {
     });
   }, [graphs, volumeDataMap, selectedCountriesList, selectedRegionId]);
 
-  // Default selection on first load:
-  //   - Free users: land on "Commercial Vehicles" → "All Regions" (old behavior preserved)
-  //   - Paid users: set "Commercial Vehicles" only; the region-slot effect below handles
-  //     selecting the first country of the user's default assigned region
+  // Default selection on first load — ALL user types land on "All Regions":
+  //   - Free users: old All Regions behavior preserved
+  //   - Paid (direct/shared) users: also default to All Regions; region restrictions
+  //     only apply when the user manually navigates to a specific region/country
   useEffect(() => {
     if (selectedRegionId) {
       setSelectedGraphId(availableGraphs[0]?.id);
     }
     if (selectedCategoryId != null) return;
     if (!contentHierarchyNodes.length || !graphs.length) return;
-    // Wait for entitlement to resolve so we know whether this is a free or paid user
+    // Wait for entitlement to resolve before showing content (avoids flash under modal)
     if (forecastEntitlementLoading) return;
 
     // 1) Find "Commercial Vehicles" category
@@ -636,21 +635,17 @@ export default function ForecastPage() {
     );
     if (!commCat) return;
 
-    // 2) Set the default category for all users
+    // 2) Set the default category
     setSelectedCategoryId(commCat.id);
 
-    // Paid users (locked to assigned regions): do not auto-select "All Regions".
-    // The region-slot effect below will select the first country of their default region.
-    if (lockedToRegions !== null) return;
-
-    // 3) Free users only: find and select "All Regions"
+    // 3) Select "All Regions" for all user types
     const allReg = contentHierarchyNodes.find(
       (n) => n.parent_id === commCat.id && n.name === "All Regions",
     );
     if (!allReg) return;
     setSelectedRegionId(allReg.id);
 
-    // 4) Free users only: select the default graph
+    // 4) Select the default graph
     const defaultGraph = availableGraphs.find(
       (g) => g.name === "Overall Commercial Vehicle Sales Trend Analysis",
     );
@@ -661,42 +656,7 @@ export default function ForecastPage() {
     availableGraphs,
     graphs,
     selectedCategoryId,
-    lockedToRegions,
     forecastEntitlementLoading,
-  ]);
-
-  // For paid/subscribed users: auto-select the first country of their default
-  // assigned region whenever the category is set and no region is selected yet.
-  // Runs on initial load AND when the user changes category (which resets selectedRegionId to null).
-  // Change 2 + Change 3 (fallback): satisfies both "default landing" and "fallback when no region selected".
-  useEffect(() => {
-    // Only for paid users with at least one assigned region
-    if (!lockedToRegions || lockedToRegions.length === 0) return;
-    if (!defaultRegion) return;
-    // Wait for category and hierarchy data to be ready
-    if (!selectedCategoryId) return;
-    if (!displayRegions.length || !Object.keys(countriesByRegion).length) return;
-    // Only auto-select when no region is currently selected (initial load or after category change)
-    if (selectedRegionId) return;
-
-    // Find the region group node matching the default region name
-    const regionNode = displayRegions.find((r) => r.name === defaultRegion);
-    if (!regionNode) return;
-
-    // Get countries in that region (DB order — first entry is the default country)
-    const regionCountries = countriesByRegion[regionNode.id] || [];
-    if (!regionCountries.length) return;
-
-    const firstCountry = regionCountries[0];
-    setSelectedRegionId(firstCountry.id);
-    setRegionSelectionMemory({ kind: "country", countryName: firstCountry.name });
-  }, [
-    lockedToRegions,
-    defaultRegion,
-    selectedCategoryId,
-    displayRegions,
-    countriesByRegion,
-    selectedRegionId,
   ]);
 
   const selectedDataset = useMemo(() => {
@@ -1469,8 +1429,8 @@ export default function ForecastPage() {
                       : "pointer-events-none -translate-y-1 opacity-0",
                   ].join(" ")}
                 >
-                  {/* "All Regions" is only available to free users (no region lock). */}
-                  {allRegionsNode && !lockedToRegions && (
+                  {/* "All Regions" is available to all user types as a valid default view. */}
+                  {allRegionsNode && (
                     <label className="flex items-center gap-2 rounded-md px-2 py-2 text-white hover:bg-white/5">
                       <input
                         type="checkbox"
