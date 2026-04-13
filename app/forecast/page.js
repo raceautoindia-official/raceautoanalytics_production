@@ -33,9 +33,16 @@ import { useForecastGrowth } from "../hooks/useForecastGrowth";
 import { useAverageYearlyScores } from "../hooks/useAverageYearlyScores";
 import { useCurrentPlan } from "../hooks/useCurrentPlan";
 import LoginNavButton from "../flash-reports/components/Login/LoginAuthButton";
+import { useForecastEntitlementContext } from "./context/ForecastEntitlementContext";
 
 export default function ForecastPage() {
   const { planName, email, loading: planLoading } = useCurrentPlan();
+  // Region-based entitlement from layout context (null = free user, no restriction)
+  const {
+    lockedToRegions,
+    defaultRegion,
+    loading: forecastEntitlementLoading,
+  } = useForecastEntitlementContext();
   const router = useRouter();
 
   // ─── Mobile detection (simple + reliable) ─────────────────────────────
@@ -159,7 +166,9 @@ export default function ForecastPage() {
     // 1) load user‐country
     fetch(`/api/user-country?email=${encodeURIComponent(email)}`)
       .then((res) => {
-        if (res.status === 404 && planName !== "silver") {
+        // Only show the legacy country-select modal for free users (no active plan).
+        // Paid users (any plan) use the new region-slot system via ForecastSubscriptionManager.
+        if (res.status === 404 && !planName) {
           setModalOpen(true);
           return null;
         }
@@ -199,17 +208,10 @@ export default function ForecastPage() {
     return country ? country.name : "";
   }, [countries, chosenCountry]);
 
-  useEffect(() => {
-    if (!chosenCountryName) return;
-
-    setRegionSelectionMemory((prev) => {
-      if (prev.kind) return prev;
-      return {
-        kind: "country",
-        countryName: chosenCountryName,
-      };
-    });
-  }, [chosenCountryName]);
+  // Auto-setting regionSelectionMemory from a stored country is disabled.
+  // Free users land on All-Regions by default (no stored-country lock).
+  // Paid users land on their first assigned region (handled by the region-slot effect below).
+  // Manual in-session selections still update regionSelectionMemory via the dropdown handlers.
 
   // ─── Fetch all needed data once ─────────────────────────────────────
   useEffect(() => {
@@ -352,7 +354,7 @@ export default function ForecastPage() {
   }, []);
 
   // ─── Fetch questions, submissions & scoreSettings for the selected graph ─────────────────
-  // ─── Fetch both “all users” and “this user” submissions ─────────────────
+  // ─── Fetch both "all users" and "this user" submissions ─────────────────
   useEffect(() => {
     if (!selectedGraphId || !email) return;
     setLoading(true);
@@ -444,7 +446,7 @@ export default function ForecastPage() {
       });
   }, [selectedGraphId, email]);
 
-  // ─── Compute “categories → regions → countries” from contentHierarchyNodes ─
+  // ─── Compute "categories → regions → countries" from contentHierarchyNodes ─
   // Replace <YOUR_PARENT_ID> with actual parent node ID from backend
   const ROOT_PARENT_ID = "76";
 
@@ -463,7 +465,7 @@ export default function ForecastPage() {
     );
   }, [contentHierarchyNodes, selectedCategoryId]);
 
-  // 3) All Regions–level node (name “All Regions”)
+  // 3) All Regions–level node (name "All Regions")
   const allRegionsNode = useMemo(() => {
     if (!selectedCategoryId) return null;
     return (
@@ -474,7 +476,7 @@ export default function ForecastPage() {
     );
   }, [contentHierarchyNodes, selectedCategoryId]);
 
-  // 4) Actual “displayable” regions = filter out the “All Regions” node
+  // 4) Actual "displayable" regions = filter out the "All Regions" node
   const displayRegions = useMemo(() => {
     if (!selectedCategoryId) return [];
     return regions.filter((r) => r.id !== (allRegionsNode?.id ?? -1));
@@ -491,7 +493,7 @@ export default function ForecastPage() {
     return lookup;
   }, [contentHierarchyNodes, displayRegions]);
 
-  // ─── 5.1) Flatten out all the “country” leaf nodes ─────────────────
+  // ─── 5.1) Flatten out all the "country" leaf nodes ─────────────────
   const allCountryNodes = useMemo(() => {
     // displayRegions are your region-level nodes:
     return displayRegions.flatMap((region) =>
@@ -523,7 +525,7 @@ export default function ForecastPage() {
     );
   }, [contentHierarchyNodes, displayRegions]);
 
-  // ─── 7) IDs of direct children under the “All Regions” node ─────────────
+  // ─── 7) IDs of direct children under the "All Regions" node ─────────────
   const allRegionsChildrenIds = useMemo(() => {
     if (!allRegionsNode) return [];
     return contentHierarchyNodes
@@ -552,12 +554,9 @@ export default function ForecastPage() {
   useEffect(() => {
     if (!selectedCategoryId) return;
 
-    const isGoldOrPlat = planName === "gold" || planName === "platinum";
-
-    const targetSelection =
-      !isAdmin && isGoldOrPlat
-        ? { kind: "country", countryName: chosenCountryName }
-        : regionSelectionMemory;
+    // Paid users (lockedToRegions set) use the region-slot system — no auto-select
+    // to a stored country. Free users keep the original regionSelectionMemory logic.
+    const targetSelection = regionSelectionMemory;
 
     if (!targetSelection?.kind) return;
 
@@ -583,9 +582,7 @@ export default function ForecastPage() {
     }
   }, [
     selectedCategoryId,
-    planName,
     isAdmin,
-    chosenCountryName,
     regionSelectionMemory,
     allCountryNodes,
     allRegionsNode,
@@ -596,7 +593,7 @@ export default function ForecastPage() {
   const selectedCountriesList = useMemo(() => {
     if (!selectedRegionId) return [];
     if (allRegionsNode && selectedRegionId === allRegionsNode.id) {
-      // “All Regions” selected → only its direct children
+      // "All Regions" selected → only its direct children
       return allRegionsChildrenIds;
     }
     // Otherwise, a single country ID
@@ -620,45 +617,87 @@ export default function ForecastPage() {
     });
   }, [graphs, volumeDataMap, selectedCountriesList, selectedRegionId]);
 
-  // use effect for default selection
+  // Default selection on first load:
+  //   - Free users: land on "Commercial Vehicles" → "All Regions" (old behavior preserved)
+  //   - Paid users: set "Commercial Vehicles" only; the region-slot effect below handles
+  //     selecting the first country of the user's default assigned region
   useEffect(() => {
     if (selectedRegionId) {
       setSelectedGraphId(availableGraphs[0]?.id);
     }
     if (selectedCategoryId != null) return;
     if (!contentHierarchyNodes.length || !graphs.length) return;
+    // Wait for entitlement to resolve so we know whether this is a free or paid user
+    if (forecastEntitlementLoading) return;
 
-    // 1) find your commercial category
+    // 1) Find "Commercial Vehicles" category
     const commCat = contentHierarchyNodes.find(
       (n) => n.name === "Commercial Vehicles",
     );
-    console.log("comCat", commCat);
     if (!commCat) return;
 
-    // 2) find its “All Regions” child
+    // 2) Set the default category for all users
+    setSelectedCategoryId(commCat.id);
+
+    // Paid users (locked to assigned regions): do not auto-select "All Regions".
+    // The region-slot effect below will select the first country of their default region.
+    if (lockedToRegions !== null) return;
+
+    // 3) Free users only: find and select "All Regions"
     const allReg = contentHierarchyNodes.find(
       (n) => n.parent_id === commCat.id && n.name === "All Regions",
     );
-    console.log("allReg", allReg);
     if (!allReg) return;
-
-    // 4) set category and region
-    setSelectedCategoryId(commCat.id);
     setSelectedRegionId(allReg.id);
 
-    console.log("available graphs", availableGraphs);
-    // 3) find your default graph
+    // 4) Free users only: select the default graph
     const defaultGraph = availableGraphs.find(
       (g) => g.name === "Overall Commercial Vehicle Sales Trend Analysis",
     );
-    console.log("defaultGraph", defaultGraph);
     if (!defaultGraph) return;
-
-    console.log("we have reached the end");
-
-    //set graph
     setSelectedGraphId(defaultGraph.id);
-  }, [contentHierarchyNodes, availableGraphs, graphs, selectedCategoryId]);
+  }, [
+    contentHierarchyNodes,
+    availableGraphs,
+    graphs,
+    selectedCategoryId,
+    lockedToRegions,
+    forecastEntitlementLoading,
+  ]);
+
+  // For paid/subscribed users: auto-select the first country of their default
+  // assigned region whenever the category is set and no region is selected yet.
+  // Runs on initial load AND when the user changes category (which resets selectedRegionId to null).
+  // Change 2 + Change 3 (fallback): satisfies both "default landing" and "fallback when no region selected".
+  useEffect(() => {
+    // Only for paid users with at least one assigned region
+    if (!lockedToRegions || lockedToRegions.length === 0) return;
+    if (!defaultRegion) return;
+    // Wait for category and hierarchy data to be ready
+    if (!selectedCategoryId) return;
+    if (!displayRegions.length || !Object.keys(countriesByRegion).length) return;
+    // Only auto-select when no region is currently selected (initial load or after category change)
+    if (selectedRegionId) return;
+
+    // Find the region group node matching the default region name
+    const regionNode = displayRegions.find((r) => r.name === defaultRegion);
+    if (!regionNode) return;
+
+    // Get countries in that region (DB order — first entry is the default country)
+    const regionCountries = countriesByRegion[regionNode.id] || [];
+    if (!regionCountries.length) return;
+
+    const firstCountry = regionCountries[0];
+    setSelectedRegionId(firstCountry.id);
+    setRegionSelectionMemory({ kind: "country", countryName: firstCountry.name });
+  }, [
+    lockedToRegions,
+    defaultRegion,
+    selectedCategoryId,
+    displayRegions,
+    countriesByRegion,
+    selectedRegionId,
+  ]);
 
   const selectedDataset = useMemo(() => {
     if (!selectedGraphId) return null;
@@ -815,7 +854,7 @@ export default function ForecastPage() {
   const hasRace =
     selectedGraph && Object.keys(selectedGraph.race_forecast || {}).length > 0;
 
-  // If there’s more than one of them, we need the “unified” bothData array.
+  // If there’s more than one of them, we need the "unified" bothData array.
   const forecastCount = [hasLinear, hasScore, hasAI, hasRace].filter(
     Boolean,
   ).length;
@@ -835,7 +874,7 @@ export default function ForecastPage() {
       forecastByf: null, // ← new
     }));
 
-    // 2) carry last actual value into the “0th” forecast point
+    // 2) carry last actual value into the "0th" forecast point
     if (hist.length) {
       const last = hist[hist.length - 1];
       last.forecastLinear = last.value;
@@ -1430,30 +1469,20 @@ export default function ForecastPage() {
                       : "pointer-events-none -translate-y-1 opacity-0",
                   ].join(" ")}
                 >
-                  {allRegionsNode && (
+                  {/* "All Regions" is only available to free users (no region lock). */}
+                  {allRegionsNode && !lockedToRegions && (
                     <label className="flex items-center gap-2 rounded-md px-2 py-2 text-white hover:bg-white/5">
                       <input
                         type="checkbox"
                         className="h-4 w-4 accent-[#FFC107]"
                         checked={selectedRegionId === allRegionsNode.id}
                         onChange={() => {
-                          const isGoldOrPlat =
-                            planName === "gold" || planName === "platinum";
-
                           if (selectedRegionId === allRegionsNode.id) {
                             setSelectedRegionId(null);
-
-                            if (!isAdmin && isGoldOrPlat) {
-                              setRegionSelectionMemory({
-                                kind: "country",
-                                countryName: chosenCountryName,
-                              });
-                            } else {
-                              setRegionSelectionMemory({
-                                kind: null,
-                                countryName: "",
-                              });
-                            }
+                            setRegionSelectionMemory({
+                              kind: null,
+                              countryName: "",
+                            });
                           } else {
                             setRegionSelectionMemory({
                               kind: "allRegions",
@@ -1476,8 +1505,13 @@ export default function ForecastPage() {
                     {displayRegions.map((region) => {
                       const children = countriesByRegion[region.id] || [];
                       const isOpen = openRegions[region.id];
-                      const isSilverRestricted =
-                        planName === "silver" && !isAdmin;
+                      // Region locked if user has region restrictions AND this
+                      // region is not in their assigned slots. Free users
+                      // (lockedToRegions === null) have no restriction.
+                      const isRegionLocked =
+                        !isAdmin &&
+                        lockedToRegions !== null &&
+                        !lockedToRegions.includes(region.name);
 
                       return (
                         <div
@@ -1488,7 +1522,7 @@ export default function ForecastPage() {
                             type="button"
                             className={[
                               "flex w-full items-center justify-between rounded-lg px-2 py-2 text-left",
-                              isSilverRestricted
+                              isRegionLocked
                                 ? "cursor-not-allowed text-white/50"
                                 : "text-white hover:bg-white/5",
                             ].join(" ")}
@@ -1497,7 +1531,7 @@ export default function ForecastPage() {
                                 setMountLoginNav(true);
                                 return;
                               }
-                              if (isSilverRestricted) return;
+                              if (isRegionLocked) return;
                               e.preventDefault();
                               e.stopPropagation();
                               setOpenRegions((prev) => ({
@@ -1508,20 +1542,16 @@ export default function ForecastPage() {
                           >
                             <span className="font-semibold">{region.name}</span>
                             <span className="text-white/60">
-                              {isOpen ? "▾" : "▸"}
+                              {isRegionLocked ? "🔒" : isOpen ? "▾" : "▸"}
                             </span>
                           </button>
 
                           {isOpen && (
                             <div className="px-2 pb-2">
                               {children.map((cn) => {
-                                const isGoldOrPlat =
-                                  planName === "gold" ||
-                                  planName === "platinum";
-                                const disabled =
-                                  !isAdmin &&
-                                  isGoldOrPlat &&
-                                  cn.name !== chosenCountryName;
+                                // When a region is accessible, all countries
+                                // within it are selectable (no per-country lock).
+                                const disabled = false;
 
                                 return (
                                   <label
@@ -1541,26 +1571,15 @@ export default function ForecastPage() {
                                       onChange={() => {
                                         if (disabled) return;
 
-                                        const isGoldOrPlat =
-                                          planName === "gold" ||
-                                          planName === "platinum";
                                         const isSameCountry =
                                           selectedRegionId === cn.id;
 
                                         if (isSameCountry) {
                                           setSelectedRegionId(null);
-
-                                          if (!isAdmin && isGoldOrPlat) {
-                                            setRegionSelectionMemory({
-                                              kind: "country",
-                                              countryName: chosenCountryName,
-                                            });
-                                          } else {
-                                            setRegionSelectionMemory({
-                                              kind: null,
-                                              countryName: "",
-                                            });
-                                          }
+                                          setRegionSelectionMemory({
+                                            kind: null,
+                                            countryName: "",
+                                          });
                                         } else {
                                           setRegionSelectionMemory({
                                             kind: "country",
@@ -1751,8 +1770,8 @@ export default function ForecastPage() {
             <div className="h-[450px] w-full animate-pulse rounded-xl bg-white/5" />
           ) : !selectedGraphId ? (
             <p className="text-center text-white/80">
-              Please choose a category, select a region/country or “All
-              Regions,” then pick a graph.
+              Please choose a category, select a region/country or "All
+              Regions," then pick a graph.
             </p>
           ) : (
             <AnimatePresence mode="wait">

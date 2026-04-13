@@ -154,8 +154,8 @@ export default function NavBar() {
                 <LoginNavButton />
                 {/* Profile / Settings icon */}
                 <Link
-                  href="/flash-reports/settings"
-                  aria-label="Flash Report settings"
+                  href="/settings"
+                  aria-label="Account settings"
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
                 >
                   <User className="h-4 w-4" />

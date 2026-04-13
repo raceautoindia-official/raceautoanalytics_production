@@ -39,9 +39,21 @@ const PLAN_COUNTRY_LIMITS: Record<string, number> = {
   platinum: 11,
 };
 
+export const FORECAST_REGION_LIMITS: Record<string, number> = {
+  bronze: 1,
+  silver: 2,
+  gold: 1,
+  platinum: 2,
+};
+
 function derivedCountryLimit(plan: string | null): number {
   if (!plan) return 0;
   return PLAN_COUNTRY_LIMITS[plan.toLowerCase().trim()] ?? 0;
+}
+
+function derivedRegionLimit(plan: string | null): number {
+  if (!plan) return 0;
+  return FORECAST_REGION_LIMITS[plan.toLowerCase().trim()] ?? 0;
 }
 
 export async function fetchRaiAccessSummary(
@@ -115,6 +127,37 @@ export async function fetchRaiFlashEntitlement(
     flashReportCountryLimit: limit,
     hasDirectPlan: Boolean(data.hasDirectPlan),
     hasSharedPlan: Boolean(data.hasSharedPlan),
+  };
+}
+
+export interface RaiForecastEntitlement {
+  effectivePlan: string | null;
+  accessType: string;          // "direct" | "shared" | "none"
+  isSubscribed: boolean;
+  effectiveStatus: string;
+  parentEmail: string | null;
+  forecastRegionLimit: number;
+  hasDirectPlan: boolean;
+  hasSharedPlan: boolean;
+}
+
+/**
+ * Fetch forecast entitlement — reuses the same RAI flash-entitlement endpoint
+ * since plan metadata is identical; derives forecastRegionLimit from plan.
+ */
+export async function fetchRaiForecastEntitlement(
+  email: string,
+): Promise<RaiForecastEntitlement> {
+  const base = await fetchRaiFlashEntitlement(email);
+  return {
+    effectivePlan: base.effectivePlan,
+    accessType: base.accessType,
+    isSubscribed: base.isSubscribed,
+    effectiveStatus: base.effectiveStatus,
+    parentEmail: base.parentEmail,
+    forecastRegionLimit: derivedRegionLimit(base.effectivePlan),
+    hasDirectPlan: base.hasDirectPlan,
+    hasSharedPlan: base.hasSharedPlan,
   };
 }
 
