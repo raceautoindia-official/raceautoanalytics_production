@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Providers } from "@/components/providers/Providers";
 import NavBar from "@/app/components/Navbar";
+import FlashSubscriptionManager from "@/app/flash-reports/components/FlashSubscriptionManager";
 import React, { Suspense } from "react";
 
 
@@ -25,7 +26,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <NavBar />
       <Suspense fallback={null}>
         <Providers>
-          <main className="pt-5">{children} </main>
+          <FlashSubscriptionManager>
+            <main className="pt-5">{children} </main>
+          </FlashSubscriptionManager>
         </Providers>
       </Suspense>
     </div>
