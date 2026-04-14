@@ -157,6 +157,7 @@ type TileMetrics = {
   marketShare: number;
   topOEM?: string;
   evPenetration?: number;
+  altPenetration?: number;
   currentMonthSales: number;
   previousMonthSales: number | null;
   trendData: number[];
@@ -300,6 +301,8 @@ export default function FlashReportsPage() {
     useState<SegmentAvailabilityMap>({});
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
+  const [overallAltPenetration, setOverallAltPenetration] = useState<number | null>(null);
+
   const overallForecastHorizon =
     Number.isFinite(Number(flashChartConfig?.horizonDefault)) &&
     Number(flashChartConfig?.horizonDefault) > 0
@@ -399,6 +402,32 @@ export default function FlashReportsPage() {
     return () => {
       cancelled = true;
     };
+  }, [month, region]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAltPenetration() {
+      try {
+        const res = await fetch(
+          withCountry(
+            `/api/flash-reports/overall-alternate-penetration?month=${encodeURIComponent(month)}`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        const v = Number(json?.value);
+        setOverallAltPenetration(Number.isFinite(v) ? v : null);
+      } catch {
+        if (!cancelled) setOverallAltPenetration(null);
+      }
+    }
+
+    loadAltPenetration();
+    return () => { cancelled = true; };
   }, [month, region]);
 
   useEffect(() => {
@@ -730,6 +759,7 @@ export default function FlashReportsPage() {
           topOEM:
             category.id === "overall-automotive-industry" ? "" : "Coming soon",
           evPenetration: undefined,
+          altPenetration: undefined,
           currentMonthSales: 0,
           previousMonthSales: 0,
           trendData: [],
@@ -784,6 +814,10 @@ export default function FlashReportsPage() {
             ? ""
             : segmentLeaders[category.id] || "",
         evPenetration: evPenetrationLookup[category.id],
+        altPenetration:
+          category.id === "overall-automotive-industry"
+            ? (overallAltPenetration ?? undefined)
+            : undefined,
         currentMonthSales: current,
         previousMonthSales: prevVal,
         trendData,
@@ -824,6 +858,7 @@ export default function FlashReportsPage() {
     overallLastYearRow,
     region,
     segmentLeaders,
+    overallAltPenetration,
   ]);
 
   // Key Highlights should be fully dynamic. Use segment momentum (best MoM)

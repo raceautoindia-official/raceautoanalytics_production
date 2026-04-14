@@ -30,6 +30,7 @@ interface VehicleCategoryCardProps {
     marketShare: number;
     topOEM?: string;
     evPenetration?: number;
+    altPenetration?: number;
     currentMonthSales: number;
     previousMonthSales: number | null;
     trendData: number[];
@@ -331,7 +332,7 @@ export function VehicleCategoryCard({
             <div
               className={cn(
                 "grid gap-4",
-                isOverall ? "mb-3 grid-cols-1 md:grid-cols-3" : "mb-5 grid-cols-2",
+                isOverall ? "mb-3 grid-cols-2 md:grid-cols-4" : "mb-5 grid-cols-2",
               )}
             >
               <div>
@@ -401,6 +402,19 @@ export function VehicleCategoryCard({
                   {hasYoy ? formatPct(metrics.yoyGrowth) : "–"}
                 </div>
               </div>
+
+              {isOverall && (
+                <div>
+                  <div className="mb-1 text-xs text-muted-foreground">
+                    Alt. Penetration
+                  </div>
+                  <div className="text-xl font-bold">
+                    {metrics.altPenetration != null && Number.isFinite(metrics.altPenetration)
+                      ? `${metrics.altPenetration.toFixed(1)}%`
+                      : "–"}
+                  </div>
+                </div>
+              )}
             </div>
 
             {shouldShowLeader && (
