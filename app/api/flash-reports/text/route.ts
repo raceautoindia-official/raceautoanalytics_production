@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
-import { normalizeCountryKey } from "@/lib/flashReportCountry";
+import { normalizeCountryKey, normalizeCountryTextKey } from "@/lib/flashReportCountry";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +23,21 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const rawCountry =
       searchParams.get("country") || searchParams.get("region");
-    const countryKey = normalizeCountryKey(rawCountry);
 
-    let row = await getCountryTextRow(countryKey);
+    // Try slug-style key first (e.g., "south-africa") — matches CMS editor format
+    const slugKey = normalizeCountryTextKey(rawCountry);
+    let row = await getCountryTextRow(slugKey);
 
-    if (!row && countryKey !== "india") {
+    // Also try the stripped key (e.g., "southafrica") for backward compatibility
+    if (!row) {
+      const strippedKey = normalizeCountryKey(rawCountry);
+      if (strippedKey !== slugKey) {
+        row = await getCountryTextRow(strippedKey);
+      }
+    }
+
+    // Final fallback: India
+    if (!row && slugKey !== "india") {
       row = await getCountryTextRow("india");
     }
 

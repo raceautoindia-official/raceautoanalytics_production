@@ -178,7 +178,7 @@ function FlipInfoCard({
   return (
     <div className="group relative h-full">
       <div
-        className="relative w-full min-h-[555px] sm:min-h-[540px] md:min-h-[520px] lg:min-h-[455px] xl:min-h-[430px] 2xl:min-h-[415px] [perspective:1400px]"
+        className="relative w-full min-h-[660px] sm:min-h-[640px] md:min-h-[620px] lg:min-h-[560px] xl:min-h-[530px] 2xl:min-h-[510px] [perspective:1400px]"
         aria-label={ariaLabel}
       >
         <div
@@ -368,7 +368,7 @@ function RegionBadge({ region }: { region: RegionItem }) {
       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-xs">
         {region.icon}
       </span>
-      <span className="ml-2 hidden truncate text-xs sm:inline">
+      <span className="ml-2 hidden text-xs sm:inline">
         {region.name}
       </span>
     </div>
@@ -490,6 +490,20 @@ export default function QuickGuidesSection() {
         slug: "sweden",
         description:
           "Sweden flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Peru",
+        code: "pe",
+        slug: "peru",
+        description:
+          "Peru flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Colombia",
+        code: "co",
+        slug: "colombia",
+        description:
+          "Colombia flash report will include total market sales, EV sales, and application split.",
       },
     ],
     [],
@@ -614,7 +628,7 @@ export default function QuickGuidesSection() {
                       Forecast regions covered
                     </div>
 
-                    <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-3 md:grid-cols-5">
+                    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-3">
                       {regions.map((r) => (
                         <RegionBadge key={r.name} region={r} />
                       ))}

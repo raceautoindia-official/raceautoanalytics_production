@@ -36,6 +36,23 @@ export function normalizeCountryKey(raw?: string | null) {
 }
 
 /**
+ * Normalizes a country key for CMS text lookups, preserving hyphens.
+ * Use this for flash_reports_text DB queries where the CMS editor
+ * likely stores keys in slug format (e.g., "south-africa" not "southafrica").
+ */
+export function normalizeCountryTextKey(raw?: string | null): string {
+  const k = String(raw || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")         // spaces → hyphens
+    .replace(/[^a-z0-9-]/g, "")  // strip non-slug chars (keep hyphens)
+    .replace(/-+/g, "-")          // collapse multiple hyphens
+    .replace(/^-+|-+$/g, "");     // trim edge hyphens
+  if (!k || k === "india" || k === "in") return "india";
+  return k;
+}
+
+/**
  * Expected hierarchy:
  * main root -> flash-reports -> (india segments...)
  * main root -> flash-reports -> countries -> <country> -> (segments...)

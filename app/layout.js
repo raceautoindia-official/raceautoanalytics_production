@@ -11,7 +11,11 @@ import Script from "next/script";
 import RouteAuthGate from "@/components/auth/RouteAuthGate";
 import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
 import SubscriptionModal from "@/components/subscription/SubscriptionModal";
-import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
+import dynamic from "next/dynamic";
+const ScrollToTopButton = dynamic(
+  () => import("@/components/ui/ScrollToTopButton"),
+  { ssr: false }
+);
 
 
 const inter = Inter({
@@ -127,15 +131,15 @@ export default function RootLayout({ children }) {
           </>
         ) : null}
 
+        <ScrollToTopButton />
         <Suspense fallback={null}>
           <Providers>
             {/* <BootstrapClient /> */}
             <AuthModalProvider>
               <SubscriptionModalProvider>
                 <RouteAuthGate />
-                 <ScrollToTopButton />
                 {children}
-               
+
                 <SubscriptionModal />
               </SubscriptionModalProvider>
             </AuthModalProvider>

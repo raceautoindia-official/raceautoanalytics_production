@@ -4,6 +4,7 @@ import { Providers } from "@/components/providers/Providers";
 import NavBar from "@/app/components/Navbar";
 import FlashSubscriptionManager from "@/app/flash-reports/components/FlashSubscriptionManager";
 import React, { Suspense } from "react";
+import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </FlashSubscriptionManager>
         </Providers>
       </Suspense>
+
     </div>
   );
 }

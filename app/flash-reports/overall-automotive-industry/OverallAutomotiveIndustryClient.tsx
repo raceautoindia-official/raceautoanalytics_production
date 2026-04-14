@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -48,7 +48,12 @@ export function OverallAutomotiveIndustryClient({
   const [overallMeta, setOverallMeta] = useState<any>(null);
   const [overallLoading, setOverallLoading] = useState(false);
   const [overallTextData, setOverallTextData] = useState<any>(overAllText ?? {});
-const [overallTextLoading, setOverallTextLoading] = useState(false);
+  const [overallTextLoading, setOverallTextLoading] = useState(false);
+  // Track whether we've performed at least one client-side text fetch.
+  // On the very first render, `region` may still be "india" (Providers default)
+  // while the server already supplied the correct country's text via `overAllText`.
+  // We skip that initial no-op fetch to avoid briefly overwriting the server text.
+  const textFetchedRef = React.useRef(false);
 
   const [graphId, setGraphId] = useState<number | null>(null);
 
@@ -116,44 +121,54 @@ const [overallTextLoading, setOverallTextLoading] = useState(false);
   }, [month, region]);
 
   useEffect(() => {
-  let cancelled = false;
+    // Skip the very first fire when `region` is still the default "india" value
+    // but the server has already supplied country-specific text via `overAllText`.
+    // This prevents a race condition where the stale "india" region value briefly
+    // fires a fetch that overwrites the correct server-rendered country text.
+    if (!textFetchedRef.current && region === "india" && overAllText && Object.keys(overAllText).length > 0) {
+      textFetchedRef.current = true;
+      return;
+    }
 
-  async function loadOverallText() {
-    try {
-      setOverallTextLoading(true);
+    textFetchedRef.current = true;
+    let cancelled = false;
 
-      const res = await fetch(
-        withCountry("/api/flash-reports/text", region),
-        { cache: "no-store" }
-      );
+    async function loadOverallText() {
+      try {
+        setOverallTextLoading(true);
 
-      if (!res.ok) {
-        throw new Error(`Failed to fetch overall text: ${res.status}`);
-      }
+        const res = await fetch(
+          withCountry("/api/flash-reports/text", region),
+          { cache: "no-store" }
+        );
 
-      const json = await res.json();
+        if (!res.ok) {
+          throw new Error(`Failed to fetch overall text: ${res.status}`);
+        }
 
-      if (!cancelled) {
-        setOverallTextData(json || {});
-      }
-    } catch (e) {
-      console.error("Failed to refetch overall text", e);
-      if (!cancelled) {
-        setOverallTextData({});
-      }
-    } finally {
-      if (!cancelled) {
-        setOverallTextLoading(false);
+        const json = await res.json();
+
+        if (!cancelled) {
+          setOverallTextData(json || {});
+        }
+      } catch (e) {
+        console.error("Failed to refetch overall text", e);
+        if (!cancelled) {
+          setOverallTextData({});
+        }
+      } finally {
+        if (!cancelled) {
+          setOverallTextLoading(false);
+        }
       }
     }
-  }
 
-  loadOverallText();
+    loadOverallText();
 
-  return () => {
-    cancelled = true;
-  };
-}, [region]);
+    return () => {
+      cancelled = true;
+    };
+  }, [region]);
 
 const summaryBaseMonth = overallMeta?.baseMonth ?? month;
 const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);

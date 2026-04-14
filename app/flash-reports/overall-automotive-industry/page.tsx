@@ -5,6 +5,7 @@ import {
   getOverallAlternatePenetration,
 } from "@/lib/flashReportsServer";
 import { OverallAutomotiveIndustryClient } from "./OverallAutomotiveIndustryClient";
+import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +36,14 @@ export default async function OverallAutomotiveIndustryPage({
   ]);
 
   return (
+    <>
+
     <OverallAutomotiveIndustryClient
       initialOverallData={overallResult.data}
       overAllText={overAllText}
       altFuelRaw={altFuelRaw}
       initialOverallAlternatePenetration={overallAlternatePenetration}
     />
+    </>
   );
 }
