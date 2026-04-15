@@ -160,7 +160,7 @@ const CrossCategoryPerformance: React.FC = () => {
         >
           <h3 className="text-lg font-semibold">Sales by Vehicle Category</h3>
           <p className="mt-1 text-white/70">
-            Latest available month (no month toggle on Home). Values shown below
+            Latest available month. Values shown below
             are absolute sales for each category.
           </p>
 
