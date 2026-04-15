@@ -161,7 +161,7 @@ const CrossCategoryPerformance: React.FC = () => {
           <h3 className="text-lg font-semibold">Sales by Vehicle Category</h3>
           <p className="mt-1 text-white/70">
             Latest available month. Values shown below
-            are absolute sales for each category.
+            are absolute sales for each category(India).
           </p>
 
           {/* CHART */}
