@@ -161,6 +161,14 @@ function CountryModal({
   );
 }
 
+const ACTIVE_COUNTRY_SLUGS = new Set([
+  "india",
+  "japan",
+  "sweden",
+  "germany",
+  "chile",
+]);
+
 /** ✅ chip shows ONLY flag + name (no dates outside) */
 function CountryChip({
   c,
@@ -169,6 +177,27 @@ function CountryChip({
   c: CountryItem;
   onClick: (c: CountryItem) => void;
 }) {
+  const available = ACTIVE_COUNTRY_SLUGS.has(c.slug);
+
+  if (!available) {
+    return (
+      <div className="relative group">
+        <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-white/3 px-3 py-2 text-left shadow-sm opacity-45 cursor-not-allowed select-none">
+          <FlagIcon code={c.code} alt={c.name} />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-white/60 truncate">
+              {c.name}
+            </div>
+          </div>
+        </div>
+        {/* hover tooltip */}
+        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded-lg bg-[#1a2035] px-2.5 py-1 text-xs text-white/80 shadow-lg ring-1 ring-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10">
+          Expected 20 April
+        </span>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"

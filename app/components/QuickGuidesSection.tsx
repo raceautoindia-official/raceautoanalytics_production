@@ -335,6 +335,14 @@ function FlipInfoCard({
   );
 }
 
+const ACTIVE_COUNTRY_SLUGS = new Set([
+  "india",
+  "japan",
+  "sweden",
+  "germany",
+  "chile",
+]);
+
 function CountryBadge({
   country,
   onClick,
@@ -342,6 +350,23 @@ function CountryBadge({
   country: CountryItem;
   onClick: (c: CountryItem) => void;
 }) {
+  const available = ACTIVE_COUNTRY_SLUGS.has(country.slug);
+
+  if (!available) {
+    return (
+      <div
+        className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-full border border-white/8 bg-white/3 px-2 py-1.5 text-white/40 shadow-sm opacity-45 cursor-not-allowed select-none sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1"
+        aria-label={country.name}
+        title={country.name}
+      >
+        <FlagIcon code={country.code} alt={country.name} />
+        <span className="ml-2 hidden truncate text-xs sm:inline">
+          {country.name}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
