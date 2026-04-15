@@ -70,7 +70,7 @@ function uniqueByLabel(items: FeatureItem[]) {
 export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[] {
   const bronzePlan: PlanCard = {
     key: "bronze",
-    title: "Bronze",
+    title: "Individual Basic",
     monthlyPrice: 0,
     annualPrice: 0,
     features: [],
@@ -78,7 +78,7 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
 
   const silverPlan: PlanCard = {
     key: "silver",
-    title: "Silver",
+    title: "Individual Pro",
     monthlyPrice: 0,
     annualPrice: 0,
     features: [],
@@ -86,7 +86,7 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
 
   const goldPlan: PlanCard = {
     key: "gold",
-    title: "Gold",
+    title: "Business",
     monthlyPrice: 0,
     annualPrice: 0,
     features: [],
@@ -94,7 +94,7 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
 
   const platinumPlan: PlanCard = {
     key: "platinum",
-    title: "Platinum",
+    title: "Business Pro",
     monthlyPrice: 0,
     annualPrice: 0,
     features: [],
@@ -185,20 +185,20 @@ export default function transformPricing(rows: RawPricingRow[] = []): PlanCard[]
   bronzePlan.features = uniqueByLabel(bronzeOwn);
 
   silverPlan.features = uniqueByLabel([
-    ...(bronzeOwn.length ? [{ label: "Everything in Bronze Plan" }] : []),
+    ...(bronzeOwn.length ? [{ label: "Everything in Individual Basic Plan" }] : []),
     ...silverOwn,
   ]);
 
   goldPlan.features = uniqueByLabel([
     ...(silverOwn.length || bronzeOwn.length
-      ? [{ label: "Everything in Silver Plan" }]
+      ? [{ label: "Everything in Individual Pro Plan" }]
       : []),
     ...goldOwn,
   ]);
 
   platinumPlan.features = uniqueByLabel([
     ...(goldOwn.length || silverOwn.length || bronzeOwn.length
-      ? [{ label: "Everything in Gold Plan" }]
+      ? [{ label: "Everything in Business Plan" }]
       : []),
     ...platinumOwn,
   ]);

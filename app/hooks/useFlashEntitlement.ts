@@ -4,13 +4,17 @@ import { useState, useEffect } from "react";
 
 export interface FlashEntitlement {
   effectivePlan: string | null;
-  accessType: string;            // "direct" | "shared" | "none"
+  accessType: string;            // "direct" | "shared" | "none" | "trial"
   isSubscribed: boolean;
   effectiveStatus: string;
   parentEmail: string | null;
   flashReportCountryLimit: number;
   hasDirectPlan: boolean;
   hasSharedPlan: boolean;
+  /** True while the user's 10-minute free trial window is active */
+  trialActive?: boolean;
+  /** ISO timestamp when the free trial expires */
+  trialExpiresAt?: string;
 }
 
 export interface AssignedCountry {
@@ -56,6 +60,7 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
     }
 
     let cancelled = false;
+    let trialExpireTimer: ReturnType<typeof setTimeout> | null = null;
 
     async function load() {
       try {
@@ -78,6 +83,17 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
         if (entitlementRes.ok) {
           const data = await entitlementRes.json();
           setEntitlement(data);
+          // Auto-refresh when the free trial expires so the user
+          // transitions cleanly to normal free-user access
+          if (data?.trialActive && data?.trialExpiresAt) {
+            const msRemaining =
+              new Date(data.trialExpiresAt).getTime() - Date.now();
+            if (msRemaining > 0) {
+              trialExpireTimer = setTimeout(() => {
+                if (!cancelled) setRefreshTick((t) => t + 1);
+              }, msRemaining + 500);
+            }
+          }
         } else if (entitlementRes.status === 401) {
           setIsLoggedIn(false);
           setEntitlement(null);
@@ -101,6 +117,7 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
     load();
     return () => {
       cancelled = true;
+      if (trialExpireTimer) clearTimeout(trialExpireTimer);
     };
   }, [refreshTick]);
 

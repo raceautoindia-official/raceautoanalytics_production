@@ -55,6 +55,11 @@ export default function RouteAuthGate() {
 
     const interval = window.setInterval(() => {
       if (hasAuthTokenCookie()) {
+        // Don't auto-close while the trial form is visible — the form sets the
+        // authToken cookie on success and shows its own success message that the
+        // user must be able to read before navigating away.
+        if (view === "trial") return;
+
         setOpenGate(false);
         setOpenAuth(false);
         setView("gate");
@@ -62,7 +67,7 @@ export default function RouteAuthGate() {
     }, 500);
 
     return () => window.clearInterval(interval);
-  }, [openGate]);
+  }, [openGate, view]);
 
   if (!shouldProtect) return null;
 

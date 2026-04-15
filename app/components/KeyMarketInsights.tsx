@@ -240,26 +240,6 @@ const KeyMarketInsights: React.FC = () => {
         {error ? <p className="mt-4 text-sm text-rose-300">{error}</p> : null}
 
         <div className="mt-8 grid grid-cols-1 gap-6 md:mt-10 md:grid-cols-2 xl:grid-cols-3">
-          <Card className="bg-white/[0.05] h-full">
-            <div className="flex h-full flex-col">
-              <div className="flex items-start gap-4">
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/8 text-white/90">
-                  <TrendingUp className="h-6 w-6" />
-                </span>
-                <div>
-                  <h3 className="text-lg font-semibold">Top Growing Category</h3>
-                  <p className="mt-2 text-white/80 leading-relaxed">
-                    {topCategoryText}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 border-t border-white/10 pt-3 text-xs text-white/55">
-                Last updated: {baseCardUpdatedLabel}
-              </div>
-            </div>
-          </Card>
-
           {optionalCards.map((b) => {
             const Icon = IconByName[b.icon || "Activity"] || Activity;
             const bgClass =

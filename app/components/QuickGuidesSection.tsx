@@ -419,95 +419,109 @@ const HOW_IT_WORKS = [
 export default function QuickGuidesSection() {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
 
-  const countries: CountryItem[] = useMemo(
-    () => [
-      {
-        name: "India",
-        code: "in",
-        slug: "india",
-        description:
-          "India flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Thailand",
-        code: "th",
-        slug: "thailand",
-        description:
-          "Thailand flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Brazil",
-        code: "br",
-        slug: "brazil",
-        description:
-          "Brazil flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "South Africa",
-        code: "za",
-        slug: "south-africa",
-        description:
-          "South Africa flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Japan",
-        code: "jp",
-        slug: "japan",
-        description:
-          "Japan flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Vietnam",
-        code: "vn",
-        slug: "vietnam",
-        description:
-          "Vietnam flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Germany",
-        code: "de",
-        slug: "germany",
-        description:
-          "Germany flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Australia",
-        code: "au",
-        slug: "australia",
-        description:
-          "Australia flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Chile",
-        code: "cl",
-        slug: "chile",
-        description:
-          "Chile flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Sweden",
-        code: "se",
-        slug: "sweden",
-        description:
-          "Sweden flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Peru",
-        code: "pe",
-        slug: "peru",
-        description:
-          "Peru flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Colombia",
-        code: "co",
-        slug: "colombia",
-        description:
-          "Colombia flash report will include total market sales, EV sales, and application split.",
-      },
-    ],
-    [],
-  );
+const countries: CountryItem[] = useMemo(
+  () => [
+    {
+      name: "India",
+      code: "in",
+      slug: "india",
+      description:
+        "India flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Brazil",
+      code: "br",
+      slug: "brazil",
+      description:
+        "Brazil flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "South Africa",
+      code: "za",
+      slug: "south-africa",
+      description:
+        "South Africa flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Japan",
+      code: "jp",
+      slug: "japan",
+      description:
+        "Japan flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Pakistan",
+      code: "pk",
+      slug: "pakistan",
+      description:
+        "Pakistan flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Vietnam",
+      code: "vn",
+      slug: "vietnam",
+      description:
+        "Vietnam flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Germany",
+      code: "de",
+      slug: "germany",
+      description:
+        "Germany flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Australia",
+      code: "au",
+      slug: "australia",
+      description:
+        "Australia flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Chile",
+      code: "cl",
+      slug: "chile",
+      description:
+        "Chile flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Sweden",
+      code: "se",
+      slug: "sweden",
+      description:
+        "Sweden flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Peru",
+      code: "pe",
+      slug: "peru",
+      description:
+        "Peru flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Colombia",
+      code: "co",
+      slug: "colombia",
+      description:
+        "Colombia flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Russia",
+      code: "ru",
+      slug: "russia",
+      description:
+        "Russia flash report will include total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Belgium",
+      code: "be",
+      slug: "belgium",
+      description:
+        "Belgium flash report will include total market sales, EV sales, and application split.",
+    },
+  ],
+  [],
+);
 
   const regions: RegionItem[] = useMemo(
     () => [
@@ -590,7 +604,7 @@ export default function QuickGuidesSection() {
                       Primary countries (launching)
                     </div>
 
-                    <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                    <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-3 md:grid-cols-3">
                       {countries.map((c) => (
                         <CountryBadge
                           key={c.name}

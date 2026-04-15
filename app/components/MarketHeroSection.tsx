@@ -286,6 +286,22 @@ const countries = useMemo<CountryItem[]>(
       description:
         "Peru flash report includes total market sales, EV sales, and application split.",
     },
+    {
+      name: "Russia",
+      code: "ru",
+      slug: "russia",
+      scheduleLabel: "Every month on 16th",
+      description:
+        "Russia flash report includes total market sales, EV sales, and application split.",
+    },
+    {
+      name: "Belgium",
+      code: "be",
+      slug: "belgium",
+      scheduleLabel: "Every month on 17th",
+      description:
+        "Belgium flash report includes total market sales, EV sales, and application split.",
+    },
   ],
   []
 );
