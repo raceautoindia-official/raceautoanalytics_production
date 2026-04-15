@@ -93,7 +93,7 @@ export default function TrialRequestForm({ onSuccess, onBack }: Props) {
 
   // ── Success state ────────────────────────────────────────────────────────────
   if (trialActive) {
-    let secondsLabel = "80 seconds";
+    let secondsLabel = "60 seconds";
     if (trialExpiresAt) {
       const ms = new Date(trialExpiresAt).getTime() - Date.now();
       const secs = Math.max(1, Math.round(ms / 1000));

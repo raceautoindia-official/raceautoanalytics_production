@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 
 export const dynamic = "force-dynamic";
 
-const FREE_TRIAL_SECONDS = 80;
+const FREE_TRIAL_SECONDS = 60;
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(32).toString("hex");
