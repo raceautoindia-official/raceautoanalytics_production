@@ -335,12 +335,9 @@ function FlipInfoCard({
   );
 }
 
-const ACTIVE_COUNTRY_SLUGS = new Set([
-  "india",
-  "japan",
-  "sweden",
-  "germany",
-  "chile",
+const DISABLED_COUNTRY_SLUGS = new Set([
+  "peru",
+  "russia",
 ]);
 
 function CountryBadge({
@@ -350,7 +347,7 @@ function CountryBadge({
   country: CountryItem;
   onClick: (c: CountryItem) => void;
 }) {
-  const available = ACTIVE_COUNTRY_SLUGS.has(country.slug);
+  const available = !DISABLED_COUNTRY_SLUGS.has(country.slug);
 
   if (!available) {
     return (
