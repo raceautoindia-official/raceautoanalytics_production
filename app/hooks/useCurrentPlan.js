@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getPublicPlanLabel } from '@/lib/planLabels';
 
 // Helper to read a named cookie
 function getCookie(name) {
@@ -54,9 +55,24 @@ export function useCurrentPlan() {
       })
       .then((data) => {
         // data is an array of subscriptions
-        const active = data.find((s) => s.status === 'Active');
+        const parseDateMs = (value) => {
+          const raw = String(value ?? "").trim();
+          if (!raw) return null;
+          const ms = new Date(raw).getTime();
+          return Number.isFinite(ms) ? ms : null;
+        };
+
+        const active = data.find(
+          (s) => {
+            const status = String(s?.status || "").trim().toLowerCase();
+            if (status !== "active") return false;
+            const endMs = parseDateMs(s?.end_date ?? s?.endDate);
+            if (endMs == null) return false;
+            return endMs >= Date.now();
+          },
+        );
         if (active) {
-          setPlanName(active.plan_name);
+          setPlanName(getPublicPlanLabel(active.plan_name) || active.plan_name);
           setIsValid(active.status);
         }
       })

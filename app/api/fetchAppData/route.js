@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireProtectedDataAccess } from "@/lib/requestAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,11 @@ function normalizeCountry(raw) {
 
 export async function GET(req) {
   try {
+    const access = await requireProtectedDataAccess(req, { allowTrial: true });
+    if (!access.ok) {
+      return NextResponse.json([], { status: 200 });
+    }
+
     const { searchParams } = new URL(req.url);
 
     const segmentName = searchParams.get("segmentName");

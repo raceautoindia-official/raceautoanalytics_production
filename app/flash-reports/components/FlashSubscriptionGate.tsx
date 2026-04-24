@@ -4,35 +4,50 @@
  * FlashSubscriptionGate
  *
  * Shown only for logged-in users with NO active subscription and NO active trial.
- * Escalation flow:
- *   1. After FIRST_POPUP_DELAY_MS → show popup WITH a dismiss ("Maybe Later") button
- *   2. If dismissed → after SECOND_POPUP_DELAY_MS → show popup WITHOUT a dismiss button
- *      (user must open subscription plans to continue)
+ * Escalation flow (session-scoped):
+ *   1. After FIRST_POPUP_DELAY_MS -> show popup WITH dismiss controls
+ *   2. If dismissed -> after SECOND_POPUP_DELAY_MS -> show popup WITHOUT dismiss controls (mandatory)
  */
 
 import { useEffect, useRef, useState } from "react";
 import type { FlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import SubscribeButton from "@/components/subscription/SubscribeButton";
 
-const FIRST_POPUP_DELAY_MS  = 10_000; // 10 s — first closeable popup
-const SECOND_POPUP_DELAY_MS =  5_000; //  5 s — second non-closeable popup
+const FIRST_POPUP_DELAY_MS = 10_000; // existing first delay
+const SECOND_POPUP_DELAY_MS = 5_000; // existing repeat gap
+
+const FLASH_REPORTS_MODAL_STEP_KEY = "flashReportsSubscriptionModalStep";
+const MANDATORY_APPEARANCE_STEP = 2;
 
 interface Props {
   entitlement: FlashEntitlement;
 }
 
-type Stage = "idle" | "first" | "dismissed" | "second";
+function getStoredStep(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = window.sessionStorage.getItem(FLASH_REPORTS_MODAL_STEP_KEY);
+  const parsed = Number.parseInt(raw || "0", 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.min(parsed, MANDATORY_APPEARANCE_STEP);
+}
+
+function setStoredStep(step: number) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(
+    FLASH_REPORTS_MODAL_STEP_KEY,
+    String(Math.min(Math.max(step, 0), MANDATORY_APPEARANCE_STEP)),
+  );
+}
 
 export default function FlashSubscriptionGate({ entitlement }: Props) {
-  const [stage, setStage] = useState<Stage>("idle");
+  const [visibleStep, setVisibleStep] = useState<0 | 1 | 2>(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Trial-active users are treated as subscribed by the entitlement overlay,
-  // so isSubscribed will already be true for them — no extra check needed.
-  const isFreeUser =
+  const isMembershipPending = Boolean(entitlement.membershipPendingApproval);
+  const shouldGate =
+    isMembershipPending ||
     !entitlement.isSubscribed || entitlement.effectiveStatus !== "active";
 
-  // Clear any pending timer
   function clearTimer() {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -40,107 +55,132 @@ export default function FlashSubscriptionGate({ entitlement }: Props) {
     }
   }
 
-  // Stage machine
   useEffect(() => {
-    if (!isFreeUser) {
+    if (!shouldGate) {
       clearTimer();
-      setStage("idle");
+      setVisibleStep(0);
       document.body.classList.remove("flash-teaser-hide-numbers");
       return;
     }
 
-    if (stage === "idle") {
-      // Arm first popup
-      timerRef.current = setTimeout(() => {
-        setStage("first");
-        document.body.classList.add("flash-teaser-hide-numbers");
-      }, FIRST_POPUP_DELAY_MS);
+    if (visibleStep !== 0) return;
+
+    if (isMembershipPending) {
+      setVisibleStep(1);
+      document.body.classList.add("flash-teaser-hide-numbers");
+      return;
     }
 
-    if (stage === "dismissed") {
-      // Arm second (non-closeable) popup
-      timerRef.current = setTimeout(() => {
-        setStage("second");
-        document.body.classList.add("flash-teaser-hide-numbers");
-      }, SECOND_POPUP_DELAY_MS);
+    const step = getStoredStep();
+
+    if (step >= MANDATORY_APPEARANCE_STEP) {
+      setStoredStep(MANDATORY_APPEARANCE_STEP);
+      setVisibleStep(2);
+      document.body.classList.add("flash-teaser-hide-numbers");
+      return;
     }
+
+    const nextStep = step + 1;
+    const delay = nextStep === 1 ? FIRST_POPUP_DELAY_MS : SECOND_POPUP_DELAY_MS;
+
+    timerRef.current = setTimeout(() => {
+      if (nextStep >= MANDATORY_APPEARANCE_STEP) {
+        setStoredStep(MANDATORY_APPEARANCE_STEP);
+      }
+      setVisibleStep(nextStep as 1 | 2);
+      document.body.classList.add("flash-teaser-hide-numbers");
+    }, delay);
 
     return clearTimer;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFreeUser, stage]);
+  }, [shouldGate, visibleStep, isMembershipPending]);
 
-  // Remove body class when gate is inactive
   useEffect(() => {
-    if (!isFreeUser || stage === "idle" || stage === "dismissed") {
+    if (!shouldGate || visibleStep === 0) {
       document.body.classList.remove("flash-teaser-hide-numbers");
     }
-  }, [isFreeUser, stage]);
+  }, [shouldGate, visibleStep]);
 
-  if (!isFreeUser) return null;
-  if (stage === "idle" || stage === "dismissed") return null;
+  if (!shouldGate || visibleStep === 0) return null;
 
-  const isFirstPopup = stage === "first";
-  const canDismiss = isFirstPopup;
+  const canDismiss = isMembershipPending || visibleStep === 1;
 
   return (
     <>
-      {/* Dim overlay */}
       <div className="fixed inset-0 z-[9990] pointer-events-none bg-[#050B1A]/60 backdrop-blur-[1px]" />
 
-      {/* Subscribe popup */}
       <div className="fixed inset-0 z-[9991] flex items-center justify-center p-4">
         <div className="relative w-full max-w-[480px] overflow-hidden rounded-[24px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)]">
           <div className="pointer-events-none absolute -top-20 left-1/2 h-40 w-[600px] -translate-x-1/2 rounded-full bg-[#4F67FF]/15 blur-3xl" />
 
           <div className="relative px-7 py-6">
-            {/* Close button — only on first popup */}
             {canDismiss && (
               <button
                 onClick={() => {
                   clearTimer();
-                  setStage("dismissed");
+                  setStoredStep(visibleStep);
+                  setVisibleStep(0);
                 }}
                 className="absolute top-4 right-4 text-[#EAF0FF]/40 hover:text-[#EAF0FF]/70 transition text-xl leading-none"
                 aria-label="Dismiss"
               >
-                ×
+                x
               </button>
             )}
 
             <div className="text-xl font-semibold text-[#EAF0FF]">
-              Subscribe to See the Data
+              {isMembershipPending
+                ? "Membership Approval Pending"
+                : "Subscribe to See the Data"}
             </div>
             <div className="mt-2 text-sm text-[#EAF0FF]/60 leading-relaxed">
-              {isFirstPopup
+              {isMembershipPending
+                ? entitlement.membershipPendingMessage ||
+                  "Your membership invitation is still pending approval. Check your email inbox to accept the invitation. If you did not receive it, ask the parent user to resend the approval link."
+                : visibleStep === 1
                 ? "You're currently on a free account. Subscribe to unlock full Flash Report data including country-level insights, numeric chart values, and segment breakdowns."
                 : "Full data is available to subscribers only. Choose a plan to continue accessing Flash Reports."}
             </div>
 
-            <div className="mt-5 text-sm text-[#EAF0FF]/50">
-              Plans start with{" "}
-              <span className="text-[#7B93FF] font-medium">1 country</span> on
-              Individual Basic and go up to{" "}
-              <span className="text-[#7B93FF] font-medium">11 countries</span>{" "}
-              on Business Pro.
-            </div>
+            {!isMembershipPending && (
+              <div className="mt-5 text-sm text-[#EAF0FF]/50">
+                Plans start with{" "}
+                <span className="text-[#7B93FF] font-medium">1 country</span> on
+                Individual Basic and go up to{" "}
+                <span className="text-[#7B93FF] font-medium">11 countries</span>{" "}
+                on Business Pro.
+              </div>
+            )}
 
             <div className="mt-6 flex gap-3">
-              <SubscribeButton
-                onAfterClick={() => {
-                  clearTimer();
-                  setStage("idle");
-                  document.body.classList.remove("flash-teaser-hide-numbers");
-                }}
-                className="flex-1 h-11 rounded-xl bg-[#4F67FF] text-white text-sm font-semibold hover:bg-[#3B55FF] transition shadow-[0_8px_24px_rgba(79,103,255,0.25)]"
-              >
-                View Subscription Plans
-              </SubscribeButton>
-
-              {canDismiss && (
+              {isMembershipPending ? (
                 <button
                   onClick={() => {
                     clearTimer();
-                    setStage("dismissed");
+                    setVisibleStep(0);
+                  }}
+                  className="flex-1 h-11 rounded-xl border border-white/10 bg-white/5 text-[#EAF0FF]/85 text-sm font-semibold hover:bg-white/10 transition"
+                >
+                  Okay
+                </button>
+              ) : (
+                <SubscribeButton
+                  onAfterClick={() => {
+                    clearTimer();
+                    setVisibleStep(0);
+                    document.body.classList.remove("flash-teaser-hide-numbers");
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-[#4F67FF] text-white text-sm font-semibold hover:bg-[#3B55FF] transition shadow-[0_8px_24px_rgba(79,103,255,0.25)]"
+                >
+                  View Subscription Plans
+                </SubscribeButton>
+              )}
+
+              {!isMembershipPending && canDismiss && (
+                <button
+                  onClick={() => {
+                    clearTimer();
+                    setStoredStep(visibleStep);
+                    setVisibleStep(0);
                   }}
                   className="px-4 h-11 rounded-xl border border-white/10 bg-white/5 text-[#EAF0FF]/70 text-sm hover:bg-white/10 transition"
                 >
@@ -154,3 +194,4 @@ export default function FlashSubscriptionGate({ entitlement }: Props) {
     </>
   );
 }
+

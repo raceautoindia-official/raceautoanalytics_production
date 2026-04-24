@@ -91,9 +91,9 @@ export default function Page() {
      <NavBar />
 
       {/* PAGE CONTENT (Tailwind container-style wrapper) */}
-      <main className="mx-auto w-full max-w-screen-xl bg-white px-4 py-8 md:px-6 md:py-10">
-        <section className="mx-auto w-full max-w-3xl">
-          <h1 className="mb-3 text-xl font-bold md:text-2xl">PRIVACY POLICY</h1>
+      <main className="mx-auto w-full max-w-screen-xl bg-[#050B1A] px-4 py-8 md:px-6 md:py-10 text-white">
+        <section className="mx-auto w-full max-w-3xl text-white/80 leading-relaxed">
+          <h1 className="mb-3 text-xl font-bold text-white md:text-2xl">PRIVACY POLICY</h1>
 
           <p>
             This privacy policy (&quot;Policy&quot;) explains our policy regarding the
@@ -106,7 +106,7 @@ export default function Page() {
             &quot;Services&quot;).
           </p>
 
-          <h2 className="mt-6 text-lg font-semibold">
+          <h2 className="mt-6 text-lg font-semibold text-white">
             Collection of user Personal Information
           </h2>
           <p className="mt-2">
@@ -145,7 +145,7 @@ export default function Page() {
             family of Web sites.
           </p>
 
-          <h2 className="mt-6 text-lg font-semibold">
+          <h2 className="mt-6 text-lg font-semibold text-white">
             Use of your Personal Information
           </h2>
           <p className="mt-2">
@@ -196,7 +196,7 @@ export default function Page() {
             <strong>RACE ANALYTICS</strong>, or the public.
           </p>
 
-          <h2 className="mt-6 text-lg font-semibold">Use of Cookies</h2>
+          <h2 className="mt-6 text-lg font-semibold text-white">Use of Cookies</h2>
           <p className="mt-2">
             The <strong>RACE ANALYTICS</strong> Web site use &quot;cookies&quot; to
             help you personalize your online experience. A cookie is a text file that
@@ -226,7 +226,7 @@ export default function Page() {
             of the <strong>RACE ANALYTICS</strong> services or Web sites you visit.
           </p>
 
-          <h2 className="mt-6 text-lg font-semibold">
+          <h2 className="mt-6 text-lg font-semibold text-white">
             Security of your Personal Information
           </h2>
           <p className="mt-2">
@@ -239,7 +239,7 @@ export default function Page() {
             the use of encryption, such as the Secure Socket Layer (SSL) protocol.
           </p>
 
-          <h2 className="mt-6 text-lg font-semibold">Changes to this Statement</h2>
+          <h2 className="mt-6 text-lg font-semibold text-white">Changes to this Statement</h2>
           <p className="mt-2">
             <strong>RACE ANALYTICS</strong> will occasionally update this Statement of
             Privacy to reflect company and customer feedback.{" "}
@@ -248,7 +248,7 @@ export default function Page() {
             protecting your information.
           </p>
 
-          <h2 className="mt-6 text-lg font-semibold">Contact Information</h2>
+          <h2 className="mt-6 text-lg font-semibold text-white">Contact Information</h2>
           <p className="mt-2">
             <strong>RACE ANALYTICS</strong> welcomes your comments regarding this
             Statement of Privacy. If you believe that <strong>RACE ANALYTICS</strong>{" "}
@@ -257,6 +257,10 @@ export default function Page() {
             <a href="mailto:info@raceinnovations.in">info@raceinnovations.in</a>. We
             will use commercially reasonable efforts to promptly determine and
             remedy the problem.
+          </p>
+          <p className="mt-2">
+            For any legal-related enquiries, contact:{" "}
+            <a href="mailto:legal@raceinnovations.in">legal@raceinnovations.in</a>
           </p>
         </section>
       </main>

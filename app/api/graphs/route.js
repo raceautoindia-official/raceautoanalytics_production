@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
+import {
+  requireAdminAccess,
+  requireProtectedDataAccess,
+} from "@/lib/requestAuth";
 
 /**
  * Compatibility goals:
@@ -95,6 +99,15 @@ function graphRowWithAliases(row) {
   };
 }
 
+function normalizeContext(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isProtectedGraphContext(value) {
+  const ctx = normalizeContext(value);
+  return ctx === "flash" || ctx === "forecast";
+}
+
 async function fetchGraphById(id) {
   const [rows] = await db.query(`SELECT * FROM graphs WHERE id = ? LIMIT 1`, [
     Number(id),
@@ -114,19 +127,58 @@ export async function GET(request) {
       if (!graph)
         return NextResponse.json({ error: "Graph not found" }, { status: 404 });
 
+      if (isProtectedGraphContext(graph?.context)) {
+        const access = await requireProtectedDataAccess(request, {
+          allowTrial: true,
+        });
+        if (!access.ok) {
+          return NextResponse.json(
+            { error: access.message || "Access denied" },
+            { status: access.status || 403 },
+          );
+        }
+      }
+
       // Return BOTH shapes:
       // - new callers can use { graph }
       // - old callers can read top-level fields directly
       return NextResponse.json({ ...graph, graph });
     }
 
-    // List (optionally filter by context)
-    const [rows] = await db.query(
-      context
-        ? `SELECT * FROM graphs WHERE context = ? ORDER BY id DESC`
-        : `SELECT * FROM graphs ORDER BY id DESC`,
-      context ? [context] : []
-    );
+    if (context && isProtectedGraphContext(context)) {
+      const access = await requireProtectedDataAccess(request, {
+        allowTrial: true,
+      });
+      if (!access.ok) {
+        return NextResponse.json([], { status: 200 });
+      }
+    }
+
+    let query = `SELECT * FROM graphs ORDER BY id DESC`;
+    let params = [];
+
+    // No explicit context:
+    // - admin/internal can list all graphs
+    // - subscribed/trial users can list only protected graph contexts
+    // - unauth/free users get an empty list
+    if (!context) {
+      const adminAccess = await requireAdminAccess(request);
+      if (!adminAccess.ok) {
+        const access = await requireProtectedDataAccess(request, {
+          allowTrial: true,
+        });
+        if (!access.ok) {
+          return NextResponse.json([], { status: 200 });
+        }
+        query = `SELECT * FROM graphs WHERE context IN ('flash', 'forecast') ORDER BY id DESC`;
+      }
+    } else if (context) {
+      query = `SELECT * FROM graphs WHERE context = ? ORDER BY id DESC`;
+      params = [context];
+    }
+
+    // List
+    const [rows] = await db.query(query, params);
 
     // Old code expects an array; keep it an array
     return NextResponse.json((rows || []).map(graphRowWithAliases));
@@ -141,6 +193,14 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+  //   const adminAccess = await requireAdminAccess(request);
+  //   if (!adminAccess.ok) {
+  //     return NextResponse.json(
+  //       { error: adminAccess.message || "Admin access required" },
+  //       { status: adminAccess.status || 403 },
+  //     );
+  //   }
+
     const body = await request.json();
 
     // Accept both camelCase (old) and snake_case (new)
@@ -266,6 +326,14 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
+    // const adminAccess = await requireAdminAccess(request);
+    // if (!adminAccess.ok) {
+    //   return NextResponse.json(
+    //     { error: adminAccess.message || "Admin access required" },
+    //     { status: adminAccess.status || 403 },
+    //   );
+    // }
+
     const body = await request.json();
 
     const id = pickFirst(body.id, null);
@@ -407,6 +475,14 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
   try {
+    // const adminAccess = await requireAdminAccess(request);
+    // if (!adminAccess.ok) {
+    //   return NextResponse.json(
+    //     { error: adminAccess.message || "Admin access required" },
+    //     { status: adminAccess.status || 403 },
+    //   );
+    // }
+
     const url = new URL(request.url);
     let id = url.searchParams.get("id");
 

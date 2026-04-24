@@ -1,6 +1,7 @@
 import pool from '../../../lib/db';
+import { requireAdminAccess } from "@/lib/requestAuth";
 
-export async function GET(req) {
+export async function GET() {
   try {
     const [rows] = await pool.query(`
       SELECT 
@@ -30,6 +31,14 @@ export async function GET(req) {
 
 export async function DELETE(req) {
   try {
+    // const adminAccess = await requireAdminAccess(req);
+    // if (!adminAccess.ok) {
+    //   return new Response(
+    //     JSON.stringify({ error: adminAccess.message || "Admin access required" }),
+    //     { status: adminAccess.status || 403, headers: { "Content-Type": "application/json" } }
+    //   );
+    // }
+
     const { cells } = await req.json();
     if (!Array.isArray(cells)) {
       return new Response(

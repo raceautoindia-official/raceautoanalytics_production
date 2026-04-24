@@ -3,6 +3,7 @@ import {
   normalizeCountryKey,
   resolveFlashReportContext,
 } from "@/lib/flashReportCountry";
+import { requireProtectedDataAccess } from "@/lib/requestAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,11 @@ const eqId = (a: any, b: any) => sid(a) === sid(b);
 
 export async function GET(req: Request) {
   try {
+    const access = await requireProtectedDataAccess(req, { allowTrial: true });
+    if (!access.ok) {
+      return NextResponse.json([], { status: 200 });
+    }
+
     const { searchParams } = new URL(req.url);
 
     const rawCountry = searchParams.get("country");

@@ -11,7 +11,10 @@ import {
   ShieldCheck,
   ArrowRight,
 } from "lucide-react";
-import Link from "next/link";
+import type { FlashEntitlement } from "@/app/hooks/useFlashEntitlement";
+import FlashSubscriptionGate from "@/app/flash-reports/components/FlashSubscriptionGate";
+import CountryAccessInfoModal from "@/app/components/CountryAccessInfoModal";
+import { resolveCountryCardAction } from "@/app/components/countryCardAccess";
 
 type CountryItem = {
   name: string;
@@ -82,15 +85,32 @@ function getPreviousMonthYyyyMm() {
   return `${year}-${month}`;
 }
 
+const COUNTRY_NOT_INCLUDED_TITLE = "Country Not Included";
+const COUNTRY_NOT_INCLUDED_MESSAGE =
+  "This country is not included in your selected plan slots. Contact sales to add more countries.";
+
+const COUNTRY_CARD_FREE_GATE_ENTITLEMENT: FlashEntitlement = {
+  effectivePlan: null,
+  accessType: "none",
+  isSubscribed: false,
+  effectiveStatus: "inactive",
+  parentEmail: null,
+  flashReportCountryLimit: 0,
+  hasDirectPlan: false,
+  hasSharedPlan: false,
+};
+
 function CountryModal({
   country,
   onClose,
+  onOpenDataset,
+  openingDataset,
 }: {
   country: CountryItem | null;
   onClose: () => void;
+  onOpenDataset: (country: CountryItem) => void;
+  openingDataset: boolean;
 }) {
-  const targetMonth = getPreviousMonthYyyyMm();
-
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -135,17 +155,17 @@ function CountryModal({
         </div>
 
         <p className="relative mt-4 text-sm leading-relaxed text-white/70">
-          {country.description}{" "}
-          <Link
-            href={`/flash-reports?country=${encodeURIComponent(
-              country.slug,
-            )}&month=${encodeURIComponent(targetMonth)}`}
-          >
-            <span className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200">
-              Click to view full dataset
-            </span>
-          </Link>
+          {country.description}
         </p>
+
+        <button
+          type="button"
+          onClick={() => onOpenDataset(country)}
+          disabled={openingDataset}
+          className="mt-4 text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {openingDataset ? "Opening..." : "Click to view full dataset"}
+        </button>
       </div>
     </div>
   );
@@ -335,11 +355,6 @@ function FlipInfoCard({
   );
 }
 
-const DISABLED_COUNTRY_SLUGS = new Set([
-  "peru",
-  "russia",
-]);
-
 function CountryBadge({
   country,
   onClick,
@@ -347,23 +362,6 @@ function CountryBadge({
   country: CountryItem;
   onClick: (c: CountryItem) => void;
 }) {
-  const available = !DISABLED_COUNTRY_SLUGS.has(country.slug);
-
-  if (!available) {
-    return (
-      <div
-        className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-full border border-white/8 bg-white/3 px-2 py-1.5 text-white/40 shadow-sm opacity-45 cursor-not-allowed select-none sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1"
-        aria-label={country.name}
-        title={country.name}
-      >
-        <FlagIcon code={country.code} alt={country.name} />
-        <span className="ml-2 hidden truncate text-xs sm:inline">
-          {country.name}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <button
       type="button"
@@ -440,6 +438,9 @@ const HOW_IT_WORKS = [
 
 export default function QuickGuidesSection() {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
+  const [openingDataset, setOpeningDataset] = useState(false);
+  const [showSubscriptionGate, setShowSubscriptionGate] = useState(false);
+  const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
 const countries: CountryItem[] = useMemo(
   () => [
@@ -597,6 +598,46 @@ const countries: CountryItem[] = useMemo(
     [],
   );
 
+  async function handleOpenDataset(country: CountryItem) {
+    const targetMonth = getPreviousMonthYyyyMm();
+
+    try {
+      setOpeningDataset(true);
+      const action = await resolveCountryCardAction(country.slug, targetMonth);
+
+      if (action.type === "auth") {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem("forceRouteAuthGate", "1");
+        }
+        window.location.href = action.href;
+        return;
+      }
+
+      if (action.type === "subscribe") {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem("flashReportsSubscriptionModalStep", "2");
+        }
+        setActiveCountry(null);
+        setShowSubscriptionGate(true);
+        return;
+      }
+
+      if (action.type === "notIncluded") {
+        setActiveCountry(null);
+        setCountryAccessNoticeOpen(true);
+        return;
+      }
+
+      window.location.href = action.href;
+    } catch {
+      window.location.href = `/flash-reports?country=${encodeURIComponent(
+        country.slug,
+      )}&month=${encodeURIComponent(targetMonth)}`;
+    } finally {
+      setOpeningDataset(false);
+    }
+  }
+
   return (
     <>
       <section className="relative overflow-hidden bg-slate-950 text-white">
@@ -659,7 +700,7 @@ const countries: CountryItem[] = useMemo(
                 backTitle="Forecast Quick Walkthrough"
                 backSubtitle="Quick steps and video guide for forecast"
                 extraFront={
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 mt-3">
                     <div className="text-xs font-medium text-white/75">
                       Forecast regions covered
                     </div>
@@ -675,7 +716,7 @@ const countries: CountryItem[] = useMemo(
             </div>
           </div>
 
-          <div className="mt-14">
+          <div className="mt-4">
             <h3 className="text-2xl font-extrabold tracking-tight md:text-3xl">
               What you get in one place
             </h3>
@@ -778,6 +819,17 @@ const countries: CountryItem[] = useMemo(
       <CountryModal
         country={activeCountry}
         onClose={() => setActiveCountry(null)}
+        onOpenDataset={handleOpenDataset}
+        openingDataset={openingDataset}
+      />
+      {showSubscriptionGate && (
+        <FlashSubscriptionGate entitlement={COUNTRY_CARD_FREE_GATE_ENTITLEMENT} />
+      )}
+      <CountryAccessInfoModal
+        open={countryAccessNoticeOpen}
+        title={COUNTRY_NOT_INCLUDED_TITLE}
+        message={COUNTRY_NOT_INCLUDED_MESSAGE}
+        onClose={() => setCountryAccessNoticeOpen(false)}
       />
     </>
   );

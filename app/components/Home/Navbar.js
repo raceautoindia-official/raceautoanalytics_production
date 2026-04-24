@@ -172,7 +172,7 @@ const Navbar = () => {
             zIndex: "1050",
           }}
         >
-          <Link href="https://raceautoindia.com/subscription">
+          <Link href="/subscription">
             <Image
               src="/images/crown.png"
               alt="Crown Icon"
@@ -339,7 +339,7 @@ const Navbar = () => {
             zIndex: "1050",
           }}
         >
-          <Link href="https://raceautoindia.com/subscription">
+          <Link href="/subscription">
             <Image
               src="/images/crown.png"
               alt="Crown Icon"

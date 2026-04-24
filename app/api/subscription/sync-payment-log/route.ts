@@ -1,5 +1,6 @@
 import db from "@/lib/db";
 import { NextResponse } from "next/server";
+import { requireSameUserOrInternal } from "@/lib/requestAuth";
 
 export async function POST(req: Request) {
   try {
@@ -23,6 +24,14 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { success: false, message: "email and status are required" },
         { status: 400 }
+      );
+    }
+
+    const access = await requireSameUserOrInternal(req, String(email));
+    if (!access.ok) {
+      return NextResponse.json(
+        { success: false, message: access.message || "Forbidden" },
+        { status: access.status || 403 },
       );
     }
 

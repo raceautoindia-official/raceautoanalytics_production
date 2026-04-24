@@ -58,14 +58,16 @@ export async function GET(req) {
 
     const externalUser = externalResponse.data?.user;
 
-    if (!externalUser) {
+    if (!externalUser || !externalUser.email) {
       return NextResponse.json({ error: "User not authenticated via external API" }, { status: 401 });
     }
+
+    const normalizedEmail = String(externalUser.email).trim().toLowerCase();
 
     // 4. Check session lock in local users table (upsert by email)
     const [localUsers] = await db.execute(
       "SELECT * FROM users WHERE email = ?",
-      [externalUser.email]
+      [normalizedEmail]
     );
 
     let localUser;
@@ -74,9 +76,9 @@ export async function GET(req) {
     } else {
       const [result] = await db.execute(
         "INSERT INTO users (email) VALUES (?)",
-        [externalUser.email]
+        [normalizedEmail]
       );
-      localUser = { id: result.insertId, email: externalUser.email };
+      localUser = { id: result.insertId, email: normalizedEmail };
     }
 
     // Block login if an active session already exists on another device
@@ -92,6 +94,25 @@ export async function GET(req) {
       }
     }
 
+    const mode = localUser.verification_mode;
+    const emailVerified = Boolean(localUser.email_verified);
+    const phoneVerified = Boolean(localUser.phone_verified);
+
+    if (
+      (mode === "email" && !emailVerified) ||
+      (mode === "phone" && !phoneVerified) ||
+      (mode === "both" && (!emailVerified || !phoneVerified))
+    ) {
+      const blockedUrl = new URL("/", req.url);
+      blockedUrl.searchParams.set(
+        "error",
+        "Please complete account verification before signing in with Google.",
+      );
+      blockedUrl.searchParams.set("verification_pending", "1");
+      blockedUrl.searchParams.set("verification_mode", String(mode || ""));
+      return NextResponse.redirect(blockedUrl);
+    }
+
     // Generate a new session ID and store it with a 7-day expiry
     const sessionId = crypto.randomUUID();
     const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -105,7 +126,7 @@ export async function GET(req) {
     const token = jwt.sign(
       {
         id: externalUser.id,
-        email: externalUser.email,
+        email: normalizedEmail,
         role: externalUser.role,
         username: externalUser.username,
       },

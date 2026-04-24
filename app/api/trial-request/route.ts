@@ -2,6 +2,7 @@ import db from "@/lib/db";
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/sendEmail";
 import { adminNewTrialRequestEmail } from "@/lib/emailTemplates";
+import { FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS } from "@/lib/forecastInternalNotificationRecipients";
 
 export async function POST(req: Request) {
   try {
@@ -28,24 +29,21 @@ export async function POST(req: Request) {
     );
 
     // Notify admin via SES (non-blocking)
-    const adminEmail = process.env.TRIAL_ADMIN_EMAIL;
-    if (adminEmail) {
-      const tpl = adminNewTrialRequestEmail({
-        name,
-        email,
-        phone,
-        segment,
-        company,
-        description,
-      });
+    const tpl = adminNewTrialRequestEmail({
+      name,
+      email,
+      phone,
+      segment,
+      company,
+      description,
+    });
 
-      sendEmail({
-        to: adminEmail,
-        subject: tpl.subject,
-        html: tpl.html,
-        text: tpl.text,
-      }).catch((e) => console.error("SES admin notify failed:", e));
-    }
+    sendEmail({
+      to: [...FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS],
+      subject: tpl.subject,
+      html: tpl.html,
+      text: tpl.text,
+    }).catch((e) => console.error("SES admin notify failed:", e));
 
     return NextResponse.json({ ok: true });
   } catch (err) {

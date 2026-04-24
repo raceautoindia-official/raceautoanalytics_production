@@ -8,8 +8,7 @@ export function SubscriptionModalProvider({ children }) {
   const [show, setShow] = useState(false);
 
   const open = () => {
-    document.body.style.overflow = "hidden";
-    setShow(true);
+    window.location.href = "/subscription";
   };
 
   const close = () => {

@@ -16,10 +16,6 @@ export default function Page() {
               <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">
                 TERMS OF USE
               </h1>
-              <p className="mt-3 text-sm text-white/70">
-                Effective Date:{" "}
-                <span className="text-white/85">[DD Month YYYY]</span>
-              </p>
             </header>
 
             {/* Intro */}
@@ -290,22 +286,15 @@ export default function Page() {
                 <p className="font-semibold text-white">RACE EDITORIALE LLP</p>
                 <p>
                   Email:{" "}
-                  <span className="text-white/90">
-                    [support@yourdomain.com]
-                  </span>
+                  <span className="text-white/90">info@raceautoindia.com</span>
                 </p>
                 <p>
-                  Address: <span className="text-white/90">[Your Address]</span>
+                  Address:{" "}
+                  <span className="text-white/90">
+                    No. 39/19A, M.M.D.A. Colony Main Road, Arumbakkam, Chennai - 600106, Tamil Nadu, India
+                  </span>
                 </p>
               </div>
-            </div>
-
-            <div className="mt-12 border-t border-white/10 pt-6 text-sm text-white/60">
-              <p>
-                Note: This Terms of Use draft is intended to reflect your
-                product disclaimers and platform usage rules. Please review with
-                your legal counsel before publishing.
-              </p>
             </div>
           </div>
         </section>

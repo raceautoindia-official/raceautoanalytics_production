@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { getPublicPlanLabel } from "@/lib/planLabels";
 
 type PlanRow = {
   id: number;
@@ -300,13 +301,16 @@ export default function SubscriptionReferenceAdminPage() {
                   All
                 </option>
                 <option value="silver" className="bg-[#0B1228]">
-                  Silver
+                  Individual Pro
                 </option>
                 <option value="gold" className="bg-[#0B1228]">
-                  Gold
+                  Business
                 </option>
                 <option value="platinum" className="bg-[#0B1228]">
-                  Platinum
+                  Business Pro
+                </option>
+                <option value="bronze" className="bg-[#0B1228]">
+                  Individual Basic
                 </option>
               </select>
             </div>
@@ -350,10 +354,10 @@ export default function SubscriptionReferenceAdminPage() {
                   <tr>
                     <th className="px-4 py-3 font-semibold">Remote ID</th>
                     <th className="px-4 py-3 font-semibold">Plan Row</th>
-                    <th className="px-4 py-3 font-semibold">Silver</th>
-                    <th className="px-4 py-3 font-semibold">Gold</th>
-                    <th className="px-4 py-3 font-semibold">Platinum</th>
-                    <th className="px-4 py-3 font-semibold">Bronze</th>
+                    <th className="px-4 py-3 font-semibold">Individual Pro</th>
+                    <th className="px-4 py-3 font-semibold">Business</th>
+                    <th className="px-4 py-3 font-semibold">Business Pro</th>
+                    <th className="px-4 py-3 font-semibold">Individual Basic</th>
                     <th className="px-4 py-3 font-semibold">Synced At</th>
                   </tr>
                 </thead>
@@ -409,7 +413,7 @@ export default function SubscriptionReferenceAdminPage() {
                       <td className="px-4 py-3 text-[#EAF0FF]/85">{row.payment_id || "-"}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold uppercase text-[#EAF0FF]/85">
-                          {row.plan_name}
+                          {formatPlanLabel(row.plan_name)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -460,7 +464,7 @@ export default function SubscriptionReferenceAdminPage() {
                         <td className="px-4 py-3">
                           {row.plan_name ? (
                             <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold uppercase text-[#EAF0FF]/85">
-                              {row.plan_name}
+                              {formatPlanLabel(row.plan_name)}
                             </span>
                           ) : (
                             "-"
@@ -523,4 +527,11 @@ export default function SubscriptionReferenceAdminPage() {
       </div>
     </div>
   );
+}
+
+function formatPlanLabel(value: string | null | undefined) {
+  const label = getPublicPlanLabel(value);
+  if (label) return label;
+  if (!value) return "-";
+  return value;
 }

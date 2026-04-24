@@ -774,7 +774,18 @@ export async function getMarketBarRawData(
     if (baseMonth) qs.set("baseMonth", baseMonth);
     if (country) qs.set("country", String(country).trim().toLowerCase());
 
+    const internalKey =
+      process.env.INTERNAL_API_KEY ||
+      process.env.BACKEND_API_TOKEN ||
+      "";
+
+    const headers: Record<string, string> = {};
+    if (internalKey) {
+      headers["x-internal-api-key"] = internalKey;
+    }
+
     const res = await fetch(`${siteUrl}/api/fetchMarketBarData?${qs.toString()}`, {
+      headers,
       cache: "no-store",
     });
 

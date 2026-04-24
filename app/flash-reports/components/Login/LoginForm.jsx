@@ -1,15 +1,149 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import GoogleLogin from "./GoogleLogin"; // keep existing component
+import Link from "next/link";
+import { RecaptchaVerifier, signInWithPhoneNumber, signOut } from "firebase/auth";
+import { getFirebaseAuth } from "@/lib/firebaseClient";
+import CodeInput from "./CodeInput";
+import GoogleLogin from "./GoogleLogin";
+
+const maskEmail = (email) => {
+  if (!email) return "";
+  const [name, domain] = String(email).split("@");
+  if (!name || !domain) return email;
+  if (name.length <= 2) return `${name[0] || "*"}*@${domain}`;
+  return `${name[0]}${"*".repeat(Math.max(1, name.length - 2))}${name[name.length - 1]}@${domain}`;
+};
+
+const maskMobile = (mobile) => {
+  if (!mobile) return "";
+  const digits = String(mobile).replace(/\D/g, "");
+  if (digits.length < 4) return mobile;
+  return `+**${"*".repeat(Math.max(2, digits.length - 6))}${digits.slice(-4)}`;
+};
 
 export default function LoginForm({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [values, setValues] = useState({ email: "", password: "" });
+
+  const [recovery, setRecovery] = useState(null);
+  const [emailCode, setEmailCode] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [activeMethod, setActiveMethod] = useState("email");
+  const [completionToastShown, setCompletionToastShown] = useState(false);
+  const [firebaseConfirmation, setFirebaseConfirmation] = useState(null);
+  const [busy, setBusy] = useState({
+    verifyEmail: false,
+    resendEmail: false,
+    verifyPhone: false,
+    resendPhone: false,
+  });
+  const [cooldowns, setCooldowns] = useState({ emailResendSeconds: 0, otpResendSeconds: 0 });
+  const hasActiveCooldown =
+    (cooldowns.emailResendSeconds || 0) > 0 ||
+    (cooldowns.otpResendSeconds || 0) > 0;
+
+  useEffect(() => {
+    if (!hasActiveCooldown) return;
+
+    const timer = setInterval(() => {
+      setCooldowns((prev) => ({
+        emailResendSeconds: Math.max(0, (prev.emailResendSeconds || 0) - 1),
+        otpResendSeconds: Math.max(0, (prev.otpResendSeconds || 0) - 1),
+      }));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [hasActiveCooldown]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    };
+  }, []);
+
+  const getFirebaseErrorMessage = (err, fallback) => {
+    const code = err?.code || err?.response?.data?.code;
+    if (code === "auth/invalid-verification-code") return "Invalid OTP. Please try again.";
+    if (code === "auth/code-expired") return "OTP has expired. Please request a new OTP.";
+    if (code === "auth/too-many-requests") return "Too many OTP attempts. Please wait and retry.";
+    if (code === "auth/invalid-phone-number") return "Invalid phone number format.";
+    return err?.response?.data?.message || err?.message || fallback;
+  };
+
+  const hydrateRecovery = (payload) => {
+    const pending = payload?.pending || null;
+    if (!pending?.pendingEmail && !pending?.pendingPhone) return;
+
+    setRecovery({
+      pending,
+      verificationMode: payload?.verification_mode || payload?.verificationMode || null,
+      email: payload?.email || values.email.toLowerCase().trim(),
+      mobile: payload?.mobile || null,
+      maskedEmail: payload?.masked_email || payload?.maskedEmail || maskEmail(payload?.email || values.email),
+      maskedMobile: payload?.masked_mobile || payload?.maskedMobile || maskMobile(payload?.mobile),
+    });
+
+    setCooldowns((prev) => ({
+      emailResendSeconds: payload?.cooldowns?.emailResendSeconds ?? prev.emailResendSeconds,
+      otpResendSeconds: payload?.cooldowns?.otpResendSeconds ?? prev.otpResendSeconds,
+    }));
+
+    setError("");
+  };
+
+  const fetchVerificationStatus = async (emailInput) => {
+    const { data } = await axios.post("/api/auth/verification-status", {
+      email: (emailInput || values.email || "").toLowerCase().trim(),
+    });
+
+    if (data?.exists && data?.verificationRequired) {
+      hydrateRecovery(data);
+      return true;
+    }
+
+    return false;
+  };
+
+  useEffect(() => {
+    if (!recovery?.pending) return;
+    if (recovery.pending.pendingEmail) {
+      setActiveMethod("email");
+      return;
+    }
+    if (recovery.pending.pendingPhone) {
+      setActiveMethod("phone");
+    }
+  }, [recovery]);
+
+  const isRecoveryCompleted = useMemo(() => {
+    return Boolean(recovery?.pending?.completed);
+  }, [recovery]);
+
+  useEffect(() => {
+    if (!isRecoveryCompleted) {
+      if (completionToastShown) setCompletionToastShown(false);
+      return;
+    }
+
+    if (completionToastShown) return;
+
+    setCompletionToastShown(true);
+    toast.success("Verification completed successfully. You are now signed in.");
+
+    const timer = setTimeout(() => {
+      onSuccess?.();
+      window.location.reload();
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [isRecoveryCompleted, completionToastShown, onSuccess]);
 
   const onChange = (e) => {
     setError("");
@@ -21,23 +155,320 @@ export default function LoginForm({ onSuccess }) {
     setError("");
     try {
       setLoading(true);
-
-      // Auth is now validated server-side in forecast-login
       await axios.post("/api/admin/forecast-login", values);
 
       toast.success("Login successful");
       onSuccess?.();
       window.location.reload();
     } catch (err) {
+      const payload = err?.response?.data;
+
+      if (
+        err?.response?.status === 403 &&
+        ["EMAIL_NOT_VERIFIED", "PHONE_NOT_VERIFIED", "VERIFICATION_PENDING"].includes(
+          payload?.error_code,
+        )
+      ) {
+        hydrateRecovery(payload);
+        toast.info("Your account is already created. Complete verification to continue.");
+        return;
+      }
+
+      if (err?.response?.status === 403 && values.email) {
+        try {
+          const resumed = await fetchVerificationStatus(values.email);
+          if (resumed) {
+            toast.info("Your account is already created. Complete verification to continue.");
+            return;
+          }
+        } catch (statusErr) {
+          console.warn("Verification status fallback warning:", statusErr);
+        }
+      }
+
       const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
+        payload?.message ||
+        payload?.error ||
         "Login failed. Please check your credentials.";
       setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
+
+  const verifyEmail = async () => {
+    try {
+      setBusy((prev) => ({ ...prev, verifyEmail: true }));
+      setError("");
+      const { data } = await axios.post("/api/auth/verify-email", {
+        email: recovery?.email,
+        code: emailCode,
+      });
+
+      setRecovery((prev) => ({ ...prev, pending: data?.pending || prev?.pending }));
+      setEmailCode("");
+      toast.success("Email verification completed successfully.");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Email verification failed.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy((prev) => ({ ...prev, verifyEmail: false }));
+    }
+  };
+
+  const resendEmail = async () => {
+    try {
+      setBusy((prev) => ({ ...prev, resendEmail: true }));
+      setError("");
+      const { data } = await axios.post("/api/auth/resend-email-verification", {
+        email: recovery?.email,
+      });
+      setCooldowns((prev) => ({
+        ...prev,
+        emailResendSeconds: data?.retryAfterSeconds || 0,
+      }));
+      toast.info("We've sent a new verification code to your email.");
+    } catch (err) {
+      const retryAfter = err?.response?.data?.retryAfterSeconds || 0;
+      if (retryAfter > 0) {
+        setCooldowns((prev) => ({ ...prev, emailResendSeconds: retryAfter }));
+      }
+      const msg = err?.response?.data?.message || "Unable to resend verification email.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy((prev) => ({ ...prev, resendEmail: false }));
+    }
+  };
+
+  const sendFirebaseOtp = async () => {
+    try {
+      setBusy((prev) => ({ ...prev, resendPhone: true }));
+      setError("");
+
+      if (cooldowns.otpResendSeconds > 0) {
+        return;
+      }
+
+      if (!recovery?.mobile) {
+        const msg = "Mobile number is unavailable for this account.";
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      const auth = getFirebaseAuth();
+      if (!auth) {
+        const msg = "Firebase phone verification is not configured.";
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, "login-firebase-recaptcha", {
+          size: "invisible",
+        });
+      }
+
+      const confirmation = await signInWithPhoneNumber(
+        auth,
+        recovery.mobile,
+        window.recaptchaVerifier,
+      );
+
+      setFirebaseConfirmation(confirmation);
+      setOtpCode("");
+      setCooldowns((prev) => ({
+        ...prev,
+        otpResendSeconds: Math.max(prev.otpResendSeconds || 0, 60),
+      }));
+      toast.info("We've sent a new OTP to your mobile number.");
+    } catch (err) {
+      const msg = getFirebaseErrorMessage(err, "Unable to send OTP.");
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy((prev) => ({ ...prev, resendPhone: false }));
+    }
+  };
+
+  const verifyPhone = async () => {
+    try {
+      setBusy((prev) => ({ ...prev, verifyPhone: true }));
+      setError("");
+
+      if (!firebaseConfirmation) {
+        const msg = "Please request OTP first.";
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      const credential = await firebaseConfirmation.confirm(otpCode);
+      const idToken = await credential.user.getIdToken(true);
+
+      const { data } = await axios.post("/api/auth/verify-phone/firebase", {
+        email: recovery?.email,
+        idToken,
+      });
+
+      try {
+        const auth = getFirebaseAuth();
+        if (auth) await signOut(auth);
+      } catch (signOutErr) {
+        console.warn("Firebase sign-out warning:", signOutErr);
+      }
+
+      setRecovery((prev) => ({ ...prev, pending: data?.pending || prev?.pending }));
+      setOtpCode("");
+      toast.success("Phone verification completed successfully.");
+    } catch (err) {
+      const msg = getFirebaseErrorMessage(err, "OTP verification failed.");
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy((prev) => ({ ...prev, verifyPhone: false }));
+    }
+  };
+
+  if (
+    recovery?.pending &&
+    !recovery.pending.completed &&
+    (recovery.pending.pendingEmail || recovery.pending.pendingPhone)
+  ) {
+    const pendingEmail = Boolean(recovery.pending.pendingEmail);
+    const pendingPhone = Boolean(recovery.pending.pendingPhone);
+
+    const helperText = pendingEmail && pendingPhone
+      ? "Click here to complete verification"
+      : pendingEmail
+        ? "Click here to verify your email"
+        : "Click here to verify your phone number";
+
+    return (
+      <div className="space-y-3 sm:space-y-4">
+        <div className="mb-4">
+          <div className="text-sm font-semibold text-white">Complete Verification</div>
+          <div className="mt-1 text-xs text-white/65">
+            Your account is already created. Complete verification to continue.
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 sm:p-4">
+            <p className="text-xs text-white/70">
+              {pendingEmail && pendingPhone && "Email and phone verification are still pending."}
+              {pendingEmail && !pendingPhone && "Email verification is still pending."}
+              {!pendingEmail && pendingPhone && "Phone verification is still pending."}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (pendingEmail) {
+                  setActiveMethod("email");
+                } else {
+                  setActiveMethod("phone");
+                  if (!firebaseConfirmation && cooldowns.otpResendSeconds === 0) {
+                    sendFirebaseOtp();
+                  }
+                }
+              }}
+              className="mt-1 text-xs font-semibold text-[#AFC2FF] transition hover:text-white"
+            >
+              {helperText}
+            </button>
+          </div>
+
+          {pendingEmail && (
+            <div className={`rounded-xl border p-3 sm:p-4 ${activeMethod === "email" ? "border-[#4F67FF]/50 bg-[#4F67FF]/10" : "border-white/10 bg-white/5"}`}>
+              <p className="mb-2 text-xs text-white/70">Email: {recovery.maskedEmail}</p>
+              <CodeInput
+                value={emailCode}
+                onChange={(code) => {
+                  setError("");
+                  setEmailCode(code);
+                }}
+                autoFocus={activeMethod === "email"}
+                disabled={busy.verifyEmail}
+              />
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+                <button
+                  type="button"
+                  onClick={verifyEmail}
+                  disabled={busy.verifyEmail || emailCode.length < 6}
+                  className="h-10 w-full rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                >
+                  {busy.verifyEmail ? "Verifying..." : "Verify Email"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resendEmail}
+                  disabled={busy.resendEmail || cooldowns.emailResendSeconds > 0}
+                  className="h-10 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {cooldowns.emailResendSeconds > 0
+                    ? `Resend in ${cooldowns.emailResendSeconds}s`
+                    : busy.resendEmail
+                      ? "Sending..."
+                      : "Resend Code"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {pendingPhone && (
+            <div className={`rounded-xl border p-3 sm:p-4 ${activeMethod === "phone" ? "border-[#4F67FF]/50 bg-[#4F67FF]/10" : "border-white/10 bg-white/5"}`}>
+              <div id="login-firebase-recaptcha" />
+              <p className="mb-2 text-xs text-white/70">Mobile: {recovery.maskedMobile}</p>
+              <CodeInput
+                value={otpCode}
+                onChange={(code) => {
+                  setError("");
+                  setOtpCode(code);
+                }}
+                autoFocus={activeMethod === "phone"}
+                disabled={busy.verifyPhone}
+              />
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+                <button
+                  type="button"
+                  onClick={verifyPhone}
+                  disabled={busy.verifyPhone || otpCode.length < 6 || !firebaseConfirmation}
+                  className="h-10 w-full rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+                >
+                  {busy.verifyPhone ? "Verifying..." : "Verify OTP"}
+                </button>
+                <button
+                  type="button"
+                  onClick={sendFirebaseOtp}
+                  disabled={busy.resendPhone || cooldowns.otpResendSeconds > 0}
+                  className="h-10 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {cooldowns.otpResendSeconds > 0
+                    ? `Resend in ${cooldowns.otpResendSeconds}s`
+                    : busy.resendPhone
+                      ? "Sending..."
+                      : firebaseConfirmation
+                        ? "Resend OTP"
+                        : "Send OTP"}
+                </button>
+              </div>
+              <p className="mt-2 text-center text-xs text-white/55">Entered a wrong code? Try again or request a new one.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -75,14 +506,9 @@ export default function LoginForm({ onSuccess }) {
             <label className="text-xs font-medium text-white/70">
               Password
             </label>
-            <a
-              href="https://raceautoindia.com/forgot-password"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-[#4F67FF] hover:text-[#7B90FF] transition"
-            >
-              Forgot Password?
-            </a>
+            <span className="text-[11px] text-white/45">
+              Managed by Race Auto India
+            </span>
           </div>
           <input
             name="password"
@@ -103,13 +529,30 @@ export default function LoginForm({ onSuccess }) {
           {loading ? "Signing in..." : "Login"}
         </button>
 
+        <p className="text-[11px] leading-5 text-white/65">
+          By continuing, you acknowledge our{" "}
+          <Link
+            href="/terms-conditions"
+            className="font-semibold text-[#7B93FF] underline underline-offset-2 hover:text-[#AFC2FF]"
+          >
+            Terms & Conditions
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/privacy-policy"
+            className="font-semibold text-[#7B93FF] underline underline-offset-2 hover:text-[#AFC2FF]"
+          >
+            Privacy Policy
+          </Link>
+          .
+        </p>
+
         <div className="flex items-center gap-3 py-2">
           <div className="h-px flex-1 bg-white/10" />
           <div className="text-[11px] text-white/50">OR</div>
           <div className="h-px flex-1 bg-white/10" />
         </div>
 
-        {/* Google login stays same logic, only style in its component */}
         <GoogleLogin />
       </form>
     </div>

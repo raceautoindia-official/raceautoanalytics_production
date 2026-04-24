@@ -1,8 +1,17 @@
 import db from "@/lib/db";
 import { NextResponse } from "next/server";
+import { requireAdminAccess } from "@/lib/requestAuth";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // const access = await requireAdminAccess(req);
+    // if (!access.ok) {
+    //   return NextResponse.json(
+    //     { message: access.message || "Admin access required" },
+    //     { status: access.status || 403 },
+    //   );
+    // }
+
     const [rows] = await db.execute(
       `SELECT 
          id, name, email, phone, segment, company, description,

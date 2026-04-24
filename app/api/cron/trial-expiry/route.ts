@@ -2,6 +2,7 @@ import db from "@/lib/db";
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/sendEmail";
 import { userTrialExpiryReminderEmail, userTrialExpiredEmail } from "@/lib/emailTemplates";
+import { FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS } from "@/lib/forecastInternalNotificationRecipients";
 
 function isAuthorized(req: Request) {
   const secret = process.env.CRON_SECRET;
@@ -76,8 +77,7 @@ export async function GET(req: Request) {
     }
 
     // Optional admin summary (simple)
-    const adminEmail = process.env.TRIAL_ADMIN_EMAIL;
-    if (adminEmail && (sent2d + sent1d + sentExpired) > 0) {
+    if ((sent2d + sent1d + sentExpired) > 0) {
       const subject = `[${process.env.APP_NAME || "RaceAutoAnalytics"}] Trial reminders sent`;
       const html = `<div style="font-family:Arial,sans-serif">
         <p>Trial reminder job complete.</p>
@@ -87,7 +87,12 @@ export async function GET(req: Request) {
           <li>Expired notices: ${sentExpired}</li>
         </ul>
       </div>`;
-      await sendEmail({ to: adminEmail, subject, html, text: `2d:${sent2d}, 1d:${sent1d}, expired:${sentExpired}` });
+      await sendEmail({
+        to: [...FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS],
+        subject,
+        html,
+        text: `2d:${sent2d}, 1d:${sent1d}, expired:${sentExpired}`,
+      });
     }
 
     return NextResponse.json({ ok: true, sent2d, sent1d, sentExpired });

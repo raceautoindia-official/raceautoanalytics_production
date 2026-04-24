@@ -151,6 +151,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (entitlement.accessType === "shared") {
+      return NextResponse.json(
+        { error: "Shared users cannot self-assign countries. Contact your plan owner." },
+        { status: 403 },
+      );
+    }
+
     const limit = entitlement.flashReportCountryLimit;
     if (limit === 0) {
       return NextResponse.json(

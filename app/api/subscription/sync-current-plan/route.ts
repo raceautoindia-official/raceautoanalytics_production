@@ -1,5 +1,8 @@
 import db from "@/lib/db";
 import { NextResponse } from "next/server";
+import { sendEmail } from "@/lib/sendEmail";
+import { subscriptionPurchaseSuccessEmail } from "@/lib/emailTemplates";
+import { requireSameUserOrInternal } from "@/lib/requestAuth";
 
 function toMySQLDateTime(value: any) {
   if (!value) return null;
@@ -21,16 +24,84 @@ function toMySQLDateTime(value: any) {
   return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
+function toReadableDate(value: any) {
+  const parsed = toMySQLDateTime(value);
+  if (!parsed) return null;
+  return parsed.slice(0, 10);
+}
+
+async function trySendSubscriptionPurchaseEmail(email: string, active: any) {
+  try {
+    const paymentId =
+      active?.payment_id != null ? String(active.payment_id) : "";
+    const referenceKey =
+      paymentId ||
+      `subscription-${String(active?.id ?? "na")}-${String(active?.start_date ?? "na")}`;
+
+    const [insertResult] = await db.execute(
+      `INSERT IGNORE INTO subscription_email_log (email, event_type, reference_key, payload)
+       VALUES (?, 'subscription_purchase_success', ?, ?)`,
+      [email, referenceKey, JSON.stringify(active ?? {})],
+    );
+
+    if (Number((insertResult as { affectedRows?: number })?.affectedRows || 0) === 0) {
+      return;
+    }
+
+    let amount: number | null = null;
+    if (paymentId) {
+      const [paymentRows] = await db.execute(
+        `SELECT amount
+         FROM payment_reference_log
+         WHERE email = ? AND razorpay_payment_id = ? AND status = 'success'
+         ORDER BY id DESC
+         LIMIT 1`,
+        [email, paymentId],
+      );
+      const payment = (paymentRows as any[])[0];
+      amount = payment?.amount != null ? Number(payment.amount) : null;
+    }
+
+    const template = subscriptionPurchaseSuccessEmail({
+      email,
+      planName: String(active?.plan_name || "Subscription"),
+      amount,
+      currency: "INR",
+      purchaseDate: toReadableDate(active?.start_date),
+      renewalDate: toReadableDate(active?.end_date),
+      paymentReference: paymentId || null,
+    });
+
+    await sendEmail({
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    });
+  } catch (error) {
+    console.error("subscription purchase email failed:", error);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const email = body?.email;
     const data = body?.data;
+    const triggerPurchaseEmail = body?.triggerPurchaseEmail === true;
 
     if (!email) {
       return NextResponse.json(
         { success: false, message: "email is required" },
         { status: 400 }
+      );
+    }
+
+    const access = await requireSameUserOrInternal(req, String(email));
+    if (!access.ok) {
+      return NextResponse.json(
+        { success: false, message: access.message || "Forbidden" },
+        { status: access.status || 403 },
       );
     }
 
@@ -87,6 +158,11 @@ export async function POST(req: Request) {
         JSON.stringify(data ?? active),
       ]
     );
+
+    const activeStatus = String(active?.status || "").toLowerCase();
+    if (triggerPurchaseEmail && activeStatus === "active") {
+      await trySendSubscriptionPurchaseEmail(String(email), active);
+    }
 
     return NextResponse.json({
       success: true,

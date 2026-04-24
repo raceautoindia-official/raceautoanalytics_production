@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { Providers } from "@/components/providers/Providers";
 import NavBar from "@/app/components/Navbar";
 import FlashSubscriptionManager from "@/app/flash-reports/components/FlashSubscriptionManager";
 import React, { Suspense } from "react";
-import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
 
 export const dynamic = "force-dynamic";
@@ -26,11 +24,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className={`${inter.variable} min-h-screen`}>
       <NavBar />
       <Suspense fallback={null}>
-        <Providers>
-          <FlashSubscriptionManager>
-            <main className="pt-5">{children} </main>
-          </FlashSubscriptionManager>
-        </Providers>
+        <FlashSubscriptionManager>
+          <main className="pt-5">{children} </main>
+        </FlashSubscriptionManager>
       </Suspense>
 
     </div>

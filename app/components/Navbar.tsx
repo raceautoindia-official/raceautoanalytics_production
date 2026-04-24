@@ -96,6 +96,24 @@ function YellowButton({
 /* ---------- NavBar ---------- */
 export default function NavBar() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+
+  React.useEffect(() => {
+    const syncAuthState = () => {
+      if (typeof document === "undefined") return;
+      const hasToken = /(?:^|;\s*)authToken=/.test(document.cookie);
+      setIsLoggedIn(hasToken);
+    };
+
+    syncAuthState();
+    window.addEventListener("focus", syncAuthState);
+    document.addEventListener("visibilitychange", syncAuthState);
+
+    return () => {
+      window.removeEventListener("focus", syncAuthState);
+      document.removeEventListener("visibilitychange", syncAuthState);
+    };
+  }, []);
 
   return (
     <>
@@ -153,13 +171,15 @@ export default function NavBar() {
 </SubscribeButton>
                 <LoginNavButton />
                 {/* Profile / Settings icon */}
-                <Link
-                  href="/settings"
-                  aria-label="Account settings"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
-                >
-                  <User className="h-4 w-4" />
-                </Link>
+                {isLoggedIn && (
+                  <Link
+                    href="/settings"
+                    aria-label="Account settings"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white/70 transition hover:bg-white/15 hover:text-white"
+                  >
+                    <User className="h-4 w-4" />
+                  </Link>
+                )}
               </div>
 
               {/* Mobile actions */}

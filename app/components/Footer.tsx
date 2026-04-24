@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Mail, Phone } from "lucide-react";
+import { Mail, Phone, Facebook, Instagram, Linkedin, Youtube, Twitter } from "lucide-react";
 import Image from "next/image";
 
 export default function Footer() {
   return (
     <footer className="bg-[#191a1c] text-white">
       {/* Top row */}
-      <div className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4
- py-10 md:py-12">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-12 md:gap-12 items-start">
+      <div className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4 py-8 md:py-9">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-12 md:gap-8 items-start">
           {/* Brand + tagline */}
-          <div className="md:col-span-6">
+          <div className="md:col-span-5">
             {/* keep logo + tagline on ONE line so the column top aligns with others */}
             <div className="flex items-center gap-4">
               <Image
@@ -21,16 +20,16 @@ export default function Footer() {
                 width={360}
                 height={88}
                 sizes="(min-width: 1024px) 360px, 280px"
-                className="h-16 w-auto lg:h-20 shrink-0"
+                className="h-14 w-auto lg:h-16 shrink-0"
                 priority
               />
-              <div className="text-[12px] leading-4 text-white/60">
+              <div className="text-[11px] leading-4 text-white/60">
                 Analytics for the automotive &amp; industrial equipment industry
               </div>
             </div>
 
             {/* keep the description below with the same spacing as other columns' content */}
-            <p className="mt-6 max-w-xl text-[13px] leading-6 text-white/75">
+            <p className="mt-4 max-w-xl text-[13px] leading-5 text-white/75">
               The leading AI-driven market intelligence platform providing
               comprehensive analytics across automotive, commercial vehicles,
               industrial equipment, and related sectors.
@@ -42,7 +41,7 @@ export default function Footer() {
             <h3 className="text-sm font-semibold tracking-wide text-white/90">
               Quick Links
             </h3>
-            <ul className="mt-6 space-y-2 text-[13px] text-white/80">
+            <ul className="mt-4 space-y-1.5 text-[13px] text-white/80">
               <li>
                 <Link
                   href="/flash-reports/overview"
@@ -59,6 +58,56 @@ export default function Footer() {
                    Forecast 
                 </Link>
               </li>
+              <li className="pt-2">
+                <h4 className="text-xs font-semibold tracking-wide text-white/85">Follow Us</h4>
+                <div className="mt-2 flex items-center gap-2 text-white/80">
+                  <a
+                    href="https://www.facebook.com/raceautoindia/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Race Auto India on Facebook"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Facebook className="h-4 w-4" />
+                  </a>
+                  <a
+                    href="https://x.com/raceautoindia"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Race Auto India on X"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Twitter className="h-4 w-4" />
+                  </a>
+                  <a
+                    href="https://www.instagram.com/race.auto.india/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Race Auto India on Instagram"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Instagram className="h-4 w-4" />
+                  </a>
+                  <a
+                    href="https://www.linkedin.com/company/race-auto-india/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Race Auto India on LinkedIn"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Linkedin className="h-4 w-4" />
+                  </a>
+                  <a
+                    href="https://www.youtube.com/@RaceAutoIndia"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Race Auto India on YouTube"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Youtube className="h-4 w-4" />
+                  </a>
+                </div>
+              </li>
               {/* <li>
                 <Link
                   href="#"
@@ -71,11 +120,11 @@ export default function Footer() {
           </div>
 
           {/* Contact */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-4">
             <h3 className="text-sm font-semibold tracking-wide text-white/90">
               Contact
             </h3>
-            <ul className="mt-6 space-y-2 text-[13px] text-white/80">
+            <ul className="mt-4 space-y-1.5 text-[13px] text-white/80">
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-white/60" />
                 <a
@@ -92,9 +141,21 @@ export default function Footer() {
                   href="tel:+15551234567"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
-                 +91 8072098352, +91 9962110101
+                 +91 8072098352
                 </a>
               </li>
+              <li className="pt-1 text-white/70">GST No. 33AAFCR6885E1Z6</li>
+              <li className="text-white/70">CIN. U73100TN2011PTC083486</li>
+              <Link href='https://raceinnovations.in/'><li className="pt-1.5 flex items-center gap-2 text-white/80">
+                <span>Powered by Race Innovations Pvt Ltd Co.</span>
+                <Image
+                  src="/images/Ri-Logo-Graph-White.webp"
+                  alt="Race Innovations"
+                  width={44}
+                  height={44}
+                  className="h-10 w-auto"
+                />
+              </li></Link>
             </ul>
           </div>
         </div>
@@ -104,8 +165,8 @@ export default function Footer() {
       <div className="h-px w-full bg-white/10" />
 
       {/* Bottom bar */}
-      <div className="mx-auto max-w-7xl px-4 py-4">
-        <div className="flex flex-col gap-3 text-[12px] text-white/60 md:flex-row md:items-center md:justify-between">
+      <div className="mx-auto max-w-7xl px-4 py-3">
+        <div className="flex flex-col gap-2 text-[12px] text-white/60 md:flex-row md:items-center md:justify-between">
           <div>© Copyright 2025 RACE EDITORIALE LLP – All Rights Reserved.</div>
 
           <nav aria-label="Footer links" className="flex flex-wrap items-center">

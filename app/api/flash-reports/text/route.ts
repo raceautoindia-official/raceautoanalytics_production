@@ -36,11 +36,6 @@ export async function GET(req: Request) {
       }
     }
 
-    // Final fallback: India
-    if (!row && slugKey !== "india") {
-      row = await getCountryTextRow("india");
-    }
-
     return NextResponse.json(row || {});
   } catch (e: any) {
     console.error("GET /api/flash-reports/text error:", e);

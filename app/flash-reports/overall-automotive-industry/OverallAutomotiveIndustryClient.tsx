@@ -23,7 +23,7 @@ interface OverallAutomotiveIndustryClientProps {
   initialOverallAlternatePenetration: OverallAlternatePenetrationResult;
 }
 
-const ALT_FUEL_CATEGORIES = ["2W", "3W", "PV", "Tractor", "CV"];
+const ALT_FUEL_CATEGORIES = ["2W", "3W", "PV", "Tractor", "CV", "CE"];
 
 export function OverallAutomotiveIndustryClient({
   initialOverallData,

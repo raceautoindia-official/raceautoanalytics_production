@@ -1,6 +1,7 @@
 import db from "@/lib/db";
 import { NextResponse } from "next/server";
 import crypto from "crypto";
+import { requireAdminAccess } from "@/lib/requestAuth";
 
 function generateTempPassword(len = 10) {
   return crypto
@@ -12,6 +13,14 @@ function generateTempPassword(len = 10) {
 
 export async function POST(req: Request, ctx: { params: { id: string } }) {
   try {
+    const access = await requireAdminAccess(req);
+    if (!access.ok) {
+      return NextResponse.json(
+        { message: access.message || "Admin access required" },
+        { status: access.status || 403 },
+      );
+    }
+
     const id = Number(ctx.params.id);
     if (!id) return NextResponse.json({ message: "Invalid id" }, { status: 400 });
 

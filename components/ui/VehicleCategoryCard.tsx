@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import {
   TrendingUp,
   TrendingDown,
@@ -66,9 +67,13 @@ export function VehicleCategoryCard({
   disabledMessage,
 }: VehicleCategoryCardProps) {
   const { region, month } = useAppContext();
+  const flashEntitlement = useFlashEntitlementContext();
 
   const suffix = useMemo(() => buildSuffix(region, month), [region, month]);
   const href = useMemo(() => `/flash-reports/${id}${suffix}`, [id, suffix]);
+  const isTrialUser =
+    flashEntitlement?.entitlement?.accessType === "trial" &&
+    Boolean(flashEntitlement.entitlement.trialActive);
 
 
   const colorMap: Record<string, string> = {
@@ -462,6 +467,12 @@ export function VehicleCategoryCard({
   return (
     <Link
       href={href}
+      onClick={(event) => {
+        if (!isTrialUser) return;
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent("flash-trial-restricted"));
+        window.location.href = "/subscription?source=flash-trial-restricted";
+      }}
       className="group block animate-fade-in hover-lift"
       style={{ animationDelay: `${index * 100}ms` }}
     >

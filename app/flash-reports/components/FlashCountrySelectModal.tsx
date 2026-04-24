@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { FlashEntitlement, AssignedCountry } from "@/app/hooks/useFlashEntitlement";
+import { formatPlanLabelOrFallback } from "@/lib/planLabels";
 
 type CountryOpt = { value: string; label: string; flag?: string };
 
@@ -10,13 +11,6 @@ interface Props {
   assignedCountries: AssignedCountry[];
   onSaved: () => void;
 }
-
-const PLAN_LABEL: Record<string, string> = {
-  bronze: "Bronze",
-  silver: "Silver",
-  gold: "Gold",
-  platinum: "Platinum",
-};
 
 export default function FlashCountrySelectModal({
   entitlement,
@@ -99,10 +93,10 @@ export default function FlashCountrySelectModal({
   // Don't render if no remaining slots (all filled)
   if (remaining <= 0) return null;
 
-  const planLabel =
-    PLAN_LABEL[entitlement.effectivePlan?.toLowerCase() ?? ""] ||
-    entitlement.effectivePlan ||
-    "Subscribed";
+  const planLabel = formatPlanLabelOrFallback(
+    entitlement.effectivePlan,
+    "Subscribed",
+  );
 
   return (
     <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4">

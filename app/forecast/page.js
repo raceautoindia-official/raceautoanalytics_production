@@ -23,6 +23,8 @@ import {
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaClipboardList, FaBolt } from "react-icons/fa";
+import LoginNavButton from "@/app/flash-reports/components/Login/LoginAuthButton";
+import SubscribeButton from "@/components/subscription/SubscribeButton";
 // import "./forecast.css";
 import GlobalStyles from "./GlobalStyles";
 import Footer from "./Footer";
@@ -31,18 +33,52 @@ import { useLinearRegressionForecast } from "../hooks/LinearRegressionForecast";
 // Hook for score based forecast
 import { useForecastGrowth } from "../hooks/useForecastGrowth";
 import { useAverageYearlyScores } from "../hooks/useAverageYearlyScores";
-import { useCurrentPlan } from "../hooks/useCurrentPlan";
-import LoginNavButton from "../flash-reports/components/Login/LoginAuthButton";
 import { useForecastEntitlementContext } from "./context/ForecastEntitlementContext";
 
+function getAuthEmailFromCookie() {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)authToken=([^;]+)/);
+  if (!match) return null;
+
+  try {
+    const b64 = match[1].split(".")[1];
+    if (!b64) return null;
+    const json = atob(b64.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json);
+    return payload?.email ? String(payload.email).trim().toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ForecastPage() {
-  const { planName, email, loading: planLoading } = useCurrentPlan();
+  const [email, setEmail] = useState(null);
   // Region-based entitlement from layout context (null = free user, no restriction)
   const {
     lockedToRegions,
+    entitlement,
+    isLoggedIn,
     loading: forecastEntitlementLoading,
   } = useForecastEntitlementContext();
   const router = useRouter();
+
+  const hasActiveForecastAccess =
+    !!entitlement?.isSubscribed &&
+    entitlement.effectiveStatus === "active" &&
+    !entitlement?.membershipPendingApproval;
+  const canAccessForecastData =
+    !forecastEntitlementLoading && isLoggedIn && hasActiveForecastAccess;
+  const effectivePlanKey = String(entitlement?.effectivePlan || "").toLowerCase();
+
+  useEffect(() => {
+    setEmail(getAuthEmailFromCookie());
+  }, []);
+
+  const triggerLoginGate = () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("forceRouteAuthGate", "1");
+    }
+  };
 
   // ─── Mobile detection (simple + reliable) ─────────────────────────────
   const [isMobile, setIsMobile] = useState(false);
@@ -56,12 +92,6 @@ export default function ForecastPage() {
 
   // Shared chart sizing
   const chartHeight = isMobile ? 300 : 400;
-
-  // Shared axis ticks
-  const xTick = {
-    fill: "rgba(255,255,255,0.7)",
-    fontSize: isMobile ? 10 : 12,
-  };
 
   const yTick = {
     fill: "#FFC107",
@@ -87,7 +117,6 @@ export default function ForecastPage() {
   const graphRef = React.useRef(null);
 
   const [loading, setLoading] = useState(false);
-  const [mountLoginNav, setMountLoginNav] = useState(false);
   const [exclusiveOpen, setExclusiveOpen] = useState(false);
   const exclusiveRef = React.useRef(null);
 
@@ -141,71 +170,16 @@ export default function ForecastPage() {
 
   // ─── track which regions are expanded ─────────────────────────────────
   const [openRegions, setOpenRegions] = useState({});
-
-  //user country selection
-  const [userCountry, setUserCountry] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [countries, setCountries] = useState([]);
-  const [chosenCountry, setChosenCountry] = useState(null);
-  const [confirmationOpen, setConfirmationOpen] = useState(false);
-  const [confirmText, setConfirmText] = useState("");
   const [regionSelectionMemory, setRegionSelectionMemory] = useState({
     kind: null, // "country" | "allRegions" | null
     countryName: "",
   });
   //admin access
-  // ─── Add these just below your other useState calls ─────────────────
+  // Add these just below your other useState calls
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [adminKeyInput, setAdminKeyInput] = useState("");
   let pressTimer = null;
-
-  useEffect(() => {
-    if (planLoading || !email) return;
-    // 1) load user‐country
-    fetch(`/api/user-country?email=${encodeURIComponent(email)}`)
-      .then((res) => {
-        // Only show the legacy country-select modal for free users (no active plan).
-        // Paid users (any plan) use the new region-slot system via ForecastSubscriptionManager.
-        if (res.status === 404 && !planName) {
-          setModalOpen(true);
-          return null;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data) {
-          setUserCountry(data);
-          setChosenCountry(data.country_id);
-        }
-      })
-      .catch(console.error);
-
-    // 2) load list of available countries
-    fetch("/api/availableCountries")
-      .then((res) => res.json())
-      .then(setCountries)
-      .catch(console.error);
-  }, [planLoading, email]);
-
-  useEffect(() => {
-    if (!email || !userCountry) return;
-    fetch("/api/user-country", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        plan_name: planName,
-        country_id: userCountry.country_id,
-      }),
-    }).catch(console.error);
-  }, [planName, email, userCountry]);
-
-  // just after your existing useState calls
-  const chosenCountryName = useMemo(() => {
-    const country = countries.find((c) => c.id === chosenCountry);
-    return country ? country.name : "";
-  }, [countries, chosenCountry]);
 
   // Auto-setting regionSelectionMemory from a stored country is disabled.
   // Free users land on All-Regions by default (no stored-country lock).
@@ -222,7 +196,9 @@ export default function ForecastPage() {
       },
     })
       .then((r) => r.json())
-      .then(setGraphs)
+      .then((data) => {
+        setGraphs(Array.isArray(data) ? data : []);
+      })
       .catch(console.error);
 
     fetch("/api/volumeData", {
@@ -232,8 +208,9 @@ export default function ForecastPage() {
     })
       .then((r) => r.json())
       .then((arr) => {
+        const safeArr = Array.isArray(arr) ? arr : [];
         const m = {};
-        arr.forEach((d) => {
+        safeArr.forEach((d) => {
           const cleanData = Object.fromEntries(
             Object.entries(d.data)
               .filter(
@@ -264,10 +241,11 @@ export default function ForecastPage() {
     })
       .then((r) => r.json())
       .then((arr) => {
-        setContentHierarchyNodes(arr);
+        const safeArr = Array.isArray(arr) ? arr : [];
+        setContentHierarchyNodes(safeArr);
         // build id→name map
         const m = {};
-        arr.forEach((node) => {
+        safeArr.forEach((node) => {
           m[node.id] = node.name;
         });
         setHierarchyMap(m);
@@ -628,6 +606,10 @@ export default function ForecastPage() {
     if (!contentHierarchyNodes.length || !graphs.length) return;
     // Wait for entitlement to resolve before showing content (avoids flash under modal)
     if (forecastEntitlementLoading) return;
+    if (!canAccessForecastData) {
+      setSelectedGraphId(null);
+      return;
+    }
 
     // 1) Find "Commercial Vehicles" category
     const commCat = contentHierarchyNodes.find(
@@ -657,6 +639,7 @@ export default function ForecastPage() {
     graphs,
     selectedCategoryId,
     forecastEntitlementLoading,
+    canAccessForecastData,
   ]);
 
   const selectedDataset = useMemo(() => {
@@ -1106,120 +1089,6 @@ export default function ForecastPage() {
         </motion.div>
       )}
 
-      {/* Country modal */}
-      {modalOpen && (
-        <motion.div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <motion.div
-            className="w-full max-w-sm rounded-xl border border-white/10 bg-[#2C2E31] p-6 text-center text-white shadow-2xl"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 20, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          >
-            {!confirmationOpen ? (
-              <>
-                <h2 className="text-xl font-semibold">Select Your Country</h2>
-
-                <select
-                  value={chosenCountry || ""}
-                  onChange={(e) => setChosenCountry(Number(e.target.value))}
-                  className="mt-4 w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-white outline-none"
-                >
-                  <option value="" disabled>
-                    — pick one —
-                  </option>
-                  {countries.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  disabled={!chosenCountry}
-                  onClick={() => setConfirmationOpen(true)}
-                  className="mt-4 w-full rounded-md bg-[#15AFE4] px-4 py-2 font-semibold text-[#1F2023] disabled:opacity-50"
-                >
-                  Save
-                </button>
-              </>
-            ) : (
-              <>
-                <h2 className="text-xl font-semibold text-[#FFCC00]">
-                  ⚠️ Confirm Selection
-                </h2>
-
-                <p className="mt-3 text-sm text-white/80">
-                  You’ve chosen{" "}
-                  <strong className="text-white">
-                    {countries.find((c) => c.id === chosenCountry)?.name}
-                  </strong>
-                  . This cannot be changed later. Please type the country name
-                  below to confirm.
-                </p>
-
-                <input
-                  type="text"
-                  value={confirmText}
-                  onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="Type country name exactly"
-                  className="mt-4 w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-white outline-none"
-                />
-
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    onClick={() => {
-                      setConfirmationOpen(false);
-                      setConfirmText("");
-                    }}
-                    className="rounded-md border border-white/20 px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    disabled={
-                      confirmText.trim().toLowerCase() !==
-                      countries
-                        .find((c) => c.id === chosenCountry)
-                        ?.name.toLowerCase()
-                    }
-                    onClick={() => {
-                      fetch("/api/user-country", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          email,
-                          plan_name: planName,
-                          country_id: chosenCountry,
-                        }),
-                      })
-                        .then(() => {
-                          setUserCountry({
-                            email,
-                            plan_name: planName,
-                            country_id: chosenCountry,
-                          });
-                          setModalOpen(false);
-                        })
-                        .catch(console.error);
-                    }}
-                    className="rounded-md bg-[#15AFE4] px-3 py-2 text-sm font-semibold text-[#1F2023] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    OK
-                  </button>
-                </div>
-              </>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
-
       <GlobalStyles />
 
       <motion.div
@@ -1377,16 +1246,18 @@ export default function ForecastPage() {
               Flash Reports
             </button>
 
-            {/* {mountLoginNav || planName ? (
-              <LoginNavButton />
-            ) : (
-              <button
-                className="inline-flex items-center rounded-md bg-[#1F2023] px-4 py-2 text-sm font-semibold text-white/90 shadow-sm hover:bg-white/5"
-                onClick={() => setMountLoginNav(true)}
-              >
-                Login
-              </button>
-            )} */}
+            <SubscribeButton className="inline-flex items-center rounded-md bg-[#1F2023] px-4 py-2 text-sm font-semibold text-[#FFC107] shadow-sm hover:bg-white/5">
+              Subscribe
+            </SubscribeButton>
+
+            <LoginNavButton />
+
+            <Link
+              href="/settings"
+              className="inline-flex items-center rounded-md bg-[#1F2023] px-4 py-2 text-sm font-semibold text-white/90 shadow-sm hover:bg-white/5"
+            >
+              Profile
+            </Link>
           </div>
         </div>
 
@@ -1400,10 +1271,11 @@ export default function ForecastPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!email) {
-                      setMountLoginNav(true);
+                    if (!isLoggedIn) {
+                      triggerLoginGate();
                       return;
                     }
+                    if (!canAccessForecastData) return;
                     setOpenRegion((v) => !v);
                     setOpenCategory(false);
                     setOpenGraph(false);
@@ -1487,10 +1359,11 @@ export default function ForecastPage() {
                                 : "text-white hover:bg-white/5",
                             ].join(" ")}
                             onClick={(e) => {
-                              if (!email) {
-                                setMountLoginNav(true);
+                              if (!isLoggedIn) {
+                                triggerLoginGate();
                                 return;
                               }
+                              if (!canAccessForecastData) return;
                               if (isRegionLocked) return;
                               e.preventDefault();
                               e.stopPropagation();
@@ -1502,7 +1375,7 @@ export default function ForecastPage() {
                           >
                             <span className="font-semibold">{region.name}</span>
                             <span className="text-white/60">
-                              {isRegionLocked ? "🔒" : isOpen ? "▾" : "▸"}
+                              {isRegionLocked ? "Locked" : isOpen ? "▾" : "▸"}
                             </span>
                           </button>
 
@@ -1571,10 +1444,11 @@ export default function ForecastPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!email) {
-                    setMountLoginNav(true);
+                  if (!isLoggedIn) {
+                    triggerLoginGate();
                     return;
                   }
+                  if (!canAccessForecastData) return;
                   setOpenCategory((v) => !v);
                   setOpenRegion(false);
                   setOpenGraph(false);
@@ -1601,7 +1475,11 @@ export default function ForecastPage() {
                 ].join(" ")}
               >
                 {categories.map((cat, idx) => {
-                  const locked = !isAdmin && planName === "silver" && idx >= 2;
+                  const locked =
+                    !isAdmin &&
+                    canAccessForecastData &&
+                    effectivePlanKey === "silver" &&
+                    idx >= 2;
                   const active = selectedCategoryId === cat.id;
 
                   return (
@@ -1635,7 +1513,7 @@ export default function ForecastPage() {
 
                       {locked && (
                         <span className="pointer-events-none absolute -top-2 left-1/2 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-[#15AFE4]/40 bg-black/90 px-2 py-1 text-xs text-white group-hover:block">
-                          Upgrade to Gold or Platinum to unlock
+                          Upgrade to Business or Business Pro to unlock
                         </span>
                       )}
                     </button>
@@ -1656,10 +1534,11 @@ export default function ForecastPage() {
                   type="button"
                   className="inline-flex items-center gap-2 rounded-md bg-white/5 px-4 py-2 text-base font-semibold text-white hover:bg-white/10"
                   onClick={() => {
-                    if (!email) {
-                      setMountLoginNav(true);
+                    if (!isLoggedIn) {
+                      triggerLoginGate();
                       return;
                     }
+                    if (!canAccessForecastData) return;
                     setOpenGraph((v) => !v);
                     setOpenCategory(false);
                     setOpenRegion(false);
@@ -1726,17 +1605,30 @@ export default function ForecastPage() {
 
         {/* Chart */}
         <div className="mt-4">
-          {loading ? (
+          {!canAccessForecastData ? (
+            <div className="flex h-[320px] items-center justify-center rounded-xl border border-white/10 bg-[#0D1630] px-6 text-center">
+              <div className="max-w-md">
+                <div className="mb-2 text-base font-semibold text-[#EAF0FF]">
+                  Subscribe to access this data
+                </div>
+                <div className="text-sm text-[#EAF0FF]/60">
+                  Forecast charts are available to active subscribers. You can
+                  continue with the All Regions overview shell and subscribe to
+                  unlock full data access.
+                </div>
+              </div>
+            </div>
+          ) : loading ? (
             <div className="h-[450px] w-full animate-pulse rounded-xl bg-white/5" />
           ) : !selectedGraphId ? (
             <p className="text-center text-white/80">
-              Please choose a category, select a region/country or "All
-              Regions," then pick a graph.
+              Please choose a category, select a region/country or &quot;All
+              Regions,&quot; then pick a graph.
             </p>
           ) : chartData.length === 0 ? (
             <div className="flex h-[320px] items-center justify-center rounded-xl bg-[#0D1630] border border-white/8">
               <div className="text-center px-6 max-w-sm">
-                <div className="mb-3 text-3xl">📊</div>
+                <div className="mb-3 text-3xl">Chart</div>
                 <p className="text-sm font-medium text-[#EAF0FF]/80">
                   This data will be available soon.
                 </p>
@@ -2179,3 +2071,5 @@ export default function ForecastPage() {
     </div>
   );
 }
+
+

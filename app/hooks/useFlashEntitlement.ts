@@ -11,7 +11,12 @@ export interface FlashEntitlement {
   flashReportCountryLimit: number;
   hasDirectPlan: boolean;
   hasSharedPlan: boolean;
-  /** True while the user's 10-minute free trial window is active */
+  role?: string | null;
+  hasFullAccess?: boolean;
+  membershipApprovalStatus?: string;
+  membershipPendingApproval?: boolean;
+  membershipPendingMessage?: string | null;
+  /** True while the user's 5-minute free trial window is active */
   trialActive?: boolean;
   /** ISO timestamp when the free trial expires */
   trialExpiresAt?: string;
@@ -107,8 +112,10 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
           setAssignedCountries(Array.isArray(data?.countries) ? data.countries : []);
         }
         // 401 on countries just means not logged in — already handled above
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || "Network error");
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error ? e.message : "Network error";
+        if (!cancelled) setError(message);
       } finally {
         if (!cancelled) setLoading(false);
       }

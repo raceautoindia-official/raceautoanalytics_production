@@ -24,6 +24,25 @@ function hasAuthTokenCookie() {
   return document.cookie.split("; ").some((c) => c.startsWith("authToken="));
 }
 
+async function hasValidSessionToken() {
+  if (!hasAuthTokenCookie()) return false;
+
+  try {
+    const res = await fetch("/api/subscription/access-summary", {
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    if (res.ok) return true;
+    if (res.status === 401) return false;
+
+    // Avoid false gate on transient backend failures.
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 export default function RouteAuthGate() {
   const pathname = usePathname();
   const [openGate, setOpenGate] = useState(false);
@@ -41,21 +60,49 @@ export default function RouteAuthGate() {
     setView("gate");
 
     if (!shouldProtect) return;
-    if (hasAuthTokenCookie()) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const t = window.setTimeout(() => {
-      if (!hasAuthTokenCookie()) setOpenGate(true);
-    }, 5_000);
+    const forceImmediate =
+      typeof window !== "undefined" &&
+      window.sessionStorage.getItem("forceRouteAuthGate") === "1";
 
-    return () => window.clearTimeout(t);
+    async function run() {
+      const hasValidSession = await hasValidSessionToken();
+      if (cancelled || hasValidSession) return;
+
+      if (forceImmediate) {
+        window.sessionStorage.removeItem("forceRouteAuthGate");
+        setOpenGate(true);
+        return;
+      }
+
+      timer = window.setTimeout(async () => {
+        const stillValid = await hasValidSessionToken();
+        if (!cancelled && !stillValid) {
+          setOpenGate(true);
+        }
+      }, 5_000);
+    }
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, [shouldProtect, pathname]);
 
   useEffect(() => {
     if (!openGate) return;
+    let cancelled = false;
 
     const interval = window.setInterval(() => {
-      if (hasAuthTokenCookie()) {
-        // Don't auto-close while the trial form is visible — the form sets the
+      if (!hasAuthTokenCookie()) return;
+
+      void hasValidSessionToken().then((valid) => {
+        if (!valid || cancelled) return;
+        // Don't auto-close while the trial form is visible - the form sets the
         // authToken cookie on success and shows its own success message that the
         // user must be able to read before navigating away.
         if (view === "trial") return;
@@ -63,10 +110,13 @@ export default function RouteAuthGate() {
         setOpenGate(false);
         setOpenAuth(false);
         setView("gate");
-      }
+      });
     }, 500);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [openGate, view]);
 
   if (!shouldProtect) return null;
@@ -118,7 +168,7 @@ export default function RouteAuthGate() {
                       onClick={() => setView("trial")}
                       className="h-12 rounded-2xl border border-white/10 bg-white/5 text-[#EAF0FF] font-semibold hover:bg-white/10 transition"
                     >
-                      Request Free Trial
+                      Request One Time Access
                     </button>
                   </div>
                 </>

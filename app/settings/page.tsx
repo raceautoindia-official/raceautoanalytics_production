@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /settings  — Account Settings (generic)
+ * /settings  - Account Settings (generic)
  *
  * Replaces the old /flash-reports/settings route.
  * Shows account details, subscription status, Flash Reports country slots,
@@ -12,18 +12,16 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import NavBar from "@/app/components/Navbar";
+import Footer from "@/app/components/Footer";
 import { useFlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import { useForecastEntitlement } from "@/app/hooks/useForecastEntitlement";
 import type { ForecastEntitlement, AssignedRegion } from "@/app/hooks/useForecastEntitlement";
 import FlashCountrySelectModal from "@/app/flash-reports/components/FlashCountrySelectModal";
 import ForecastRegionSelectModal from "@/app/forecast/components/ForecastRegionSelectModal";
-
-const PLAN_LABEL: Record<string, string> = {
-  bronze: "Bronze",
-  silver: "Silver",
-  gold: "Gold",
-  platinum: "Platinum",
-};
+import {
+  formatPlanLabelOrFallback,
+  getPublicPlanLabel,
+} from "@/lib/planLabels";
 
 const ACCESS_TYPE_LABEL: Record<string, string> = {
   direct: "Direct Subscription",
@@ -31,7 +29,27 @@ const ACCESS_TYPE_LABEL: Record<string, string> = {
   none: "No Active Subscription",
 };
 
-/** Decode JWT payload without signature validation — matches existing app pattern. */
+type BillingSummary = {
+  currentPlan: string | null;
+  subscriptionStatus: string | null;
+  lastPaymentAmount: number | null;
+  lastPaymentDate: string | null;
+  paymentMethod: string | null;
+  billingOrderId: string | null;
+  planExpiryDate: string | null;
+  renewalDate: string | null;
+};
+
+type BillingHistoryItem = {
+  id: number;
+  date: string;
+  amount: number | null;
+  status: string | null;
+  plan: string | null;
+  referenceId: string | null;
+};
+
+/** Decode JWT payload without signature validation - matches existing app pattern. */
 function decodeJwtEmail(): string | null {
   try {
     const match = document.cookie.match(/(?:^|;\s*)authToken=([^;]+)/);
@@ -66,38 +84,87 @@ export default function AccountSettingsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showForecastAddModal, setShowForecastAddModal] = useState(false);
   const [loggedInEmail, setLoggedInEmail] = useState<string | null>(null);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [billingHistory, setBillingHistory] = useState<BillingHistoryItem[]>([]);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [showFullHistory, setShowFullHistory] = useState(false);
 
   // Decode email from JWT cookie once on mount (client-side only)
   useEffect(() => {
     setLoggedInEmail(decodeJwtEmail());
   }, []);
 
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+
+    async function loadBilling() {
+      try {
+        setBillingLoading(true);
+        const res = await fetch("/api/settings/billing", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data?.success) return;
+        setBilling(data.billing ?? null);
+        setBillingHistory(Array.isArray(data.history) ? data.history : []);
+        setShowFullHistory(false);
+      } catch {
+        if (!cancelled) {
+          setBilling(null);
+          setBillingHistory([]);
+        }
+      } finally {
+        if (!cancelled) setBillingLoading(false);
+      }
+    }
+
+    loadBilling();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
+
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#060D1F] flex items-center justify-center px-4">
-        <div className="text-[#EAF0FF]/60 text-center">
-          <p className="text-lg font-medium text-[#EAF0FF]">Not logged in</p>
-          <p className="mt-2 text-sm">Please log in to view your account settings.</p>
+      <>
+        <NavBar />
+        <div className="min-h-screen bg-[#060D1F] flex items-center justify-center px-4">
+          <div className="text-[#EAF0FF]/60 text-center">
+            <p className="text-lg font-medium text-[#EAF0FF]">Not logged in</p>
+            <p className="mt-2 text-sm">Please log in to view your account settings.</p>
+          </div>
         </div>
-      </div>
+        <Footer />
+      </>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#060D1F] flex items-center justify-center">
-        <div className="text-[#EAF0FF]/50 text-sm">Loading…</div>
-      </div>
+      <>
+        <NavBar />
+        <div className="min-h-screen bg-[#060D1F] flex items-center justify-center">
+          <div className="text-[#EAF0FF]/50 text-sm">Loading...</div>
+        </div>
+        <Footer />
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#060D1F] flex items-center justify-center px-4">
-        <div className="text-red-400 text-sm text-center">
-          Failed to load subscription data: {error}
+      <>
+        <NavBar />
+        <div className="min-h-screen bg-[#060D1F] flex items-center justify-center px-4">
+          <div className="text-red-400 text-sm text-center">
+            Failed to load subscription data: {error}
+          </div>
         </div>
-      </div>
+        <Footer />
+      </>
     );
   }
 
@@ -108,20 +175,40 @@ export default function AccountSettingsPage() {
   const limit = entitlement?.flashReportCountryLimit ?? 0;
   const usedSlots = assignedCountries.length;
   const remainingSlots = limit - usedSlots;
-  const planLabel =
-    PLAN_LABEL[entitlement?.effectivePlan?.toLowerCase() ?? ""] ||
-    entitlement?.effectivePlan ||
-    "—";
+  const planLabel = formatPlanLabelOrFallback(entitlement?.effectivePlan, "-");
   const accessLabel =
     ACCESS_TYPE_LABEL[entitlement?.accessType ?? "none"] ||
     entitlement?.accessType ||
-    "—";
+    "-";
+  const membershipPending =
+    Boolean(entitlement?.membershipPendingApproval) ||
+    Boolean(forecastEntitlement?.membershipPendingApproval);
+  const membershipPendingMessage =
+    entitlement?.membershipPendingMessage ||
+    forecastEntitlement?.membershipPendingMessage ||
+    "Your membership invitation is still pending approval. Check your email inbox to accept the invitation. If you did not receive it, ask the parent user to resend the approval link.";
 
   return (
     <>
     <NavBar />
     <div className="min-h-screen bg-[#060D1F] px-4 py-10">
       <div className="mx-auto max-w-[680px]">
+        <div className="mb-5">
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                window.history.back();
+                return;
+              }
+              window.location.href = "/";
+            }}
+            className="inline-flex h-10 items-center rounded-xl border border-white/12 bg-white/5 px-4 text-sm font-semibold text-[#EAF0FF]/90 transition hover:bg-white/10"
+          >
+            {"<- Back to Home"}
+          </button>
+        </div>
+
         {/* Breadcrumb */}
         <div className="mb-6 flex items-center gap-2 text-sm text-[#EAF0FF]/40">
           <Link href="/" className="hover:text-[#EAF0FF]/70 transition">
@@ -138,10 +225,29 @@ export default function AccountSettingsPage() {
           Manage your account, subscription access, Flash Reports, and Forecast preferences.
         </p>
 
+        {membershipPending && (
+          <div className="mt-5 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-5">
+            <div className="text-sm font-semibold text-amber-200">
+              Membership Approval Pending
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-amber-100/85">
+              {membershipPendingMessage}
+            </p>
+          </div>
+        )}
+
         {/* Account / User Details Card */}
         <div className="mt-8 rounded-2xl border border-white/10 bg-[#0B1228] p-6">
-          <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide mb-4">
-            Account
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide">
+              Account
+            </div>
+            <a
+              href="https://raceautoindia.com/profile"
+              className="px-3.5 py-1.5 rounded-lg border border-white/12 bg-white/5 text-xs font-semibold text-[#EAF0FF]/85 hover:bg-white/10 transition"
+            >
+              Manage User
+            </a>
           </div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-4">
             <InfoRow
@@ -150,7 +256,7 @@ export default function AccountSettingsPage() {
                 loggedInEmail ? (
                   <span className="text-[#EAF0FF]">{loggedInEmail}</span>
                 ) : (
-                  <span className="text-[#EAF0FF]/40">—</span>
+                  <span className="text-[#EAF0FF]/40">-</span>
                 )
               }
             />
@@ -182,7 +288,7 @@ export default function AccountSettingsPage() {
                 isSubscribed ? (
                   <span className="text-green-400">Active</span>
                 ) : (
-                  <span className="text-red-400">Inactive / Free</span>
+                  <span className="text-red-400">Free</span>
                 )
               }
             />
@@ -200,11 +306,95 @@ export default function AccountSettingsPage() {
           </div>
         </div>
 
-        {/* Flash Reports — Country Slots Card */}
+        <div className="mt-5 rounded-2xl border border-white/10 bg-[#0B1228] p-6">
+          <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide mb-4">
+            Billing Details
+          </div>
+          {billingLoading ? (
+            <div className="text-sm text-[#EAF0FF]/50">Loading...</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+              <InfoRow
+                label="Last Payment Amount"
+                value={billing?.lastPaymentAmount != null ? formatAmount(billing.lastPaymentAmount) : "No recent payment found"}
+              />
+              <InfoRow
+                label="Last Payment Date"
+                value={billing?.lastPaymentDate ? formatDateTime(billing.lastPaymentDate) : "No recent payment found"}
+              />
+              <InfoRow
+                label="Billing / Order ID"
+                value={billing?.billingOrderId || "Not available"}
+              />
+              <InfoRow
+                label="Plan Expiry Date"
+                value={billing?.planExpiryDate ? formatDateOnly(billing.planExpiryDate) : "Not available"}
+              />
+              <InfoRow
+                label="Renewal Date"
+                value={billing?.renewalDate ? formatDateOnly(billing.renewalDate) : "Not available"}
+              />
+              {billing?.paymentMethod && (
+                <InfoRow
+                  label="Payment Method"
+                  value={billing.paymentMethod}
+                />
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-white/10 bg-[#0B1228] p-6">
+          <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide mb-4">
+            Payment History
+          </div>
+          {billingLoading ? (
+            <div className="text-sm text-[#EAF0FF]/50">Loading...</div>
+          ) : billingHistory.length === 0 ? (
+            <div className="text-sm text-[#EAF0FF]/50">
+              {isSubscribed
+                ? "No billing history available"
+                : "No billing history available for this account. You are currently on a free plan."}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(showFullHistory ? billingHistory : billingHistory.slice(0, 5)).map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-white/8 bg-white/3 px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm text-[#EAF0FF]/85">
+                      {formatDateTime(item.date)}
+                    </div>
+                    <div className="text-sm font-semibold text-[#EAF0FF]">
+                      {item.amount != null ? formatAmount(item.amount) : "Not available"}
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-[#EAF0FF]/55">
+                    Status: {normalizeStatus(item.status)}
+                    {item.referenceId ? ` | Ref: ${item.referenceId}` : ""}
+                    {item.plan ? ` | Plan: ${formatPlanName(item.plan)}` : ""}
+                  </div>
+                </div>
+              ))}
+              {billingHistory.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullHistory((prev) => !prev)}
+                  className="mt-2 text-sm text-[#7B93FF] hover:underline"
+                >
+                  {showFullHistory ? "Show Less" : "See More"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {/* Flash Reports - Country Slots Card */}
         <div className="mt-5 rounded-2xl border border-white/10 bg-[#0B1228] p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide">
-              Flash Reports — Country Slots
+              Flash Reports - Country Slots
             </div>
             <div className="text-xs text-[#EAF0FF]/40">
               {usedSlots} used / {limit} total
@@ -242,7 +432,7 @@ export default function AccountSettingsPage() {
                   <div className="text-xs text-[#EAF0FF]/35 mb-3 uppercase tracking-wide">
                     {isSharedUser
                       ? "Assigned countries (inherited from plan owner)"
-                      : "Assigned countries (fixed — cannot be changed)"}
+                      : "Assigned countries (fixed - cannot be changed)"}
                   </div>
                   <div className="space-y-2">
                     {assignedCountries.map((c) => (
@@ -258,7 +448,7 @@ export default function AccountSettingsPage() {
                             {c.country_id.replace(/-/g, " ")}
                           </span>
                         </div>
-                        <span className="text-xs text-[#EAF0FF]/30">🔒 Fixed</span>
+                        <span className="text-xs text-[#EAF0FF]/30">Locked</span>
                       </div>
                     ))}
                   </div>
@@ -271,7 +461,7 @@ export default function AccountSettingsPage() {
                 </div>
               )}
 
-              {/* Add remaining slots — DIRECT users only */}
+              {/* Add remaining slots - DIRECT users only */}
               {isDirectUser && remainingSlots > 0 && (
                 <button
                   onClick={() => setShowAddModal(true)}
@@ -302,7 +492,7 @@ export default function AccountSettingsPage() {
           )}
         </div>
 
-        {/* Forecast — Region Slots Card */}
+        {/* Forecast - Region Slots Card */}
         <ForecastRegionsCard
           forecastEntitlement={forecastEntitlement}
           assignedRegions={assignedRegions}
@@ -310,15 +500,9 @@ export default function AccountSettingsPage() {
           onAddRegions={() => setShowForecastAddModal(true)}
         />
 
-        {/* Back link */}
-        <div className="mt-6">
-          <Link href="/" className="text-sm text-[#7B93FF] hover:underline">
-            ← Back to Home
-          </Link>
-        </div>
       </div>
 
-      {/* Flash country-select modal — direct users only */}
+      {/* Flash country-select modal - direct users only */}
       {showAddModal && entitlement && isDirectUser && (
         <FlashCountrySelectModal
           entitlement={entitlement}
@@ -330,7 +514,7 @@ export default function AccountSettingsPage() {
         />
       )}
 
-      {/* Forecast region-select modal — direct users only */}
+      {/* Forecast region-select modal - direct users only */}
       {showForecastAddModal &&
         forecastEntitlement &&
         forecastEntitlement.accessType === "direct" && (
@@ -344,6 +528,7 @@ export default function AccountSettingsPage() {
           />
         )}
     </div>
+    <Footer />
     </>
   );
 }
@@ -380,12 +565,50 @@ function SlotStat({
   );
 }
 
-const FORECAST_PLAN_LABEL: Record<string, string> = {
-  bronze: "Bronze",
-  silver: "Silver",
-  gold: "Gold",
-  platinum: "Platinum",
-};
+function formatDateTime(value: string | null): string {
+  if (!value) return "Not available";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return "Not available";
+  return dt.toLocaleString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDateOnly(value: string | null): string {
+  if (!value) return "Not available";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return "Not available";
+  return dt.toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function formatAmount(value: number): string {
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return "Not available";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function normalizeStatus(value: string | null): string {
+  if (!value) return "Not available";
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+function formatPlanName(value: string): string {
+  return getPublicPlanLabel(value) || normalizeStatus(value);
+}
 
 function ForecastRegionsCard({
   forecastEntitlement,
@@ -407,17 +630,13 @@ function ForecastRegionsCard({
   const usedSlots = assignedRegions.length;
   const remainingSlots = limit - usedSlots;
   const planLabel =
-    FORECAST_PLAN_LABEL[
-      forecastEntitlement?.effectivePlan?.toLowerCase() ?? ""
-    ] ||
-    forecastEntitlement?.effectivePlan ||
-    "—";
+    formatPlanLabelOrFallback(forecastEntitlement?.effectivePlan, "-");
 
   return (
     <div className="mt-5 rounded-2xl border border-white/10 bg-[#0B1228] p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm font-semibold text-[#EAF0FF]/40 uppercase tracking-wide">
-          Forecast — Region Slots
+          Forecast - Region Slots
         </div>
         {isSubscribed && (
           <div className="text-xs text-[#EAF0FF]/40">
@@ -427,7 +646,7 @@ function ForecastRegionsCard({
       </div>
 
       {forecastLoading ? (
-        <div className="text-sm text-[#EAF0FF]/40">Loading…</div>
+        <div className="text-sm text-[#EAF0FF]/40">Loading...</div>
       ) : !isSubscribed ? (
         <div className="text-sm text-[#EAF0FF]/50">
           Forecast region slots are available for subscribed users only.{" "}
@@ -448,7 +667,7 @@ function ForecastRegionsCard({
             {isSharedUser && forecastEntitlement?.parentEmail && (
               <span>
                 {" "}
-                · Owner:{" "}
+                 | Owner:{" "}
                 <span className="text-[#7B93FF]">
                   {forecastEntitlement.parentEmail}
                 </span>
@@ -471,7 +690,7 @@ function ForecastRegionsCard({
               <div className="text-xs text-[#EAF0FF]/35 mb-3 uppercase tracking-wide">
                 {isSharedUser
                   ? "Assigned regions (inherited from plan owner)"
-                  : "Assigned regions (fixed — cannot be changed)"}
+                  : "Assigned regions (fixed - cannot be changed)"}
               </div>
               <div className="space-y-2">
                 {assignedRegions.map((r) => (
@@ -487,7 +706,7 @@ function ForecastRegionsCard({
                         {r.region_name}
                       </span>
                     </div>
-                    <span className="text-xs text-[#EAF0FF]/30">🔒 Fixed</span>
+                    <span className="text-xs text-[#EAF0FF]/30">Locked</span>
                   </div>
                 ))}
               </div>
@@ -534,3 +753,5 @@ function ForecastRegionsCard({
     </div>
   );
 }
+
+

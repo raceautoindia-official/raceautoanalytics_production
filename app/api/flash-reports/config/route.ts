@@ -50,11 +50,7 @@ export async function GET(req: Request) {
       searchParams.get("country") || searchParams.get("region");
     const countryKey = normalizeCountryKey(rawCountry);
 
-    let row = await getCountryRow(countryKey);
-
-    if (!row && countryKey !== "india") {
-      row = await getCountryRow("india");
-    }
+    const row = await getCountryRow(countryKey);
 
     const safeRow: MappingRow = row || {};
 

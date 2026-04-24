@@ -229,7 +229,7 @@ export function MonthSelector({
             </div>
 
             <p className="mt-1 text-[12px] leading-snug text-muted-foreground text-center">
-              * Data updated monthly by 5th (IST).
+              * Default month follows the latest uploaded data for the selected country.
             </p>
           </div>
         )}

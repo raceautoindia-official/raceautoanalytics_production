@@ -6,8 +6,8 @@
  * Mounted via app/forecast/layout.tsx — wraps all Forecast pages.
  *
  * Behaviour by user type:
- *   Free (not subscribed / no plan):
- *     → Pass through unchanged. page.js handles the legacy country-select modal.
+ *   Free / expired / membership-pending users:
+ *     → Keep overview shell visible, but show ForecastSubscriptionGate.
  *
  *   Direct paid user, no regions assigned yet:
  *     → Show ForecastRegionSelectModal to let them pick their permanent slots.
@@ -27,6 +27,8 @@ import ForecastEntitlementContext from "../context/ForecastEntitlementContext";
 import { useForecastEntitlement } from "@/app/hooks/useForecastEntitlement";
 import ForecastRegionSelectModal from "./ForecastRegionSelectModal";
 import ForecastSharedNoRegionsModal from "./ForecastSharedNoRegionsModal";
+import ForecastSubscriptionGate from "./ForecastSubscriptionGate";
+import TrialCountdownReminder from "@/components/auth/TrialCountdownReminder";
 
 export default function ForecastSubscriptionManager({
   children,
@@ -86,6 +88,12 @@ export default function ForecastSubscriptionManager({
     refreshRegions,
   };
 
+  const shouldShowSubscriptionGate =
+    isLoggedIn &&
+    !loading &&
+    entitlement &&
+    (Boolean(entitlement.membershipPendingApproval) || !isSubscribed);
+
   return (
     <ForecastEntitlementContext.Provider value={contextValue}>
       {children}
@@ -105,6 +113,15 @@ export default function ForecastSubscriptionManager({
           parentEmail={entitlement.parentEmail}
         />
       )}
+
+      {shouldShowSubscriptionGate && entitlement && (
+        <ForecastSubscriptionGate entitlement={entitlement} />
+      )}
+
+      <TrialCountdownReminder
+        trialActive={Boolean(entitlement?.trialActive)}
+        trialExpiresAt={entitlement?.trialExpiresAt ?? null}
+      />
     </ForecastEntitlementContext.Provider>
   );
 }

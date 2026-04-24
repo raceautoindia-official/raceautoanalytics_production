@@ -1,6 +1,6 @@
 import pool from '../../../lib/db';
 
-export async function GET(req) {
+export async function GET() {
   try {
     const [rows] = await pool.query(
       'SELECT * FROM hierarchy_nodes ORDER BY created_at'

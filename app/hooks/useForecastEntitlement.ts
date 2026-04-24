@@ -11,6 +11,15 @@ export interface ForecastEntitlement {
   forecastRegionLimit: number;
   hasDirectPlan: boolean;
   hasSharedPlan: boolean;
+  role?: string | null;
+  hasFullAccess?: boolean;
+  membershipApprovalStatus?: string;
+  membershipPendingApproval?: boolean;
+  membershipPendingMessage?: string | null;
+  /** True while the user's 5-minute free trial window is active */
+  trialActive?: boolean;
+  /** ISO timestamp when the free trial expires */
+  trialExpiresAt?: string;
 }
 
 export interface AssignedRegion {
@@ -91,8 +100,10 @@ export function useForecastEntitlement(): UseForecastEntitlementResult {
           setAssignedRegions(Array.isArray(data?.regions) ? data.regions : []);
         }
         // 401 on regions just means not logged in — already handled above
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || "Network error");
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error ? e.message : "Network error";
+        if (!cancelled) setError(message);
       } finally {
         if (!cancelled) setLoading(false);
       }

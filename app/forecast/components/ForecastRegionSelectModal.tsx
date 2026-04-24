@@ -13,6 +13,7 @@
 import React, { useState, useEffect } from "react";
 import type { ForecastEntitlement } from "@/app/hooks/useForecastEntitlement";
 import type { AssignedRegion } from "@/app/hooks/useForecastEntitlement";
+import { formatPlanLabelOrFallback } from "@/lib/planLabels";
 
 interface Props {
   entitlement: ForecastEntitlement;
@@ -127,10 +128,7 @@ export default function ForecastRegionSelectModal({
     }
   }
 
-  const planLabel = entitlement.effectivePlan
-    ? entitlement.effectivePlan.charAt(0).toUpperCase() +
-      entitlement.effectivePlan.slice(1).toLowerCase()
-    : "Paid";
+  const planLabel = formatPlanLabelOrFallback(entitlement.effectivePlan, "Paid");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">

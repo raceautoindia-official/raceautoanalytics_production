@@ -25,6 +25,7 @@ import {
 import FlashCountrySelectModal from "./FlashCountrySelectModal";
 import SharedNoCountriesModal from "./SharedNoCountriesModal";
 import FlashSubscriptionGate from "./FlashSubscriptionGate";
+import TrialCountdownReminder from "@/components/auth/TrialCountdownReminder";
 
 interface Props {
   children: React.ReactNode;
@@ -85,6 +86,13 @@ export default function FlashSubscriptionManager({ children }: Props) {
     }
   }
 
+  const role = String(entitlement?.role || "").toLowerCase();
+  const hasRoleOverride =
+    Boolean(entitlement?.hasFullAccess) ||
+    role === "admin" ||
+    role === "moderator";
+  const hasAccessOverride = isAdmin || hasRoleOverride;
+
   const isSubscribed =
     !!entitlement?.isSubscribed && entitlement.effectiveStatus === "active";
   const isDirectUser = entitlement?.accessType === "direct";
@@ -102,35 +110,50 @@ export default function FlashSubscriptionManager({ children }: Props) {
 
   // Build locked country set: null = no lock, string[] = subscribed user slots
   const lockedToCountries: string[] | null = useMemo(() => {
+    if (hasAccessOverride) return null;
     if (!isLoggedIn) return null;
     if (loading) return null;
     if (!entitlement) return null;
     if (!isSubscribed) return null;
     if (assignedCountries.length === 0) return null; // no slots yet: modal shows
-    return assignedCountries.map((c) => c.country_id);
-  }, [isLoggedIn, loading, entitlement, isSubscribed, assignedCountries]);
+    return Array.from(
+      new Set(["india", ...assignedCountries.map((c) => c.country_id)]),
+    );
+  }, [
+    hasAccessOverride,
+    isLoggedIn,
+    loading,
+    entitlement,
+    isSubscribed,
+    assignedCountries,
+  ]);
 
   // Guard: after loading, if region is outside the locked set, correct to defaultCountry
   // Admin override skips this redirect entirely.
   useEffect(() => {
     if (loading) return;
-    if (isAdmin) return; // admin can browse any country
+    if (hasAccessOverride) return; // privileged users can browse any country
     if (!lockedToCountries) return; // no restriction active
+    if (region === "india") return; // keep India as a valid default landing view
     if (lockedToCountries.includes(region)) return; // already valid
     // Current region is not in the user's allowed slots — redirect to default
     setRegion(defaultCountry);
-  }, [loading, isAdmin, lockedToCountries, region, defaultCountry, setRegion]);
+  }, [
+    loading,
+    hasAccessOverride,
+    lockedToCountries,
+    region,
+    defaultCountry,
+    setRegion,
+  ]);
 
   // On initial load: if user is subscribed and has assigned slots, set region to default
   // (handles entry from navbar/home buttons that default to India)
   useEffect(() => {
     if (loading) return;
-    if (isAdmin) return; // admin can stay wherever they are
+    if (hasAccessOverride) return; // privileged users can stay wherever they are
     if (!isSubscribed || !assignedCountries.length) return;
-    if (lockedToCountries && !lockedToCountries.includes(region)) {
-      setRegion(defaultCountry);
-    } else if (region === "india" && defaultCountry !== "india") {
-      // First entry for a subscribed user who hasn't chosen India — push to their slot 0
+    if (lockedToCountries && !lockedToCountries.includes(region) && region !== "india") {
       setRegion(defaultCountry);
     }
     // Only run once when loading completes
@@ -142,7 +165,15 @@ export default function FlashSubscriptionManager({ children }: Props) {
     isSubscribed &&
     !loading &&
     assignedCountries.length === 0 &&
+    !hasAccessOverride &&
     !modalDismissed;
+
+  const shouldShowSubscriptionGate =
+    isLoggedIn &&
+    !loading &&
+    entitlement &&
+    (Boolean(entitlement.membershipPendingApproval) ||
+      (!isSubscribed && !hasAccessOverride));
 
   const ctxValue: FlashEntitlementContextValue = {
     entitlement,
@@ -151,7 +182,7 @@ export default function FlashSubscriptionManager({ children }: Props) {
     defaultCountry,
     loading,
     isLoggedIn,
-    isAdmin,
+    isAdmin: hasAccessOverride,
   };
 
   return (
@@ -179,11 +210,16 @@ export default function FlashSubscriptionManager({ children }: Props) {
       )}
 
       {/* Teaser + paywall popup for logged-in free/inactive users */}
-      {isLoggedIn && !loading && entitlement && !isSubscribed && (
+      {shouldShowSubscriptionGate && (
         <FlashSubscriptionGate entitlement={entitlement} />
       )}
 
-      {/* Admin logo trigger — fixed bottom-right watermark, 3-second long-press */}
+      <TrialCountdownReminder
+        trialActive={Boolean(entitlement?.trialActive)}
+        trialExpiresAt={entitlement?.trialExpiresAt ?? null}
+      />
+
+      {/* Admin logo trigger: fixed bottom-right watermark, 3-second long-press */}
       <div
         className="fixed bottom-4 right-4 z-40 select-none cursor-pointer opacity-0 hover:opacity-20 transition-opacity duration-300"
         style={{ userSelect: "none", WebkitUserSelect: "none" }}
@@ -213,7 +249,7 @@ export default function FlashSubscriptionManager({ children }: Props) {
             </h2>
             <input
               type="password"
-              placeholder="Enter passkey…"
+              placeholder="Enter passkey..."
               value={adminKeyInput}
               onChange={(e) => setAdminKeyInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdminSubmit()}

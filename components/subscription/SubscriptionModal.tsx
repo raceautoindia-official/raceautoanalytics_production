@@ -2,9 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { X, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import AuthModal from "@/app/flash-reports/components/Login/LoginModal";
 import { useSubscriptionModal } from "@/utils/SubscriptionModalContext";
 import transformPricing from "./transformPricing";
+import { formatPlanLabelOrFallback } from "@/lib/planLabels";
 
 type BillingCycle = "monthly" | "annual";
 type PlanKey = "bronze" | "silver" | "gold" | "platinum";
@@ -61,6 +63,21 @@ function normalizePlanKey(plan?: string | null): PlanKey | null {
   return null;
 }
 
+function parseDateMs(value: unknown): number | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function isActiveAndNotExpired(item: any): boolean {
+  const status = String(item?.status || "").trim().toLowerCase();
+  if (status !== "active") return false;
+  const endMs = parseDateMs(item?.end_date ?? item?.endDate);
+  if (endMs == null) return false;
+  return endMs >= Date.now();
+}
+
 function getCategoryFromPlan(plan?: PlanKey | null): PlanCategory {
   if (plan === "gold" || plan === "platinum") return "business";
   return "individual";
@@ -81,6 +98,30 @@ function getCookie(name: string) {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
   return match ? match[2] : null;
+}
+
+function getRazorpayKeyMode(key?: string | null): "test" | "live" | "unknown" {
+  const value = String(key || "").trim();
+  if (value.startsWith("rzp_test_")) return "test";
+  if (value.startsWith("rzp_live_")) return "live";
+  return "unknown";
+}
+
+function extractCheckoutKeyFromCreatePaymentResponse(data: any): string {
+  const candidates = [
+    data?.key_id,
+    data?.key,
+    data?.razorpay_key_id,
+    data?.razorpayKeyId,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return "";
 }
 
 function decodeJwt(token: string) {
@@ -210,7 +251,7 @@ function getPlanBadge(
   }
 
   return {
-    text: "Paid Plan",
+    text: "Best Choice",
     className: "bg-white/10 text-white/75",
   };
 }
@@ -260,8 +301,24 @@ function getCardCtaLabel(args: {
   return "Buy Now";
 }
 
-export default function SubscriptionModal() {
-  const { show, close } = useSubscriptionModal();
+type SubscriptionModalProps = {
+  mode?: "modal" | "page";
+};
+
+type CheckoutIntent = {
+  planKey: PlanKey;
+  planTitle: string;
+  amount: number;
+};
+
+export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalProps) {
+  const { show, close } = useSubscriptionModal() as {
+    show: boolean;
+    close: () => void;
+  };
+  const router = useRouter();
+  const isPage = mode === "page";
+  const visible = isPage || show;
 
   const [authOpen, setAuthOpen] = useState(false);
 
@@ -277,8 +334,38 @@ export default function SubscriptionModal() {
   const [loading, setLoading] = useState(false);
   const [payingPlan, setPayingPlan] = useState<PlanKey | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutIntent, setCheckoutIntent] = useState<CheckoutIntent | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
+  const [enterpriseSending, setEnterpriseSending] = useState(false);
+  const [enterpriseMessage, setEnterpriseMessage] = useState<string | null>(null);
+  const [enterpriseError, setEnterpriseError] = useState<string | null>(null);
+  const [enterprisePlanContext, setEnterprisePlanContext] = useState<PlanCategory>("individual");
+  const [enterpriseForm, setEnterpriseForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    company: "",
+    requirement: "",
+  });
 
-  const visiblePlans = useMemo(() => plans, [plans]);
+  const visiblePlans = useMemo(
+    () =>
+      plans.filter((plan) =>
+        categoryView === "individual"
+          ? plan.key === "bronze" || plan.key === "silver"
+          : plan.key === "gold" || plan.key === "platinum",
+      ),
+    [plans, categoryView],
+  );
+
+  const closePlans = () => {
+    if (isPage) {
+      router.push("/");
+      return;
+    }
+    close();
+  };
 
   const categoryTitle =
     categoryView === "individual"
@@ -287,8 +374,8 @@ export default function SubscriptionModal() {
 
   const categoryDescription =
     categoryView === "individual"
-      ? "Bronze and Silver are active. Gold and Platinum remain visible in disabled state."
-      : "Gold and Platinum are active. Bronze and Silver remain visible in disabled state.";
+      ? "Choose between Individual Basic and Individual Pro plans."
+      : "Choose between Business and Business Pro, or contact us for a custom plan.";
 
   async function loadModalData(userEmail: string | null) {
     setLoading(true);
@@ -335,7 +422,7 @@ export default function SubscriptionModal() {
         });
 
         const active = Array.isArray(myPlanData)
-          ? myPlanData.find((item: any) => item.status === "Active")
+          ? myPlanData.find((item: any) => isActiveAndNotExpired(item))
           : null;
 
         const normalizedPlan = normalizePlanKey(active?.plan_name);
@@ -363,7 +450,7 @@ export default function SubscriptionModal() {
   }
 
   useEffect(() => {
-    if (!show) return;
+    if (!visible) return;
 
     const token = getCookie("authToken");
 
@@ -385,9 +472,12 @@ export default function SubscriptionModal() {
 
     setEmail(payload.email);
     loadModalData(payload.email);
-  }, [show]);
+  }, [visible]);
 
   useEffect(() => {
+    setEnterpriseMessage(null);
+    setEnterpriseError(null);
+
     const selectedDisabled = isPlanDisabledByCategory(selectedPlan, categoryView);
 
     if (!selectedDisabled) return;
@@ -444,7 +534,7 @@ export default function SubscriptionModal() {
     }
 
     if (!email) {
-      close();
+      if (!isPage) close();
       setAuthOpen(true);
       return;
     }
@@ -454,12 +544,14 @@ export default function SubscriptionModal() {
       return;
     }
 
+    setCheckoutIntent(null);
+    setAgreedToTerms(false);
     setPayingPlan(planToPay);
     setError(null);
 
     try {
       const createRes = await fetch(
-        "https://raceautoindia.com/api/subscription/create-payment",
+        "/api/subscription/create-payment",
         {
           method: "POST",
           headers: {
@@ -475,8 +567,61 @@ export default function SubscriptionModal() {
       const createData = await createRes.json();
 
       if (!createRes.ok || !createData?.id) {
-        throw new Error(createData?.message || "Unable to create payment order");
+        throw new Error(
+          createData?.error?.description ||
+            createData?.message ||
+            "Unable to create payment order"
+        );
       }
+
+      if (typeof createData.id !== "string" || !createData.id.startsWith("order_")) {
+        throw new Error("Invalid Razorpay order id returned by payment API.");
+      }
+
+      const envKeyId =
+        typeof process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID === "string"
+          ? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID.trim()
+          : "";
+      const responseKeyId = extractCheckoutKeyFromCreatePaymentResponse(createData);
+
+      if (!responseKeyId && !envKeyId) {
+        throw new Error("Missing Razorpay key configuration for checkout.");
+      }
+
+      const responseMode = getRazorpayKeyMode(responseKeyId);
+      const envMode = getRazorpayKeyMode(envKeyId);
+      if (
+        responseKeyId &&
+        envKeyId &&
+        responseMode !== "unknown" &&
+        envMode !== "unknown" &&
+        responseMode !== envMode
+      ) {
+        console.error("Razorpay mode mismatch detected", {
+          orderId: createData.id,
+          responseKeyMode: responseMode,
+          envKeyMode: envMode,
+        });
+        throw new Error(
+          "Razorpay environment mismatch (test/live). Please align backend and frontend Razorpay keys."
+        );
+      }
+
+      if (!responseKeyId && envKeyId) {
+        const envMode = getRazorpayKeyMode(envKeyId);
+        if (envMode === "test") {
+          throw new Error(
+            "Unable to start Razorpay test checkout. Please ensure create-payment returns a matching test key_id.",
+          );
+        }
+        console.warn("Razorpay create-payment did not return a checkout key; falling back to env key.");
+      }
+
+      const checkoutKey = responseKeyId || envKeyId;
+      console.info("Razorpay checkout init", {
+        orderId: createData.id,
+        keyMode: getRazorpayKeyMode(checkoutKey),
+      });
 
       void syncLocal("/api/subscription/sync-payment-log", {
         email,
@@ -486,7 +631,7 @@ export default function SubscriptionModal() {
         amount_display_currency: currencyMode,
         razorpay_order_id: createData.id,
         status: "created",
-        message: "Order created in Auto India",
+        message: "Order created in Race Auto Analytics",
         request_payload: {
           customer_email: email,
           AMT: chosenAmount,
@@ -496,7 +641,7 @@ export default function SubscriptionModal() {
       });
 
       const options = {
-        key: createData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: checkoutKey,
         amount: chosenAmount * 100,
         currency: "INR",
         name: "Race Auto Analytics",
@@ -573,11 +718,20 @@ export default function SubscriptionModal() {
               await syncLocal("/api/subscription/sync-current-plan", {
                 email,
                 data: latestPlanData,
+                triggerPurchaseEmail: true,
               });
             }
 
-            close();
-            window.location.reload();
+            if (!isPage) close();
+            router.push(
+              `/subscription/success?plan=${encodeURIComponent(planToPay)}&cycle=${encodeURIComponent(
+                billingCycle,
+              )}&amount=${encodeURIComponent(String(chosenAmount))}&currency=INR&orderId=${encodeURIComponent(
+                String(response?.razorpay_order_id || ""),
+              )}&paymentId=${encodeURIComponent(
+                String(response?.razorpay_payment_id || ""),
+              )}`,
+            );
           } catch (err: any) {
             console.error("Verify payment error:", err);
 
@@ -601,7 +755,17 @@ export default function SubscriptionModal() {
               response_payload: null,
             });
 
-            setError(err?.message || "Payment verification failed");
+            const failureMessage = err?.message || "Payment verification failed";
+            setError(failureMessage);
+            router.push(
+              `/subscription/failure?reason=${encodeURIComponent(
+                failureMessage,
+              )}&orderId=${encodeURIComponent(
+                String(response?.razorpay_order_id || ""),
+              )}&paymentId=${encodeURIComponent(
+                String(response?.razorpay_payment_id || ""),
+              )}`,
+            );
           } finally {
             setPayingPlan(null);
           }
@@ -609,6 +773,11 @@ export default function SubscriptionModal() {
         modal: {
           ondismiss: function () {
             setPayingPlan(null);
+            router.push(
+              `/subscription/failure?reason=Checkout%20cancelled&orderId=${encodeURIComponent(
+                String(createData?.id || ""),
+              )}`,
+            );
           },
         },
         theme: {
@@ -617,6 +786,21 @@ export default function SubscriptionModal() {
       };
 
       const rz = new window.Razorpay(options);
+      rz.on("payment.failed", (failure: any) => {
+        const failureMessage =
+          failure?.error?.description || "We couldn't complete your payment. Please try again.";
+        const failureOrderId = failure?.error?.metadata?.order_id || createData?.id || "";
+        const failurePaymentId = failure?.error?.metadata?.payment_id || "";
+        setPayingPlan(null);
+        setError(failureMessage);
+        router.push(
+          `/subscription/failure?reason=${encodeURIComponent(
+            failureMessage,
+          )}&orderId=${encodeURIComponent(
+            String(failureOrderId),
+          )}&paymentId=${encodeURIComponent(String(failurePaymentId))}`,
+        );
+      });
       rz.open();
     } catch (err: any) {
       console.error("Create payment error:", err);
@@ -642,7 +826,94 @@ export default function SubscriptionModal() {
     }
   }
 
-  if (!show) {
+  function requestCheckout(planToPay: PlanKey) {
+    const chosenPlan = plans.find((p) => p.key === planToPay);
+    if (!chosenPlan) {
+      setError("Please select a valid plan.");
+      return;
+    }
+
+    const chosenAmount =
+      billingCycle === "annual" ? chosenPlan.annualPrice : chosenPlan.monthlyPrice;
+    const chosenRank = getPlanRank(planToPay);
+    const currentRank = getPlanRank(currentPlan);
+    const isChosenCurrent = currentPlan === planToPay;
+    const isChosenIncluded = currentRank > 0 && currentRank > chosenRank;
+    const isChosenPriceUnavailable = chosenAmount === 0;
+
+    if (isChosenPriceUnavailable) {
+      setError("Pricing is not available for this plan.");
+      return;
+    }
+    if (isChosenCurrent) {
+      setError("You are already on this plan.");
+      return;
+    }
+    if (isChosenIncluded) {
+      setError("This lower plan is already covered by your current access.");
+      return;
+    }
+
+    setSelectedPlan(planToPay);
+    setAgreedToTerms(false);
+    setCheckoutIntent({
+      planKey: planToPay,
+      planTitle: chosenPlan.title,
+      amount: chosenAmount,
+    });
+  }
+
+  async function submitEnterpriseInquiry() {
+    if (
+      !enterpriseForm.name.trim() ||
+      !enterpriseForm.email.trim() ||
+      !enterpriseForm.phone.trim() ||
+      !enterpriseForm.company.trim() ||
+      !enterpriseForm.requirement.trim()
+    ) {
+      setEnterpriseError("Please complete all required fields.");
+      setEnterpriseMessage(null);
+      return;
+    }
+
+    setEnterpriseSending(true);
+    setEnterpriseError(null);
+    setEnterpriseMessage(null);
+
+    try {
+      const res = await fetch("/api/subscription/enterprise-inquiry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...enterpriseForm,
+          planType:
+            enterprisePlanContext === "business"
+              ? "Business Custom Plan"
+              : "Individual Custom Plan",
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || "Unable to submit inquiry.");
+      }
+      setEnterpriseMessage("Thank you. Our sales team will contact you shortly.");
+      setEnterpriseForm({
+        name: "",
+        email: "",
+        phone: "",
+        company: "",
+        requirement: "",
+      });
+    } catch (err: any) {
+      setEnterpriseError(err?.message || "Unable to submit inquiry.");
+    } finally {
+      setEnterpriseSending(false);
+    }
+  }
+
+  if (!visible) {
     return (
       <>
         <AuthModal
@@ -688,17 +959,46 @@ export default function SubscriptionModal() {
         }
       `}</style>
 
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4">
-        <div
-          className="absolute inset-0 bg-[#050B1A]/80 backdrop-blur-[10px]"
-          onClick={close}
-        />
+      <div
+        className={
+          isPage
+            ? "min-h-screen bg-[#050B1A] px-3 py-6 sm:px-6 sm:py-10"
+            : "fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
+        }
+      >
+        {!isPage && (
+          <div
+            className="absolute inset-0 bg-[#050B1A]/80 backdrop-blur-[10px]"
+            onClick={closePlans}
+          />
+        )}
 
-        <div className="relative z-10 flex h-[calc(100vh-1rem)] w-full max-w-[1180px] flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)] sm:h-[calc(100vh-2rem)]">
+        <div
+          className={
+            isPage
+              ? "relative z-10 mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[1220px] flex-col overflow-hidden rounded-[16px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.45)] sm:min-h-[calc(100vh-5rem)]"
+              : "relative z-10 flex h-[calc(100vh-1rem)] w-full max-w-[1180px] flex-col overflow-hidden rounded-[20px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)] sm:h-[calc(100vh-2rem)]"
+          }
+        >
           <div className="pointer-events-none absolute -top-28 left-1/2 h-56 w-[860px] -translate-x-1/2 rounded-full bg-[#4F67FF]/18 blur-3xl" />
 
           <div className="relative flex items-start justify-between border-b border-white/10 px-4 py-3">
             <div>
+              {isPage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== "undefined" && window.history.length > 1) {
+                      router.back();
+                      return;
+                    }
+                    router.push("/");
+                  }}
+                  className="mb-2 inline-flex h-9 items-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/85 transition hover:bg-white/10"
+                >
+                  Back
+                </button>
+              )}
               <h2 className="text-xl font-semibold text-white sm:text-2xl">
                 Choose Your Subscription
               </h2>
@@ -710,18 +1010,20 @@ export default function SubscriptionModal() {
               <p className="mt-1 text-sm text-white/65">
                 Current plan:{" "}
                 <span className="font-medium text-[#FFD166]">
-                  {(currentPlan || "none").toUpperCase()}
+                  {formatPlanLabelOrFallback(currentPlan, "Free")}
                 </span>
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={close}
-              className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/80 hover:bg-white/10"
-            >
-              <X size={18} />
-            </button>
+            {!isPage && (
+              <button
+                type="button"
+                onClick={closePlans}
+                className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/80 hover:bg-white/10"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
 
           <div className="sticky top-0 z-20 border-b border-white/10 bg-[#0B1228]/95 px-4 py-3 backdrop-blur">
@@ -835,7 +1137,7 @@ export default function SubscriptionModal() {
             ) : null}
 
             {!loading && (
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visiblePlans.map((plan) => {
                   const actualPrice =
                     billingCycle === "annual"
@@ -852,10 +1154,6 @@ export default function SubscriptionModal() {
                   const isSelected = selectedPlan === plan.key;
                   const planStatus = getPlanStatus(currentPlan, plan.key);
                   const badge = getPlanBadge(plan.key, planStatus);
-                  const isCategoryDisabled = isPlanDisabledByCategory(
-                    plan.key,
-                    categoryView
-                  );
 
                   const isCurrent = currentPlan === plan.key;
                   const isIncluded =
@@ -868,7 +1166,7 @@ export default function SubscriptionModal() {
                   const isPayingThisPlan = payingPlan === plan.key;
 
                   const ctaLabel = getCardCtaLabel({
-                    isCategoryDisabled,
+                    isCategoryDisabled: false,
                     categoryView,
                     isCurrent,
                     isIncluded,
@@ -877,24 +1175,17 @@ export default function SubscriptionModal() {
                   });
 
                   const ctaDisabled =
-                    isCategoryDisabled ||
-                    isCurrent ||
-                    isIncluded ||
-                    isPriceUnavailable ||
-                    isPayingThisPlan;
+                    isCurrent || isIncluded || isPriceUnavailable || isPayingThisPlan;
 
                   return (
                     <div
                       key={plan.key}
                       role="button"
-                      tabIndex={isCategoryDisabled ? -1 : 0}
+                      tabIndex={0}
                       onClick={() => {
-                        if (!isCategoryDisabled) {
-                          setSelectedPlan(plan.key);
-                        }
+                        setSelectedPlan(plan.key);
                       }}
                       onKeyDown={(e) => {
-                        if (isCategoryDisabled) return;
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           setSelectedPlan(plan.key);
@@ -903,15 +1194,9 @@ export default function SubscriptionModal() {
                       className={[
                         "relative min-h-[430px] overflow-hidden rounded-[18px] border p-3 text-left transition xl:min-h-[450px]",
                         getSelectedCardClasses(isSelected, planStatus),
-                        isCategoryDisabled
-                          ? "cursor-not-allowed opacity-50 grayscale-[0.2]"
-                          : "cursor-pointer",
+                        "cursor-pointer",
                       ].join(" ")}
                     >
-                      {isCategoryDisabled && (
-                        <div className="absolute inset-0 z-[1] bg-white/10" />
-                      )}
-
                       <div
                         className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-r ${getPlanAccent(
                           plan.key
@@ -933,14 +1218,6 @@ export default function SubscriptionModal() {
                           </span>
                         </div>
 
-                        {isCategoryDisabled && (
-                          <div className="mt-2">
-                            <span className="rounded-full bg-slate-900/80 px-3 py-1 text-[11px] font-semibold text-white">
-                              {getDisabledViewText(categoryView)}
-                            </span>
-                          </div>
-                        )}
-
                         <div className="mt-4">
                           {hasVisualOffer ? (
                             <>
@@ -960,7 +1237,7 @@ export default function SubscriptionModal() {
                                     : "text-violet-300",
                                 ].join(" ")}
                               >
-                                {plan.title} special display offer · Save {offerPercent}%
+                                {plan.title} special display offer - Save {offerPercent}%
                               </div>
                               <div className="mt-1 text-sm text-white/60">
                                 per {billingCycle === "annual" ? "year" : "month"}
@@ -1039,9 +1316,7 @@ export default function SubscriptionModal() {
                           <div
                             className={[
                               "mb-2 text-xs uppercase tracking-wide",
-                              isCategoryDisabled
-                                ? "text-slate-300"
-                                : planStatus === "current"
+                              planStatus === "current"
                                 ? "text-[#FFD166]"
                                 : planStatus === "included"
                                 ? "text-orange-300"
@@ -1050,11 +1325,7 @@ export default function SubscriptionModal() {
                                 : "text-white/55",
                             ].join(" ")}
                           >
-                            {isCategoryDisabled
-                              ? categoryView === "individual"
-                                ? "Disabled in Individual View"
-                                : "Disabled in Business View"
-                              : planStatus === "current"
+                            {planStatus === "current"
                               ? "Current access"
                               : planStatus === "included"
                               ? "Already covered"
@@ -1069,7 +1340,7 @@ export default function SubscriptionModal() {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (!ctaDisabled) {
-                                void handlePayNow(plan.key);
+                                requestCheckout(plan.key);
                               }
                             }}
                             className={[
@@ -1088,11 +1359,240 @@ export default function SubscriptionModal() {
                     </div>
                   );
                 })}
+
+                <div className="relative min-h-[430px] overflow-hidden rounded-[18px] border border-dashed border-[#4F67FF]/55 bg-[#0d1733] p-3 text-left transition xl:min-h-[450px]">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-r from-cyan-500/15 to-indigo-500/10" />
+                  <div className="relative z-[2] flex h-full flex-col">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold text-white sm:text-lg">Custom Plan</h3>
+                      <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-cyan-300">
+                        Enterprise
+                      </span>
+                    </div>
+
+                    <div className="mt-4 text-sm text-white/75">
+                      Need a tailored solution for your business? Contact our sales team.
+                    </div>
+
+                    <div className="mt-4 flex-1 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-white/70">
+                      Custom seats, multi-team access, tailored regional combinations, and enterprise onboarding support.
+                    </div>
+
+                    <div className="mt-4 border-t border-white/10 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEnterprisePlanContext(categoryView);
+                          setEnterpriseOpen(true);
+                        }}
+                        className="h-11 w-full rounded-xl bg-[#111827] px-4 font-semibold text-white transition hover:bg-[#0b1228]"
+                      >
+                        Contact Sales Team
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {enterpriseOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-[#050B1A]/85 backdrop-blur-sm"
+            onClick={() => {
+              if (!enterpriseSending) {
+                setEnterpriseOpen(false);
+              }
+            }}
+          />
+          <div className="relative z-10 w-full max-w-[620px] rounded-2xl border border-white/10 bg-[#0B1228] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.75)]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xl font-semibold text-white">Enterprise Inquiry</div>
+                <div className="mt-1 text-sm text-white/60">
+                  Share your requirements and our sales team will reach out.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEnterpriseOpen(false)}
+                disabled={enterpriseSending}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label="Close enterprise inquiry"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70">
+              Plan Context: {enterprisePlanContext === "business" ? "Business" : "Individual"} - Custom Plan
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                type="text"
+                value={enterpriseForm.name}
+                onChange={(e) =>
+                  setEnterpriseForm((prev) => ({ ...prev, name: e.target.value }))
+                }
+                placeholder="Name"
+                className="h-11 rounded-xl border border-white/10 bg-[#0B1228] px-3 text-sm text-white outline-none focus:border-[#4F67FF]"
+              />
+              <input
+                type="email"
+                value={enterpriseForm.email}
+                onChange={(e) =>
+                  setEnterpriseForm((prev) => ({ ...prev, email: e.target.value }))
+                }
+                placeholder="Email"
+                className="h-11 rounded-xl border border-white/10 bg-[#0B1228] px-3 text-sm text-white outline-none focus:border-[#4F67FF]"
+              />
+              <input
+                type="text"
+                value={enterpriseForm.phone}
+                onChange={(e) =>
+                  setEnterpriseForm((prev) => ({ ...prev, phone: e.target.value }))
+                }
+                placeholder="Phone"
+                className="h-11 rounded-xl border border-white/10 bg-[#0B1228] px-3 text-sm text-white outline-none focus:border-[#4F67FF]"
+              />
+              <input
+                type="text"
+                value={enterpriseForm.company}
+                onChange={(e) =>
+                  setEnterpriseForm((prev) => ({ ...prev, company: e.target.value }))
+                }
+                placeholder="Company"
+                className="h-11 rounded-xl border border-white/10 bg-[#0B1228] px-3 text-sm text-white outline-none focus:border-[#4F67FF]"
+              />
+            </div>
+
+            <textarea
+              value={enterpriseForm.requirement}
+              onChange={(e) =>
+                setEnterpriseForm((prev) => ({ ...prev, requirement: e.target.value }))
+              }
+              placeholder="Requirement / Message"
+              rows={4}
+              className="mt-3 w-full rounded-xl border border-white/10 bg-[#0B1228] px-3 py-2 text-sm text-white outline-none focus:border-[#4F67FF]"
+            />
+
+            {enterpriseError && (
+              <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {enterpriseError}
+              </div>
+            )}
+            {enterpriseMessage && (
+              <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                {enterpriseMessage}
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setEnterpriseOpen(false)}
+                disabled={enterpriseSending}
+                className="h-11 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                disabled={enterpriseSending}
+                onClick={() => {
+                  void submitEnterpriseInquiry();
+                }}
+                className="h-11 flex-1 rounded-xl bg-[#4F67FF] px-5 text-sm font-semibold text-white transition hover:bg-[#3B55FF] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {enterpriseSending ? "Submitting..." : "Send Inquiry"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkoutIntent && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-[#050B1A]/85 backdrop-blur-sm"
+            onClick={() => {
+              if (!payingPlan) {
+                setCheckoutIntent(null);
+                setAgreedToTerms(false);
+              }
+            }}
+          />
+          <div className="relative z-10 w-full max-w-[480px] rounded-2xl border border-white/10 bg-[#0B1228] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.75)]">
+            <div className="text-xl font-semibold text-white">Confirm Your Plan</div>
+            <div className="mt-2 text-sm text-white/70">
+              You are about to subscribe to the selected plan.
+            </div>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm">
+              <div className="flex justify-between gap-3 text-white/80">
+                <span>Plan</span>
+                <span className="font-medium text-white">{checkoutIntent.planTitle}</span>
+              </div>
+              <div className="mt-2 flex justify-between gap-3 text-white/80">
+                <span>Billing Interval</span>
+                <span className="font-medium text-white">
+                  {billingCycle === "annual" ? "Annual" : "Monthly"}
+                </span>
+              </div>
+              <div className="mt-2 flex justify-between gap-3 text-white/80">
+                <span>Currency</span>
+                <span className="font-medium text-white">INR</span>
+              </div>
+              <div className="mt-2 flex justify-between gap-3 text-white/80">
+                <span>Final Price</span>
+                <span className="font-medium text-white">
+                  {formatDisplayPrice(checkoutIntent.amount, "INR")}
+                </span>
+              </div>
+            </div>
+
+            <label className="mt-4 flex items-start gap-2 text-sm text-white/75">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-white/30 bg-transparent"
+              />
+              <span>I agree to the payment terms and conditions.</span>
+            </label>
+
+            <div className="mt-2 text-xs text-white/55">Secure payment powered by Razorpay.</div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={!!payingPlan}
+                onClick={() => {
+                  setCheckoutIntent(null);
+                  setAgreedToTerms(false);
+                }}
+                className="h-11 flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!agreedToTerms || !!payingPlan}
+                onClick={() => {
+                  void handlePayNow(checkoutIntent.planKey);
+                }}
+                className="h-11 flex-1 rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AuthModal
         open={authOpen}
@@ -1104,3 +1604,4 @@ export default function SubscriptionModal() {
     </>
   );
 }
+

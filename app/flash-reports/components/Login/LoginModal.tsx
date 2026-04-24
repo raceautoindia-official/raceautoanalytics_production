@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 import LoginForm from "./LoginForm";
-import Signup from "@/app/components/register/signup";
+const Signup = dynamic(() => import("@/app/components/register/signup"), {
+  ssr: false,
+});
 
 type Props = {
   open?: boolean;
@@ -28,7 +32,6 @@ export default function AuthModal({
   embedded = false,
 }: Props) {
   const visible = typeof open === "boolean" ? open : !!show;
-  const pathname = usePathname();
   const [mode, setMode] = useState<"login" | "signup">("login");
 
   // Reset to login each time opens (pure UI behavior)
@@ -45,12 +48,6 @@ export default function AuthModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [visible, disableClose, onClose]);
-
-  const title = useMemo(() => {
-    if (pathname?.startsWith("/forecast")) return "Forecast Premium Access";
-    if (pathname?.startsWith("/flash-reports")) return "Flash Reports Premium Access";
-    return "RaceAutoAnalytics Premium";
-  }, [pathname]);
 
   const [mounted, setMounted] = useState(false);
 
@@ -75,7 +72,7 @@ export default function AuthModal({
 
         {/* Modal */}
         <div className="relative flex min-h-full items-start justify-center p-4 sm:items-center sm:p-6">
-          <div className="relative my-4 w-full max-w-[400px] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[28px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)] sm:my-0 sm:max-h-[calc(100vh-3rem)]">
+          <div className="relative my-4 w-full max-w-[560px] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[24px] border border-white/10 bg-[#0B1228] shadow-[0_30px_90px_rgba(0,0,0,0.85)] sm:my-0 sm:max-h-[calc(100vh-3rem)] sm:rounded-[28px]">
             {children}
           </div>
         </div>
@@ -90,7 +87,7 @@ export default function AuthModal({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/8 to-transparent" />
 
       {/* Header */}
-      <div className="relative flex items-start justify-between gap-4 px-8 pt-3">
+      <div className="relative flex items-start justify-between gap-4 px-4 pt-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-2xl " />
           <div></div>
@@ -109,7 +106,7 @@ export default function AuthModal({
       </div>
 
       {/* Tabs */}
-      <div className="relative px-8 pt-6">
+      <div className="relative px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6">
         <div className="grid grid-cols-2 rounded-2xl border border-white/10 bg-white/5">
           <button
             type="button"
@@ -140,8 +137,8 @@ export default function AuthModal({
       </div>
 
       {/* Body */}
-      <div className="relative px-8 pb-8 pt-6">
-        <div className="rounded-2xl border border-white/10 bg-[#0E1833]/70 p-6">
+      <div className="relative px-4 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5 lg:px-8 lg:pb-8 lg:pt-6">
+        <div className="rounded-2xl border border-white/10 bg-[#0E1833]/70 p-4 sm:p-6">
           {mode === "login" ? (
             <LoginForm
               onSuccess={() => {
@@ -155,10 +152,20 @@ export default function AuthModal({
                 onSuccess?.();
                 onClose?.();
               }}
+              onSwitchToLogin={() => setMode("login")}
             />
           )}
         </div>
       </div>
+      <ToastContainer
+        position="top-right"
+        autoClose={3500}
+        hideProgressBar={false}
+        closeOnClick
+        pauseOnHover
+        draggable
+        theme="dark"
+      />
     </Shell>
   );
 
