@@ -90,22 +90,25 @@ export async function GET() {
       safeQueryPaymentHistory(email),
     ]);
 
-    const lastPayment = history[0] ?? null;
     const displayHistory = history.filter((row) => {
       const status = String(row.status || "").toLowerCase().trim();
       return status === "success" || status === "failed";
     });
+    // Use the most recent meaningful (success/failed) payment for billing details
+    // so "created" order records don't surface as the last payment entry.
+    const lastMeaningfulPayment = displayHistory[0] ?? null;
 
     return NextResponse.json({
       success: true,
       billing: {
         currentPlan: current?.plan_name ?? null,
         subscriptionStatus: current?.status ?? null,
-        lastPaymentAmount: lastPayment?.amount ?? null,
-        lastPaymentDate: lastPayment?.created_at ?? null,
-        paymentMethod: lastPayment?.razorpay_payment_id ? "Razorpay" : null,
+        lastPaymentAmount: lastMeaningfulPayment?.amount ?? null,
+        lastPaymentDate: lastMeaningfulPayment?.created_at ?? null,
+        lastPaymentStatus: lastMeaningfulPayment?.status ?? null,
+        paymentMethod: lastMeaningfulPayment?.razorpay_payment_id ? "Razorpay" : null,
         billingOrderId:
-          lastPayment?.razorpay_order_id ?? current?.payment_id ?? null,
+          lastMeaningfulPayment?.razorpay_order_id ?? current?.payment_id ?? null,
         planExpiryDate: current?.end_date ?? null,
         renewalDate:
           current?.status?.toLowerCase() === "active"

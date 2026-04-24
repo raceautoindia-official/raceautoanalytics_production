@@ -117,7 +117,7 @@ export default function FlashSubscriptionManager({ children }: Props) {
     if (!isSubscribed) return null;
     if (assignedCountries.length === 0) return null; // no slots yet: modal shows
     return Array.from(
-      new Set(["india", ...assignedCountries.map((c) => c.country_id)]),
+      new Set(assignedCountries.map((c) => c.country_id)),
     );
   }, [
     hasAccessOverride,
@@ -134,7 +134,6 @@ export default function FlashSubscriptionManager({ children }: Props) {
     if (loading) return;
     if (hasAccessOverride) return; // privileged users can browse any country
     if (!lockedToCountries) return; // no restriction active
-    if (region === "india") return; // keep India as a valid default landing view
     if (lockedToCountries.includes(region)) return; // already valid
     // Current region is not in the user's allowed slots — redirect to default
     setRegion(defaultCountry);
@@ -153,7 +152,7 @@ export default function FlashSubscriptionManager({ children }: Props) {
     if (loading) return;
     if (hasAccessOverride) return; // privileged users can stay wherever they are
     if (!isSubscribed || !assignedCountries.length) return;
-    if (lockedToCountries && !lockedToCountries.includes(region) && region !== "india") {
+    if (lockedToCountries && !lockedToCountries.includes(region)) {
       setRegion(defaultCountry);
     }
     // Only run once when loading completes

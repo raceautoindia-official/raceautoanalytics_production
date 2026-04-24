@@ -34,6 +34,7 @@ type BillingSummary = {
   subscriptionStatus: string | null;
   lastPaymentAmount: number | null;
   lastPaymentDate: string | null;
+  lastPaymentStatus: string | null;
   paymentMethod: string | null;
   billingOrderId: string | null;
   planExpiryDate: string | null;
@@ -323,6 +324,14 @@ export default function AccountSettingsPage() {
                 value={billing?.lastPaymentDate ? formatDateTime(billing.lastPaymentDate) : "No recent payment found"}
               />
               <InfoRow
+                label="Payment Status"
+                value={
+                  billing?.lastPaymentStatus
+                    ? normalizeStatus(billing.lastPaymentStatus)
+                    : "Not available"
+                }
+              />
+              <InfoRow
                 label="Billing / Order ID"
                 value={billing?.billingOrderId || "Not available"}
               />
@@ -352,9 +361,7 @@ export default function AccountSettingsPage() {
             <div className="text-sm text-[#EAF0FF]/50">Loading...</div>
           ) : billingHistory.length === 0 ? (
             <div className="text-sm text-[#EAF0FF]/50">
-              {isSubscribed
-                ? "No billing history available"
-                : "No billing history available for this account. You are currently on a free plan."}
+              No billing history available
             </div>
           ) : (
             <div className="space-y-2">
