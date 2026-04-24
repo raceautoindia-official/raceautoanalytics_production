@@ -50,15 +50,15 @@ export function adminNewTrialRequestEmail(lead: {
   const app = process.env.APP_NAME || "RaceAutoAnalytics";
   const adminUrl = `${process.env.APP_BASE_URL || ""}/admin/trial-leads`;
 
-  const subject = `[${app}] New Free Trial Request`;
+  const subject = `[${app}] New one time access Request`;
 
   const html = `
   <div style="font-family:Arial,sans-serif; background:#050B1A; padding:24px; color:#EAF0FF;">
     <div style="max-width:640px; margin:0 auto; background:#0B1228; border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden;">
       <div style="padding:18px 18px 0 18px;">
-        <h2 style="margin:0; font-size:18px;">New Free Trial Request</h2>
+        <h2 style="margin:0; font-size:18px;">New one time access Request</h2>
         <p style="margin:8px 0 0 0; color:rgba(234,240,255,0.75); font-size:13px;">
-          A user has requested free trial access.
+          A user has requested one time access access.
         </p>
       </div>
 
@@ -82,7 +82,7 @@ export function adminNewTrialRequestEmail(lead: {
   </div>
   `;
 
-  const text = `New Free Trial Request\nName: ${lead.name}\nEmail: ${lead.email}\nPhone: ${lead.phone}\nSegment: ${lead.segment}\nCompany: ${lead.company || "-"}\nAdmin Panel: ${adminUrl}`;
+  const text = `New one time access Request\nName: ${lead.name}\nEmail: ${lead.email}\nPhone: ${lead.phone}\nSegment: ${lead.segment}\nCompany: ${lead.company || "-"}\nAdmin Panel: ${adminUrl}`;
 
   return { subject, html, text };
 }
@@ -97,15 +97,15 @@ export function userTrialActivatedEmail(args: {
   const base = process.env.APP_BASE_URL || "";
   const loginUrl = `${base}/flash-reports`;
 
-  const subject = `[${app}] Your Free Trial Access Details (Valid ${args.expiresInDays} days)`;
+  const subject = `[${app}] Your one time access Access Details (Valid ${args.expiresInDays} days)`;
 
   const html = `
   <div style="font-family:Arial,sans-serif; background:#050B1A; padding:24px; color:#EAF0FF;">
     <div style="max-width:640px; margin:0 auto; background:#0B1228; border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden;">
       <div style="padding:18px 18px 0 18px;">
-        <h2 style="margin:0; font-size:18px;">Free Trial Access</h2>
+        <h2 style="margin:0; font-size:18px;">one time access Access</h2>
         <p style="margin:8px 0 0 0; color:rgba(234,240,255,0.75); font-size:13px;">
-          Your free trial access is provided for <b>${args.expiresInDays} days</b>.
+          Your one time access access is provided for <b>${args.expiresInDays} days</b>.
         </p>
       </div>
 
@@ -130,7 +130,7 @@ export function userTrialActivatedEmail(args: {
   </div>
   `;
 
-  const text = `Free Trial Access\nUsername: ${args.email}\nPassword: ${args.tempPassword}\nValid: ${args.expiresInDays} days\nLogin: ${loginUrl}`;
+  const text = `one time access Access\nUsername: ${args.email}\nPassword: ${args.tempPassword}\nValid: ${args.expiresInDays} days\nLogin: ${loginUrl}`;
 
   return { subject, html, text };
 }
@@ -152,7 +152,7 @@ export function userTrialExpiryReminderEmail(args: {
       <div style="padding:18px 18px 0 18px;">
         <h2 style="margin:0; font-size:18px;">Trial Expiry Reminder</h2>
         <p style="margin:8px 0 0 0; color:rgba(234,240,255,0.75); font-size:13px;">
-          Your free trial will expire in <b>${args.daysLeft} day${args.daysLeft === 1 ? "" : "s"}</b>.
+          Your one time access will expire in <b>${args.daysLeft} day${args.daysLeft === 1 ? "" : "s"}</b>.
         </p>
       </div>
       <div style="padding:18px;">
@@ -184,7 +184,7 @@ export function userTrialExpiredEmail(args: { email: string }) {
       <div style="padding:18px 18px 0 18px;">
         <h2 style="margin:0; font-size:18px;">Trial Expired</h2>
         <p style="margin:8px 0 0 0; color:rgba(234,240,255,0.75); font-size:13px;">
-          Your free trial has expired. If you want to continue access, we can activate a subscription.
+          Your one time access has expired. If you want to continue access, we can activate a subscription.
         </p>
       </div>
       <div style="padding:18px;">

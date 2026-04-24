@@ -140,8 +140,8 @@ export default function RouteAuthGate() {
               </div>
               <div className="mt-2 text-sm text-[#EAF0FF]/70">
                 {view === "gate"
-                  ? "Please login to continue, or request a free trial."
-                  : "Request a free trial to continue."}
+                  ? "Please login to continue, or request one time access."
+                  : "Request a one time access to continue."}
               </div>
 
               {/* Gate view: show link + buttons */}

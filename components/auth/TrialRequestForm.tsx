@@ -553,7 +553,7 @@ export default function TrialRequestForm({ onSuccess, onBack }: Props) {
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-[#EAF0FF]">
-            Start Your Free Trial
+            Start Your One Time Access
           </div>
           <div className="mt-0.5 text-xs text-[#EAF0FF]/60">
             Create your account and get 5 minutes of access to the Flash Reports overview page.
@@ -661,11 +661,11 @@ export default function TrialRequestForm({ onSuccess, onBack }: Props) {
           disabled={loading}
           className="mt-2 h-10 w-full rounded-xl bg-[#4F67FF] text-white text-sm font-semibold shadow-[0_12px_30px_rgba(79,103,255,0.25)] hover:bg-[#3B55FF] transition disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {loading ? "Creating account..." : "Activate Free Trial"}
+          {loading ? "Creating account..." : "Activate One Time Access"}
         </button>
 
         <p className="text-center text-[11px] text-[#EAF0FF]/35">
-          One free trial per email. No credit card required.
+          One time access per email. No credit card required.
         </p>
       </form>
     </div>

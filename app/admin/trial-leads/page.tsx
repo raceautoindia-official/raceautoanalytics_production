@@ -158,7 +158,7 @@ const [emailSent, setEmailSent] = useState(false);
           <div>
             <div className="text-2xl font-semibold">Trial Leads</div>
             <div className="mt-1 text-sm text-[#EAF0FF]/70">
-              Review free trial requests and generate temporary credentials.
+              Review One Time Access requests and generate temporary credentials.
             </div>
           </div>
 
