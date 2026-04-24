@@ -52,6 +52,9 @@ const PLAN_COUNTRY_LIMITS: Record<string, number> = {
   platinum: 11,
 };
 
+// Canonical paid plan keys — used to distinguish paid vs free in local DB fallback.
+const PAID_PLAN_KEYS = new Set(["bronze", "silver", "gold", "platinum"]);
+
 export const FORECAST_REGION_LIMITS: Record<string, number> = {
   bronze: 1,
   silver: 2,
@@ -211,13 +214,48 @@ async function readLocalSubscriptionExpiry(email: string): Promise<string | null
   }
 }
 
+/**
+ * Returns true when the local subscription_reference table has a non-expired
+ * paid plan row for this email. Used to correct upstream misreporting of status.
+ */
+async function readLocalValidPaidSubscription(email: string): Promise<boolean> {
+  try {
+    const [rows]: any = await db.execute(
+      `SELECT plan_name, end_date
+       FROM subscription_reference
+       WHERE email = ?
+       ORDER BY synced_at DESC
+       LIMIT 1`,
+      [email],
+    );
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) return false;
+    const planName = String(row?.plan_name ?? "").trim().toLowerCase();
+    if (!PAID_PLAN_KEYS.has(planName)) return false;
+    const expiryMs = parseExpiryMs(String(row?.end_date ?? "").trim());
+    if (expiryMs == null) return false;
+    return expiryMs >= Date.now();
+  } catch (error) {
+    console.error("readLocalValidPaidSubscription error:", error);
+    return false;
+  }
+}
+
 async function enforceEffectiveStatusWithFallbackExpiry(
   email: string,
   status: string,
   data: any,
 ): Promise<string> {
   const normalized = normalizeStatus(status);
-  if (normalized !== "active") return normalized;
+  if (normalized !== "active") {
+    // Upstream returned a non-active status. Before accepting it, check the
+    // local subscription_reference table: if the user has a paid plan whose
+    // end_date is still in the future, the upstream is misreporting and we
+    // override to "active". Expired or truly free users return unchanged.
+    const hasLocalActivePaid = await readLocalValidPaidSubscription(email);
+    if (hasLocalActivePaid) return "active";
+    return normalized;
+  }
 
   const directStatus = enforceNonExpiredActiveStatus(normalized, data);
   if (directStatus !== "active") return directStatus;
@@ -444,19 +482,25 @@ export async function fetchRaiFlashEntitlement(
   const role = normalizeRole(data);
   const hasFullAccess = !!role && FULL_ACCESS_ROLES.has(role);
   const membership = normalizeMembershipApproval(data, accessType);
-  let effectiveStatus = normalizeStatus(data.effectiveStatus);
+  const upstreamNormalizedStatus = normalizeStatus(data.effectiveStatus);
+  let effectiveStatus = upstreamNormalizedStatus;
   effectiveStatus = await enforceEffectiveStatusWithFallbackExpiry(
     email,
     effectiveStatus,
     data,
   );
+  // True when upstream said non-active but local DB override corrected it to active.
+  const wasLocallyActivated =
+    upstreamNormalizedStatus !== "active" && effectiveStatus === "active";
   const hasStatusField = normalizeText(data.effectiveStatus) !== "";
   const activeStatus = effectiveStatus === "active";
-  let isSubscribed =
-    data.isSubscribed != null
+  // When locally activated, trust the local DB over any upstream isSubscribed=false.
+  let isSubscribed = wasLocallyActivated
+    ? true
+    : data.isSubscribed != null
       ? Boolean(data.isSubscribed)
       : Boolean(data.hasDirectPlan || data.hasSharedPlan || effectivePlan);
-  if (hasStatusField) {
+  if (hasStatusField && !wasLocallyActivated) {
     isSubscribed = isSubscribed && activeStatus;
   }
   if (membership.pending) {
