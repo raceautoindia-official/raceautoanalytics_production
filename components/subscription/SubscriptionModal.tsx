@@ -703,6 +703,26 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
               response_payload: verifyData,
             });
 
+            // Optimistic local activation so the entitlement check reflects the purchase
+            // immediately even if the upstream RAI API hasn't propagated the new
+            // subscription record yet (common ~5-30 s processing lag after verify-payment).
+            // The authoritative sync below will overwrite this once /api/my-plan is ready.
+            const optimisticEndDate = new Date(
+              billingCycle === "annual"
+                ? Date.now() + 366 * 24 * 60 * 60 * 1000
+                : Date.now() + 32 * 24 * 60 * 60 * 1000,
+            ).toISOString();
+            await syncLocal("/api/subscription/sync-current-plan", {
+              email,
+              data: [{
+                payment_id: response.razorpay_payment_id,
+                plan_name: planToPay,
+                status: "Active",
+                start_date: new Date().toISOString(),
+                end_date: optimisticEndDate,
+              }],
+            });
+
             const latestPlanRes = await fetch(
               `/api/my-plan?email=${encodeURIComponent(email)}`,
               {

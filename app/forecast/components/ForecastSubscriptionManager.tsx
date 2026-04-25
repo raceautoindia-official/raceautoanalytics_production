@@ -49,11 +49,19 @@ export default function ForecastSubscriptionManager({
   const isDirectUser = entitlement?.accessType === "direct";
   const isSharedUser = entitlement?.accessType === "shared";
 
-  // lockedToRegions: null for free users (no restriction), string[] for paid users
+  // Admin/moderator role bypass — mirrors FlashSubscriptionManager behaviour
+  const role = String(entitlement?.role || "").toLowerCase();
+  const hasRoleOverride =
+    Boolean(entitlement?.hasFullAccess) ||
+    role === "admin" ||
+    role === "moderator";
+
+  // lockedToRegions: null for free users, admins, or no restriction; string[] for paid users
   const lockedToRegions: string[] | null = useMemo(() => {
     if (!isSubscribed) return null; // free users: unrestricted
+    if (hasRoleOverride) return null; // admin/moderator: unrestricted
     return assignedRegions.map((r) => r.region_name);
-  }, [isSubscribed, assignedRegions]);
+  }, [isSubscribed, hasRoleOverride, assignedRegions]);
 
   // Default region = first assigned slot
   const defaultRegion: string | null =
@@ -62,21 +70,23 @@ export default function ForecastSubscriptionManager({
         assignedRegions[0].region_name
       : null;
 
-  // Show region-select modal for direct paid users with no regions yet
+  // Show region-select modal for direct paid users with no regions yet (skip for admin)
   const needsRegionSelect =
     isLoggedIn &&
     !loading &&
     isSubscribed &&
     isDirectUser &&
-    assignedRegions.length === 0;
+    assignedRegions.length === 0 &&
+    !hasRoleOverride;
 
-  // Show informational modal for shared paid users whose parent has no regions
+  // Show informational modal for shared paid users whose parent has no regions (skip for admin)
   const sharedNeedsParentAssignment =
     isLoggedIn &&
     !loading &&
     isSubscribed &&
     isSharedUser &&
-    assignedRegions.length === 0;
+    assignedRegions.length === 0 &&
+    !hasRoleOverride;
 
   const contextValue = {
     entitlement,
@@ -85,6 +95,7 @@ export default function ForecastSubscriptionManager({
     defaultRegion,
     loading,
     isLoggedIn,
+    isAdmin: hasRoleOverride,
     refreshRegions,
   };
 
@@ -92,6 +103,7 @@ export default function ForecastSubscriptionManager({
     isLoggedIn &&
     !loading &&
     entitlement &&
+    !hasRoleOverride &&
     (Boolean(entitlement.membershipPendingApproval) || !isSubscribed);
 
   return (

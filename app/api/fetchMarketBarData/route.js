@@ -72,6 +72,7 @@ function mapAltFuelKey(k) {
   if (key === "passenger" || key === "passenger vehicle" || key === "pv") return "PV";
   if (key === "tractor" || key === "agri tractor" || key === "trac") return "Tractor";
   if (key === "cv" || key === "commercial vehicle") return "CV";
+  if (key === "ce" || key === "construction equipment" || key === "construction-equipment") return "CE";
   return null;
 }
 
@@ -247,7 +248,7 @@ export async function GET(req) {
     );
     if (!altFuel) return NextResponse.json({});
 
-    const out = { "2W": {}, "3W": {}, PV: {}, Tractor: {}, CV: {} };
+    const out = { "2W": {}, "3W": {}, PV: {}, Tractor: {}, CV: {}, CE: {} };
 
     const readMonth = (y, mIdx, uiLabel) => {
       const yearNode = findNodeByName(hierarchyData, altFuel.id, String(y));

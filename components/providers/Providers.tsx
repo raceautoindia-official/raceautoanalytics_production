@@ -203,7 +203,14 @@ export function Providers({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [region, minMonth, pathname, router, searchParams]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [region, minMonth, pathname, router]);
+  // searchParams intentionally omitted: including it would re-run this effect
+  // every time the user manually changes the month (which updates the URL),
+  // causing loadLatestMonthForRegion to fire and reset the month back to the
+  // latest available value.  The effect only needs to run on region/pathname
+  // changes; searchParams is read inside the async fn but is only consumed
+  // on the very first run (guarded by !initializedMonthRef.current).
 
   useEffect(() => {
     if (!pathname?.startsWith("/flash-reports")) return;

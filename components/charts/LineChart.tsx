@@ -204,11 +204,14 @@ export function LineChart({
       .filter(Boolean) as { month: string; data: Record<string, number> }[];
   }, [overallData, selectedCat]);
 
+  // Do not gate on normalized.some(…) here: that check flips false while overallData
+  // is being refetched (month/region change), which disables the hook and clears all
+  // forecast state. Forecast values for months not present in overallData are simply
+  // empty, so the lines stay invisible — no stale data is shown.
   const allowForecastByData =
     !!allowForecast &&
     !!graphId &&
-    isYYYYMM(baseMonth) &&
-    normalized.some((p) => p.month > String(baseMonth));
+    isYYYYMM(baseMonth);
 
   const userEmail = useMemo(() => {
     const token = getCookie("authToken");

@@ -7,7 +7,7 @@ export interface ForecastEntitlementContextValue {
   entitlement: ForecastEntitlement | null;
   assignedRegions: AssignedRegion[];
   /**
-   * null  = no restriction (free / not logged in)
+   * null  = no restriction (free / not logged in / admin)
    * string[] = only these region names are accessible (paid users)
    */
   lockedToRegions: string[] | null;
@@ -15,6 +15,7 @@ export interface ForecastEntitlementContextValue {
   defaultRegion: string | null;
   loading: boolean;
   isLoggedIn: boolean;
+  isAdmin: boolean;
   refreshRegions: () => void;
 }
 
@@ -26,6 +27,7 @@ const ForecastEntitlementContext =
     defaultRegion: null,
     loading: true,
     isLoggedIn: false,
+    isAdmin: false,
     refreshRegions: () => {},
   });
 
