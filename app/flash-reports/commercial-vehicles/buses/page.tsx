@@ -158,13 +158,6 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
     setOemCurrentMonth(month);
   }, [month, region]);
 
-  useEffect(() => {
-    (async () => {
-      const res = await fetch(withCountry("/api/flash-reports/config", region));
-      const cfg = await res.json();
-      setGraphId(cfg?.bus ?? null);
-    })();
-  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -400,22 +393,27 @@ useEffect(() => {
         setOverallLoading(true);
         setOverallError(null);
 
-        const res = await fetch(
-          withCountry(
-            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-              month,
-            )}&horizon=6`,
-            region,
+        const [cfgRes, dataRes] = await Promise.all([
+          fetch(withCountry("/api/flash-reports/config", region)),
+          fetch(
+            withCountry(
+              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+                month,
+              )}&horizon=6`,
+              region,
+            ),
+            { cache: "no-store" },
           ),
-          { cache: "no-store" },
-        );
+        ]);
 
-        if (!res.ok) {
-          throw new Error(`Failed to fetch overall chart data: ${res.status}`);
+        if (!dataRes.ok) {
+          throw new Error(`Failed to fetch overall chart data: ${dataRes.status}`);
         }
 
-        const json = await res.json();
+        const cfg = await cfgRes.json();
+        const json = await dataRes.json();
         if (!cancelled) {
+          setGraphId(cfg?.bus ?? null);
           setOverallData(json?.data || []);
           setOverallMeta(json?.meta || null);
         }

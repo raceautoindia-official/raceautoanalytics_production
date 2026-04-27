@@ -174,13 +174,6 @@ export default function ConstructionEquipmentPage() {
 const [segmentTextLoading, setSegmentTextLoading] = useState(false);
 const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const res = await fetch(withCountry("/api/flash-reports/config", region));
-      const cfg = await res.json();
-      setGraphId(cfg?.ce ?? null);
-    })();
-  }, []);
 
   // ---- Segment donut: still mock ----
   const segmentData = generateSegmentData("construction-equipment", region);
@@ -566,23 +559,27 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
         setOverallLoading(true);
         setOverallError(null);
 
-        // ✅ call your own Next API, which uses getOverallChartData() on the server
-        const res = await fetch(
-          withCountry(
-            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-              month,
-            )}&horizon=6`,
-            region,
+        const [cfgRes, dataRes] = await Promise.all([
+          fetch(withCountry("/api/flash-reports/config", region)),
+          fetch(
+            withCountry(
+              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+                month,
+              )}&horizon=6`,
+              region,
+            ),
+            { cache: "no-store" },
           ),
-          { cache: "no-store" },
-        );
+        ]);
 
-        if (!res.ok) {
-          throw new Error(`Failed to fetch overall chart data: ${res.status}`);
+        if (!dataRes.ok) {
+          throw new Error(`Failed to fetch overall chart data: ${dataRes.status}`);
         }
 
-        const json = await res.json();
+        const cfg = await cfgRes.json();
+        const json = await dataRes.json();
         if (!cancelled) {
+          setGraphId(cfg?.ce ?? null);
           setOverallData(json?.data || []);
           setOverallMeta(json?.meta || null);
         }

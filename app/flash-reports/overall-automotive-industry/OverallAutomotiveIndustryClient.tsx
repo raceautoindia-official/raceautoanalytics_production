@@ -60,47 +60,28 @@ export function OverallAutomotiveIndustryClient({
   useEffect(() => {
     let cancelled = false;
 
-    async function loadConfig() {
-      try {
-        const res = await fetch(withCountry("/api/flash-reports/config", region), {
-  cache: "no-store",
-});
-        if (!res.ok) return;
-        const json = await res.json();
-        if (cancelled) return;
-
-        const id = json?.overall;
-        setGraphId(typeof id === "number" ? id : id ? Number(id) : null);
-      } catch {
-        // ignore
-      }
-    }
-
-    loadConfig();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
     async function load() {
       try {
         setOverallLoading(true);
-        const res = await fetch(
-          withCountry(
-            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-              month,
-            )}&horizon=6`,
-            region,
+        const [cfgRes, dataRes] = await Promise.all([
+          fetch(withCountry("/api/flash-reports/config", region), { cache: "no-store" }),
+          fetch(
+            withCountry(
+              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+                month,
+              )}&horizon=6`,
+              region,
+            ),
+            { cache: "no-store" },
           ),
-          { cache: "no-store" },
-        );
+        ]);
 
-        const json = await res.json();
+        const cfg = await cfgRes.json();
+        const json = await dataRes.json();
         if (cancelled) return;
 
+        const id = cfg?.overall;
+        setGraphId(typeof id === "number" ? id : id ? Number(id) : null);
         setOverallData(json?.data ?? []);
         setOverallMeta(json?.meta ?? null);
       } catch (e) {
