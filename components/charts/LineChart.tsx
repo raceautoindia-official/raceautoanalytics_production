@@ -449,72 +449,70 @@ const latestIndexForKey = (dataKey: string) => {
     );
   };
 
+  // Always define all potential lines. Use `enabled` to control visibility via
+  // the Recharts `hide` prop rather than adding/removing <Line> components
+  // dynamically. Recharts handles hide-toggling reliably; dynamic child insertion
+  // while isAnimationActive=true is not reliable and causes lines to appear missing.
   const lines = useMemo(() => {
-    const base = [
+    const en = enabledTypes ?? new Set<string>();
+    return [
       {
         key: selectedCat,
         name: "Historical",
         color: catColors[selectedCat] ?? "#ffffff",
         showArea: true,
         strokeDasharray: undefined as string | undefined,
+        enabled: true,
       },
-    ];
-
-    if (!allowForecastByData) return base;
-
-    const enabled = enabledTypes ?? new Set<string>();
-
-    const out: any[] = [...base];
-
-    if (enabled.has("linear"))
-      out.push({
+      {
         key: `${selectedCat}_forecast_linear`,
         name: "Forecast (Stats)",
         color: forecastColors.linear,
         strokeDasharray: "5 5",
-      });
-
-    if (enabled.has("score"))
-      out.push({
+        enabled: allowForecastByData && en.has("linear"),
+      },
+      {
         key: `${selectedCat}_forecast_score`,
         name: "Forecast (Survey – ML Avg)",
         color: forecastColors.score,
         strokeDasharray: "2 2",
-      });
-
-    if (enabled.has("byof"))
-      out.push({
+        enabled: allowForecastByData && en.has("score"),
+      },
+      {
         key: `${selectedCat}_forecast_byof`,
         name: "Forecast (BYF)",
         color: forecastColors.byof,
         strokeDasharray: undefined,
-      });
-
-    if (enabled.has("ai"))
-      out.push({
+        enabled: allowForecastByData && en.has("byof"),
+      },
+      {
         key: `${selectedCat}_forecast_ai`,
         name: "Forecast (AI)",
         color: forecastColors.ai,
         strokeDasharray: "4 4",
-      });
-
-    if (enabled.has("race"))
-      out.push({
+        enabled: allowForecastByData && en.has("ai"),
+      },
+      {
         key: `${selectedCat}_forecast_race`,
         name: "Forecast (Race)",
         color: forecastColors.race,
         strokeDasharray: undefined,
-      });
-
-    return out;
-  }, [chartData, selectedCat, allowForecastByData, enabledTypes]);
+        enabled: allowForecastByData && en.has("race"),
+      },
+    ];
+  }, [selectedCat, allowForecastByData, enabledTypes]);
 
 const yAxisDomain = useMemo(() => {
+    // Only enabled lines contribute to the domain; disabled lines have null in
+    // chartData which would convert to 0 and distort the lower bound.
+    const enabledLines = lines.filter((l) => l.enabled);
     const numericValues = chartData
       .flatMap((row) =>
-        lines.map((line) => {
-          const value = Number(row?.[line.key]);
-          return Number.isFinite(value) ? value : null;
+        enabledLines.map((line) => {
+          const raw = row?.[line.key];
+          if (raw == null) return null;
+          const n = Number(raw);
+          return Number.isFinite(n) ? n : null;
         }),
       )
       .filter((value): value is number => value != null);
@@ -727,13 +725,18 @@ const yAxisDomain = useMemo(() => {
   align="center"
   content={({ payload }: any) => {
     if (!payload?.length) return null;
+    // Filter to only the lines that are currently enabled; Recharts may or
+    // may not exclude hide=true lines from payload depending on version.
+    const enabledKeys = new Set(lines.filter((l) => l.enabled).map((l) => l.key));
+    const visiblePayload = payload.filter((item: any) => enabledKeys.has(item.dataKey));
+    if (!visiblePayload.length) return null;
 
     return (
       <div
         className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
         style={{ fontSize: isMobile ? 10 : 12 }}
       >
-        {payload.map((item: any) => {
+        {visiblePayload.map((item: any) => {
           const name = String(item.value || item.dataKey);
           const help = legendHelp[name] || "—";
           const color = item.color;
@@ -790,6 +793,7 @@ const yAxisDomain = useMemo(() => {
                       dataKey={line.key}
                       stroke="none"
                       fill={`url(#${areaGradientId})`}
+                      hide={!line.enabled}
                       isAnimationActive={animationConfig.isAnimationActive}
                       animationDuration={CHART_ANIMATION.duration.medium}
                       animationEasing={CHART_ANIMATION.easing.easeOut}
@@ -827,6 +831,7 @@ const yAxisDomain = useMemo(() => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     name={line.name}
+                    hide={!line.enabled}
                     isAnimationActive={animationConfig.isAnimationActive}
                     animationDuration={CHART_ANIMATION.duration.medium}
                     animationEasing={CHART_ANIMATION.easing.easeOut}

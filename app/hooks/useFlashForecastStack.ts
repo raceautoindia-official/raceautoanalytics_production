@@ -273,59 +273,58 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
         setLoading(true);
         setError(null);
 
-        // 1) graph
+        // 1) graph — needed to determine question URL and score settings key
         const gdata = await fetchJson(`/api/graphs?id=${graphId}`);
         const g: GraphRow | null = (gdata?.graph ?? null) as any;
         const ctx = String(g?.context || "forecast").toLowerCase();
+        const scoreSettingsKey = g?.score_settings_key || "scoreSettings";
 
-        // 2) questions (Flash = country-scoped; Forecast = old behavior)
+        // 2-6) all remaining fetches are independent of each other — run in parallel
+        const h = Number.isFinite(horizon as any) ? Number(horizon) : 6;
         const qUrl =
           ctx === "flash"
             ? `/api/questions?graphId=${graphId}${countryQs}`
             : `/api/questions?graphId=${graphId}`;
 
-        const qdata = await fetchJson(qUrl);
+        const [
+          qdata,
+          ssdata,
+          subsAllData,
+          subsUserData,
+          fdata,
+        ] = await Promise.all([
+          fetchJson(qUrl),
+          fetchJson(
+            `/api/scoreSettings?key=${encodeURIComponent(scoreSettingsKey)}&baseMonth=${encodeURIComponent(String(baseMonth))}&horizon=${h}${countryQs}`,
+          ),
+          fetchJson(
+            `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(String(baseMonth))}${countryQs}`,
+          ),
+          userEmail && String(userEmail).trim()
+            ? fetchJson(
+                `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(String(baseMonth))}&email=${encodeURIComponent(String(userEmail).trim())}${countryQs}`,
+              )
+            : Promise.resolve(null),
+          fetchJson(
+            `/api/flash-reports/graph-forecasts?graphId=${graphId}&country=${encodeURIComponent(countryKey)}`,
+          ),
+        ]);
+
         const q: QuestionRow[] = Array.isArray(qdata)
           ? qdata
           : Array.isArray(qdata?.questions)
             ? qdata.questions
             : [];
 
-        // 3) score settings (already country-aware)
-        const key = g?.score_settings_key || "scoreSettings";
-        const ssdata = await fetchJson(
-          `/api/scoreSettings?key=${encodeURIComponent(
-            key,
-          )}&baseMonth=${encodeURIComponent(String(baseMonth))}&horizon=${
-            Number.isFinite(horizon as any) ? Number(horizon) : 6
-          }${countryQs}`,
-        );
         const yn: string[] = Array.isArray(ssdata?.yearNames)
           ? ssdata.yearNames
           : [];
 
-        // 4) submissions (already country-aware)
-        const subsAllData = await fetchJson(
-          `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(
-            String(baseMonth),
-          )}${countryQs}`,
-        );
         const all: any[] = Array.isArray(subsAllData)
           ? subsAllData
           : Array.isArray(subsAllData?.submissions)
             ? subsAllData.submissions
             : [];
-
-        const subsUserData =
-          userEmail && String(userEmail).trim()
-            ? await fetchJson(
-                `/api/saveScores?graphId=${graphId}&basePeriod=${encodeURIComponent(
-                  String(baseMonth),
-                )}&email=${encodeURIComponent(
-                  String(userEmail).trim(),
-                )}${countryQs}`,
-              )
-            : null;
 
         const us: any[] =
           subsUserData == null
@@ -335,13 +334,6 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
               : Array.isArray(subsUserData?.submissions)
                 ? subsUserData.submissions
                 : [];
-
-        // 5) AI/Race overrides (country-aware)
-        const fdata = await fetchJson(
-          `/api/flash-reports/graph-forecasts?graphId=${graphId}&country=${encodeURIComponent(
-            countryKey,
-          )}`,
-        );
 
         if (cancelled) return;
 
