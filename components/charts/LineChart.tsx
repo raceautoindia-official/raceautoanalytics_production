@@ -449,66 +449,82 @@ const latestIndexForKey = (dataKey: string) => {
     );
   };
 
-  // Always define all potential lines. Use `enabled` to control visibility via
-  // the Recharts `hide` prop rather than adding/removing <Line> components
-  // dynamically. Recharts handles hide-toggling reliably; dynamic child insertion
-  // while isAnimationActive=true is not reliable and causes lines to appear missing.
+  // Only include lines that are currently enabled. Combined with a narrow
+  // `key` on RechartsLineChart, this lets Recharts animate all lines fresh
+  // whenever the set changes (e.g. when forecast data arrives or
+  // category/country switches). The `hide` prop approach was removed because
+  // it suppresses animation — Recharts animates hidden lines immediately on
+  // mount, so lines "pop in" without animation when later unhidden.
   const lines = useMemo(() => {
-    const en = enabledTypes ?? new Set<string>();
-    return [
+    const base = [
       {
         key: selectedCat,
         name: "Historical",
         color: catColors[selectedCat] ?? "#ffffff",
         showArea: true,
         strokeDasharray: undefined as string | undefined,
-        enabled: true,
       },
-      {
+    ];
+
+    if (!allowForecastByData) return base;
+
+    const enabled = enabledTypes ?? new Set<string>();
+    const out: any[] = [...base];
+
+    if (enabled.has("linear"))
+      out.push({
         key: `${selectedCat}_forecast_linear`,
         name: "Forecast (Stats)",
         color: forecastColors.linear,
         strokeDasharray: "5 5",
-        enabled: allowForecastByData && en.has("linear"),
-      },
-      {
+      });
+
+    if (enabled.has("score"))
+      out.push({
         key: `${selectedCat}_forecast_score`,
         name: "Forecast (Survey – ML Avg)",
         color: forecastColors.score,
         strokeDasharray: "2 2",
-        enabled: allowForecastByData && en.has("score"),
-      },
-      {
+      });
+
+    if (enabled.has("byof"))
+      out.push({
         key: `${selectedCat}_forecast_byof`,
         name: "Forecast (BYF)",
         color: forecastColors.byof,
         strokeDasharray: undefined,
-        enabled: allowForecastByData && en.has("byof"),
-      },
-      {
+      });
+
+    if (enabled.has("ai"))
+      out.push({
         key: `${selectedCat}_forecast_ai`,
         name: "Forecast (AI)",
         color: forecastColors.ai,
         strokeDasharray: "4 4",
-        enabled: allowForecastByData && en.has("ai"),
-      },
-      {
+      });
+
+    if (enabled.has("race"))
+      out.push({
         key: `${selectedCat}_forecast_race`,
         name: "Forecast (Race)",
         color: forecastColors.race,
         strokeDasharray: undefined,
-        enabled: allowForecastByData && en.has("race"),
-      },
-    ];
+      });
+
+    return out;
   }, [selectedCat, allowForecastByData, enabledTypes]);
 
+  // Force chart remount when the set of lines changes so all lines animate
+  // fresh together. Without this, dynamically added lines animate out-of-sync.
+  const chartKey = useMemo(() => {
+    const hasForecastLines = lines.length > 1;
+    return `${selectedCat}|${String(country || "india")}|${hasForecastLines ? "1" : "0"}`;
+  }, [selectedCat, country, lines]);
+
 const yAxisDomain = useMemo(() => {
-    // Only enabled lines contribute to the domain; disabled lines have null in
-    // chartData which would convert to 0 and distort the lower bound.
-    const enabledLines = lines.filter((l) => l.enabled);
     const numericValues = chartData
       .flatMap((row) =>
-        enabledLines.map((line) => {
+        lines.map((line) => {
           const raw = row?.[line.key];
           if (raw == null) return null;
           const n = Number(raw);
@@ -684,6 +700,7 @@ const yAxisDomain = useMemo(() => {
       <div className="w-full">
         <ResponsiveContainer width="100%" height={effectiveHeight}>
           <RechartsLineChart
+            key={chartKey}
             data={chartData}
             margin={chartMargin}
             onMouseMove={(state: any) => {
@@ -727,7 +744,7 @@ const yAxisDomain = useMemo(() => {
     if (!payload?.length) return null;
     // Filter to only the lines that are currently enabled; Recharts may or
     // may not exclude hide=true lines from payload depending on version.
-    const enabledKeys = new Set(lines.filter((l) => l.enabled).map((l) => l.key));
+    const enabledKeys = new Set(lines.map((l) => l.key));
     const visiblePayload = payload.filter((item: any) => enabledKeys.has(item.dataKey));
     if (!visiblePayload.length) return null;
 
@@ -793,7 +810,6 @@ const yAxisDomain = useMemo(() => {
                       dataKey={line.key}
                       stroke="none"
                       fill={`url(#${areaGradientId})`}
-                      hide={!line.enabled}
                       isAnimationActive={animationConfig.isAnimationActive}
                       animationDuration={CHART_ANIMATION.duration.medium}
                       animationEasing={CHART_ANIMATION.easing.easeOut}
@@ -831,7 +847,6 @@ const yAxisDomain = useMemo(() => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     name={line.name}
-                    hide={!line.enabled}
                     isAnimationActive={animationConfig.isAnimationActive}
                     animationDuration={CHART_ANIMATION.duration.medium}
                     animationEasing={CHART_ANIMATION.easing.easeOut}

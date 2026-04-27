@@ -68,6 +68,29 @@ function isYYYYMM(s?: string | null) {
   return !!s && /^\d{4}-\d{2}$/.test(s);
 }
 
+// Module-level cache: restores hook state instantly on remount (e.g. when the
+// parent unmounts/remounts on country/month change), eliminating the window
+// where enabledTypes = Set{} causes forecast lines to disappear.
+type CachedForecastData = {
+  graph: GraphRow | null;
+  questions: QuestionRow[];
+  yearNames: string[];
+  allSubs: any[];
+  userSubs: any[];
+  aiOverride: any;
+  raceOverride: any;
+};
+const forecastCache = new Map<string, CachedForecastData>();
+
+function makeForecastCacheKey(
+  graphId: number | null | undefined,
+  baseMonth: string | null | undefined,
+  country: string | null | undefined,
+): string | null {
+  if (!graphId || !isYYYYMM(baseMonth)) return null;
+  return `${graphId}|${baseMonth}|${String(country || "india").toLowerCase().trim()}`;
+}
+
 function linearRegression(x: number[], y: number[]) {
   const n = x.length;
   if (!n) return (_i: number) => 0;
@@ -198,14 +221,21 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
     .toLowerCase();
   const countryQs = country ? `&country=${encodeURIComponent(countryKey)}` : "";
 
-  const [aiOverride, setAiOverride] = useState<any>(null);
-  const [raceOverride, setRaceOverride] = useState<any>(null);
+  // Lazy initializers restore cached state immediately on remount so forecast
+  // lines appear without a loading gap when navigating between countries/months.
+  const _ck =
+    enabled && graphId && isYYYYMM(baseMonth)
+      ? makeForecastCacheKey(graphId, baseMonth, country)
+      : null;
+  const _cached = _ck ? (forecastCache.get(_ck) ?? null) : null;
 
-  const [graph, setGraph] = useState<GraphRow | null>(null);
-  const [questions, setQuestions] = useState<QuestionRow[]>([]);
-  const [yearNames, setYearNames] = useState<string[]>([]);
-  const [allSubs, setAllSubs] = useState<any[]>([]);
-  const [userSubs, setUserSubs] = useState<any[]>([]);
+  const [aiOverride, setAiOverride] = useState<any>(() => _cached?.aiOverride ?? null);
+  const [raceOverride, setRaceOverride] = useState<any>(() => _cached?.raceOverride ?? null);
+  const [graph, setGraph] = useState<GraphRow | null>(() => _cached?.graph ?? null);
+  const [questions, setQuestions] = useState<QuestionRow[]>(() => _cached?.questions ?? []);
+  const [yearNames, setYearNames] = useState<string[]>(() => _cached?.yearNames ?? []);
+  const [allSubs, setAllSubs] = useState<any[]>(() => _cached?.allSubs ?? []);
+  const [userSubs, setUserSubs] = useState<any[]>(() => _cached?.userSubs ?? []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -336,6 +366,20 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
                 : [];
 
         if (cancelled) return;
+
+        // Persist to module-level cache so remounts restore state instantly.
+        const ck = makeForecastCacheKey(graphId, baseMonth, country);
+        if (ck) {
+          forecastCache.set(ck, {
+            graph: g,
+            questions: q,
+            yearNames: yn,
+            allSubs: all,
+            userSubs: us,
+            aiOverride: fdata?.aiForecast ?? null,
+            raceOverride: fdata?.raceForecast ?? null,
+          });
+        }
 
         setAiOverride(fdata?.aiForecast ?? null);
         setRaceOverride(fdata?.raceForecast ?? null);
