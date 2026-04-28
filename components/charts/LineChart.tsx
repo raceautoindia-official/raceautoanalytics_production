@@ -204,6 +204,18 @@ export function LineChart({
       .filter(Boolean) as { month: string; data: Record<string, number> }[];
   }, [overallData, selectedCat]);
 
+  // True only when the loaded data contains at least one non-zero value for the
+  // selected category. Used purely for render-gating (show placeholder vs chart).
+  // Intentionally separate from allowForecastByData — see note below.
+  const hasMeaningfulData = useMemo(
+    () =>
+      normalized.some((p) => {
+        const val = p.data?.[selectedCat];
+        return val != null && Number.isFinite(Number(val)) && Number(val) !== 0;
+      }),
+    [normalized, selectedCat],
+  );
+
   // Do not gate on normalized.some(…) here: that check flips false while overallData
   // is being refetched (month/region change), which disables the hook and clears all
   // forecast state. Forecast values for months not present in overallData are simply
@@ -698,7 +710,14 @@ const yAxisDomain = useMemo(() => {
 
       {/* Chart */}
       <div className="w-full" style={{ height: effectiveHeight }}>
-        {allowForecastByData && forecastLoading ? (
+        {normalized.length > 0 && !hasMeaningfulData ? (
+          <div className="h-full flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+            <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+            <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+              Sales forecast data is not yet available for this segment and country.
+            </div>
+          </div>
+        ) : allowForecastByData && forecastLoading ? (
           // Hold the chart back until forecast data is ready, otherwise the
           // chart would render historical-only first and re-render a moment
           // later with the forecast lines added — visible as a flash.
