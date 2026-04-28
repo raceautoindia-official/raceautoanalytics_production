@@ -387,6 +387,25 @@ useEffect(() => {
     );
   };
 
+  // ---------- FETCH FORECAST GRAPH CONFIG (ONCE on mount, India-default) ----------
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfig() {
+      try {
+        const res = await fetch("/api/flash-reports/config?country=india", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const cfg = await res.json();
+        if (!cancelled) setGraphId(cfg?.truck ?? null);
+      } catch (err) {
+        console.error("Failed to load flash chart config", err);
+      }
+    }
+    loadConfig();
+    return () => { cancelled = true; };
+  }, []);
+
   // ---------- FETCH OVERALL TIMESERIES (for Truck forecast) ----------
   useEffect(() => {
     let cancelled = false;
@@ -396,27 +415,22 @@ useEffect(() => {
         setOverallLoading(true);
         setOverallError(null);
 
-        const [cfgRes, dataRes] = await Promise.all([
-          fetch(withCountry("/api/flash-reports/config", region)),
-          fetch(
-            withCountry(
-              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-                month,
-              )}&horizon=6`,
-              region,
-            ),
-            { cache: "no-store" },
+        const dataRes = await fetch(
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6`,
+            region,
           ),
-        ]);
+          { cache: "no-store" },
+        );
 
         if (!dataRes.ok) {
           throw new Error(`Failed to fetch overall chart data: ${dataRes.status}`);
         }
 
-        const cfg = await cfgRes.json();
         const json = await dataRes.json();
         if (!cancelled) {
-          setGraphId(cfg?.truck ?? null);
           setOverallData(json?.data || []);
           setOverallMeta(json?.meta || null);
         }
