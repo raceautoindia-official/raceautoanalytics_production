@@ -32,7 +32,7 @@ export function OverallAutomotiveIndustryClient({
   altFuelRaw,
   initialOverallAlternatePenetration,
 }: OverallAutomotiveIndustryClientProps) {
-  const { region, month } = useAppContext();
+  const { region, month, maxMonth } = useAppContext();
 
   const suffix = useMemo(() => {
     const qs = new URLSearchParams();
@@ -58,31 +58,52 @@ export function OverallAutomotiveIndustryClient({
 
   const [graphId, setGraphId] = useState<number | null>(null);
 
+  // ---------- FETCH FORECAST GRAPH CONFIG (ONCE on mount, India-default) ----------
+  // Always fetch India's config so graphId stays stable across countries,
+  // navigation, and browser back/forward. The forecast hook handles
+  // country-specific data via its own country param.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfig() {
+      try {
+        const res = await fetch("/api/flash-reports/config?country=india", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const cfg = await res.json();
+        if (cancelled) return;
+        const id = cfg?.overall;
+        setGraphId(typeof id === "number" ? id : id ? Number(id) : null);
+      } catch (err) {
+        console.error("Failed to load flash chart config", err);
+      }
+    }
+    loadConfig();
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
         setOverallLoading(true);
-        const [cfgRes, dataRes] = await Promise.all([
-          fetch(withCountry("/api/flash-reports/config", region), { cache: "no-store" }),
-          fetch(
-            withCountry(
-              `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
-                month,
-              )}&horizon=6`,
-              region,
-            ),
-            { cache: "no-store" },
+        // Historical month selection (older than country's latest) → request a
+        // historical-only window so the forecast region does not extend forward.
+        const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const dataRes = await fetch(
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
+            region,
           ),
-        ]);
+          { cache: "no-store" },
+        );
 
-        const cfg = await cfgRes.json();
         const json = await dataRes.json();
         if (cancelled) return;
 
-        const id = cfg?.overall;
-        setGraphId(typeof id === "number" ? id : id ? Number(id) : null);
         setOverallData(json?.data ?? []);
         setOverallMeta(json?.meta ?? null);
       } catch (e) {

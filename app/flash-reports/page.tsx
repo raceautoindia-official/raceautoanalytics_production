@@ -1270,7 +1270,7 @@ export default function FlashReportsPage() {
 
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
             <div className="flex items-start space-x-3 animate-fade-in">
-              <TrendingUp className="w-5 h-5 text-success mt-0.5" />
+              <TrendingUp className="w-7 h-7 text-success mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium mb-1">Overall Growth</p>
                 <p className="text-sm text-muted-foreground">
@@ -1283,7 +1283,7 @@ export default function FlashReportsPage() {
             </div>
 
             <div className="flex items-start space-x-3 animate-fade-in delay-100">
-              <Car className="w-5 h-5 text-primary mt-0.5" />
+              <Car className="w-7 h-7 text-primary mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium mb-1">Top Segment Momentum</p>
                 <p className="text-sm text-muted-foreground">
@@ -1299,7 +1299,7 @@ export default function FlashReportsPage() {
             </div>
 
             <div className="flex items-start space-x-3 animate-fade-in delay-200">
-              <Award className="w-5 h-5 text-primary mt-0.5" />
+              <Award className="w-7 h-7 text-primary mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium mb-1">Strongest YoY Segment</p>
                 <p className="text-sm text-muted-foreground">
@@ -1317,7 +1317,7 @@ export default function FlashReportsPage() {
             </div>
 
             <div className="flex items-start space-x-3 animate-fade-in delay-300">
-              <BarChart3 className="w-5 h-5 text-primary mt-0.5" />
+              <BarChart3 className="w-7 h-7 text-primary mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium mb-1">Largest Segment by Volume</p>
                 <p className="text-sm text-muted-foreground">
@@ -1331,7 +1331,7 @@ export default function FlashReportsPage() {
             </div>
 
             <div className="flex items-start space-x-3 animate-fade-in delay-400">
-              <TrendingDown className="w-5 h-5 text-destructive mt-0.5" />
+              <TrendingDown className="w-7 h-7 text-destructive mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium mb-1">Weakest MoM Segment</p>
                 <p className="text-sm text-muted-foreground">
@@ -1345,7 +1345,7 @@ export default function FlashReportsPage() {
             </div>
 
             <div className="flex items-start space-x-3 animate-fade-in delay-500">
-              <Truck className="w-5 h-5 text-warning mt-0.5" />
+              <Truck className="w-7 h-7 text-warning mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium mb-1">Top Share Segment</p>
                 <p className="text-sm text-muted-foreground">

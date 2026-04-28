@@ -31,9 +31,11 @@ const FLAG_MAP: Record<string, string> = {
   pakistan: "🇵🇰",
   australia: "🇦🇺",
   "south-africa": "🇿🇦",
-    colombia: "🇨🇴",
+  colombia: "🇨🇴",
   brazil: "🇧🇷",
   sweden: "🇸🇪",
+  russia: "🇷🇺",
+  belgium: "🇧🇪",
 };
 
 export async function GET() {
