@@ -180,9 +180,8 @@ export async function getOverallChartDataWithMeta(opts?: {
     : prevMonthIST;
   const prevYearBaseMonth = `${String(baseMonth).slice(0, 4) - 1}-${String(baseMonth).slice(5, 7)}`;
 
-  const allowForecast = !opts?.forceHistorical && baseMonth === prevMonthIST;
-
-  const windowMonths = buildWindowMonths(baseMonth, horizon, allowForecast);
+  const forceHistorical = !!opts?.forceHistorical;
+  const windowMonths = buildWindowMonths(baseMonth, horizon, false);
 
   // ✅ country flags (India behavior unchanged)
   const countryKey = normalizeCountryKey(opts?.country);
@@ -268,7 +267,7 @@ export async function getOverallChartDataWithMeta(opts?: {
     if (!mainRoot) {
       return {
         data: windowMonths.map((m) => ({ month: m, data: {} })),
-        meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
+        meta: { baseMonth, allowForecast: false, horizon, windowMonths, prevYearBaseMonth },
       };
     }
 
@@ -287,7 +286,7 @@ export async function getOverallChartDataWithMeta(opts?: {
     if (!flashReports) {
       return {
         data: windowMonths.map((m) => ({ month: m, data: {} })),
-        meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
+        meta: { baseMonth, allowForecast: false, horizon, windowMonths, prevYearBaseMonth },
       };
     }
 
@@ -315,7 +314,7 @@ export async function getOverallChartDataWithMeta(opts?: {
         // non-india requested but not present -> empty
         return {
           data: windowMonths.map((m) => ({ month: m, data: {} })),
-          meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
+          meta: { baseMonth, allowForecast: false, horizon, windowMonths, prevYearBaseMonth },
         };
       }
 
@@ -332,7 +331,7 @@ export async function getOverallChartDataWithMeta(opts?: {
     if (!overall) {
       return {
         data: windowMonths.map((m) => ({ month: m, data: {} })),
-        meta: { baseMonth, allowForecast, horizon, windowMonths, prevYearBaseMonth },
+        meta: { baseMonth, allowForecast: false, horizon, windowMonths, prevYearBaseMonth },
       };
     }
 
@@ -406,7 +405,32 @@ export async function getOverallChartDataWithMeta(opts?: {
       if (data) byMonth.set(yyyymm, data);
     }
 
-    const points: OverallChartPoint[] = windowMonths.map((m) => ({
+    // Derive per-country latest data month from the probe scan
+    let latestDataMonth: string | null = null;
+    for (let i = windowMonths.length - 1; i >= 0; i--) {
+      if (byMonth.has(windowMonths[i])) { latestDataMonth = windowMonths[i]; break; }
+    }
+
+    // allowForecast: true only when user is viewing this country's actual latest data month
+    // India: latestDataMonth === prevMonthIST always → behavior unchanged
+    // Non-India (e.g. Nepal Feb-25): latestDataMonth === baseMonth === "2025-02" → true
+    const allowForecast = !forceHistorical && !!latestDataMonth && baseMonth === latestDataMonth;
+
+    // When forecast is allowed, expand the window to include future forecast months
+    const effectiveWindow = allowForecast
+      ? buildWindowMonths(baseMonth, horizon, true)
+      : windowMonths;
+
+    if (allowForecast) {
+      for (const yyyymm of effectiveWindow) {
+        if (!byMonth.has(yyyymm)) {
+          const data = readMonthData(yyyymm);
+          if (data) byMonth.set(yyyymm, data);
+        }
+      }
+    }
+
+    const points: OverallChartPoint[] = effectiveWindow.map((m) => ({
       month: m,
       data: byMonth.get(m) ?? {},
     }));
@@ -419,7 +443,7 @@ export async function getOverallChartDataWithMeta(opts?: {
         baseMonth,
         allowForecast,
         horizon,
-        windowMonths,
+        windowMonths: effectiveWindow,
         prevYearBaseMonth,
         prevYearBaseData,
       },

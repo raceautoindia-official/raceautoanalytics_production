@@ -7,6 +7,7 @@ import { BarChart } from "@/components/charts/BarChart";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
+import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { useAppContext } from "@/components/providers/Providers";
 import type {
   OverallChartPoint,
@@ -409,9 +410,12 @@ const growthSummary = formatGrowthWithYoY(
               </p>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <RegionSelector />
-              <MonthSelector />
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center space-x-4">
+                <RegionSelector />
+                <MonthSelector />
+              </div>
+              <LastPublishedHint />
             </div>
           </div>
         </div>
@@ -425,7 +429,7 @@ const growthSummary = formatGrowthWithYoY(
             <div>
               <span className="text-muted-foreground">Total Market Size:</span>
               <span className="ml-2 font-medium">
-                {latestTotal.toLocaleString()} units
+                {latestTotal.toLocaleString("en-US")} units
               </span>
             </div>
             <div>

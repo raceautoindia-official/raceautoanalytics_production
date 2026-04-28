@@ -534,6 +534,8 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
     }
 
     if (!email) {
+      setCheckoutIntent(null);
+      setAgreedToTerms(false);
       if (!isPage) close();
       setAuthOpen(true);
       return;
@@ -926,6 +928,10 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
         company: "",
         requirement: "",
       });
+      setTimeout(() => {
+        setEnterpriseOpen(false);
+        setEnterpriseMessage(null);
+      }, 2000);
     } catch (err: any) {
       setEnterpriseError(err?.message || "Unable to submit inquiry.");
     } finally {

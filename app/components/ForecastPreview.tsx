@@ -15,7 +15,7 @@ import {
 
 /* ------------ helpers ------------ */
 const enIN = (n: number) =>
-  new Intl.NumberFormat("en-IN").format(Math.round(n));
+  new Intl.NumberFormat("en-US").format(Math.round(n));
 
 // shared subtle border (grey-blue hairline)
 const softBorder = "ring-1 ring-inset ring-[#2F3949]/40";

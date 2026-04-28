@@ -18,6 +18,7 @@ import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
+import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { VehicleCategoryCard } from "@/components/ui/VehicleCategoryCard";
 import { useAppContext } from "@/components/providers/Providers";
 import { cn } from "@/lib/utils";
@@ -1070,9 +1071,12 @@ export default function FlashReportsPage() {
               </p>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <RegionSelector />
-              <MonthSelector />
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center space-x-4">
+                <RegionSelector />
+                <MonthSelector />
+              </div>
+              <LastPublishedHint />
             </div>
           </div>
         </div>
@@ -1279,7 +1283,7 @@ export default function FlashReportsPage() {
                   {bestSegment
                     ? `${bestSegment.title} posted the strongest month-on-month growth at ${bestSegment.momGrowth >= 0 ? "+" : ""}${bestSegment.momGrowth.toFixed(1)}%, reaching ${Math.round(
                         bestSegment.salesVolume,
-                      ).toLocaleString()} units and accounting for ${bestSegment.marketShare.toFixed(
+                      ).toLocaleString("en-US")} units and accounting for ${bestSegment.marketShare.toFixed(
                         1,
                       )}% of total volume.`
                     : "Segment momentum will appear here once category series data is available for the selected period."}
@@ -1297,7 +1301,7 @@ export default function FlashReportsPage() {
                         bestYoYSegment.yoyGrowth >= 0 ? "+" : ""
                       }${bestYoYSegment.yoyGrowth.toFixed(1)}%, delivering ${Math.round(
                         bestYoYSegment.salesVolume,
-                      ).toLocaleString()} units and holding ${bestYoYSegment.marketShare.toFixed(
+                      ).toLocaleString("en-US")} units and holding ${bestYoYSegment.marketShare.toFixed(
                         1,
                       )}% share in the selected period.`
                     : "YoY leadership will appear here once category series data is available for the selected period."}
@@ -1313,7 +1317,7 @@ export default function FlashReportsPage() {
                   {largestSegment
                     ? `${largestSegment.title} recorded the highest volume at ${Math.round(
                         largestSegment.salesVolume,
-                      ).toLocaleString()} units, representing ${largestSegment.marketShare.toFixed(1)}% of the market in the selected month.`
+                      ).toLocaleString("en-US")} units, representing ${largestSegment.marketShare.toFixed(1)}% of the market in the selected month.`
                     : "Largest-volume segment will appear here once category series data is available for the selected period."}
                 </p>
               </div>
@@ -1327,7 +1331,7 @@ export default function FlashReportsPage() {
                   {weakestSegment
                     ? `${weakestSegment.title} saw the softest month-on-month movement at ${weakestSegment.momGrowth >= 0 ? "+" : ""}${weakestSegment.momGrowth.toFixed(1)}%, with ${Math.round(
                         weakestSegment.salesVolume,
-                      ).toLocaleString()} units recorded in the selected month.`
+                      ).toLocaleString("en-US")} units recorded in the selected month.`
                     : "Weakest month-on-month segment will appear here once category series data is available for the selected period."}
                 </p>
               </div>
@@ -1341,7 +1345,7 @@ export default function FlashReportsPage() {
                   {topShareSegment
                     ? `${topShareSegment.title} held the largest market share at ${topShareSegment.marketShare.toFixed(1)}%, supported by ${Math.round(
                         topShareSegment.salesVolume,
-                      ).toLocaleString()} units in the selected period.`
+                      ).toLocaleString("en-US")} units in the selected period.`
                     : "Top-share segment will appear here once category series data is available for the selected period."}
                 </p>
               </div>

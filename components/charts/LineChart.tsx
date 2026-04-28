@@ -697,7 +697,15 @@ const yAxisDomain = useMemo(() => {
       </div>
 
       {/* Chart */}
-      <div className="w-full">
+      <div className="w-full" style={{ height: effectiveHeight }}>
+        {allowForecastByData && forecastLoading ? (
+          // Hold the chart back until forecast data is ready, otherwise the
+          // chart would render historical-only first and re-render a moment
+          // later with the forecast lines added — visible as a flash.
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+            Loading forecast…
+          </div>
+        ) : (
         <ResponsiveContainer width="100%" height={effectiveHeight}>
           <RechartsLineChart
             key={chartKey}
@@ -860,6 +868,7 @@ const yAxisDomain = useMemo(() => {
             })}
           </RechartsLineChart>
         </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

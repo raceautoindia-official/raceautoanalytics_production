@@ -411,7 +411,7 @@ export function VehicleCategoryCard({
               {isOverall && (
                 <div>
                   <div className="mb-1 text-xs text-muted-foreground">
-                    Alt. Penetration
+                    Alternate Penetration
                   </div>
                   <div className="text-xl font-bold">
                     {metrics.altPenetration != null && Number.isFinite(metrics.altPenetration)

@@ -8,6 +8,7 @@ import { DonutChart } from "@/components/charts/DonutChart";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
+import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { formatNumber } from "@/lib/mockData";
@@ -652,6 +653,7 @@ useEffect(() => {
 
    const showOemChartSection =
   oemLoading || !!oemError || oemChartData.length > 0;
+  const oemHasMeaningfulData = oemChartData.some((r) => r.current !== 0);
 
 const showSegmentChartSection =
   segmentLoading || !!segmentError || segmentDonutData.length > 0;
@@ -684,9 +686,12 @@ const showApplicationChartSection =
               </p>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <RegionSelector />
-              <MonthSelector />
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center space-x-4">
+                <RegionSelector />
+                <MonthSelector />
+              </div>
+              <LastPublishedHint />
             </div>
           </div>
         </div>
@@ -732,7 +737,7 @@ const showApplicationChartSection =
          {showOemChartSection && (
   <ChartWrapper
     title="Truck OEM Segment Share"
-    summary={oemSummary}
+    summary={oemHasMeaningfulData ? oemSummary : undefined}
     controls={
       <div className="flex items-center space-x-3">
         <CompareToggle value={oemCompare} onChange={setOemCompare} />
@@ -751,21 +756,29 @@ const showApplicationChartSection =
         Loading truck OEM market share…
       </div>
     ) : oemChartData.length ? (
-      <BarChart
-        data={oemChartData}
-        bars={[
-          { key: "current", name: "Current Period", color: "#007AFF" },
-          {
-            key: "previous",
-            name:
-              oemCompare === "mom" ? "Previous Month" : "Previous Year",
-            color: "#6B7280",
-          },
-        ]}
-        height={350}
-        layout="horizontal"
-        tooltipRenderer={renderOemTooltip}
-      />
+      oemHasMeaningfulData ? (
+        <BarChart
+          data={oemChartData}
+          bars={[
+            { key: "current", name: "Current Period", color: "#007AFF" },
+            {
+              key: "previous",
+              name: oemCompare === "mom" ? "Previous Month" : "Previous Year",
+              color: "#6B7280",
+            },
+          ]}
+          height={350}
+          layout="horizontal"
+          tooltipRenderer={renderOemTooltip}
+        />
+      ) : (
+        <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+          <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+          <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+            OEM market share data is not yet available for this period and country.
+          </div>
+        </div>
+      )
     ) : null}
     <p className="mt-3 text-sm text-muted-foreground">
   Note: Includes diesel, CNG, electric (EV), and other alternative-fuel vehicles.
@@ -842,7 +855,10 @@ const showApplicationChartSection =
               valueSuffix="%"
             />
           ) : null}
-        </ChartWrapper>
+        <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
+  Note: Includes diesel, CNG, electric (EV), and other alternative-fuel vehicles.
+</p>
+      </ChartWrapper>
       </div>
     )}
   </div>

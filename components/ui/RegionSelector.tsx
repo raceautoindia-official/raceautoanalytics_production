@@ -19,7 +19,11 @@ interface RegionSelectorProps {
 }
 
 export function RegionSelector({ className, lockedToCountries: lockedProp }: RegionSelectorProps) {
-  const { region, setRegion } = useAppContext();
+  const { pendingRegion, setRegion } = useAppContext();
+  // Use pendingRegion (user's latest pick) for the displayed selection so the
+  // dropdown reflects the click instantly, even while the new country's data
+  // is still resolving in the provider.
+  const region = pendingRegion;
 
   // Auto-inherit locking from FlashEntitlementContext when inside flash-reports.
   // Explicit prop takes precedence; context is used as fallback.

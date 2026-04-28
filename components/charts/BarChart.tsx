@@ -145,7 +145,7 @@ export function BarChart({
           return `${n.toFixed(d)}${valueSuffix}`;
         }
 
-        return Math.round(n).toLocaleString();
+        return Math.round(n).toLocaleString("en-US");
       };
 
       return (

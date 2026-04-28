@@ -8,6 +8,7 @@ import { DonutChart } from "@/components/charts/DonutChart";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
+import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
@@ -745,9 +746,11 @@ const appSummary = useMemo(() => {
 
   const showOemChartSection =
   oemLoading || !!oemError || !!(oemComputed && oemComputed.chartData.length);
+  const oemHasMeaningfulData = oemComputed?.chartData.some((r) => r.current !== 0) ?? false;
 
 const showEvChartSection =
   evLoading || !!evError || !!(evComputed && evComputed.chartData.length);
+  const evHasMeaningfulData = evComputed?.chartData.some((r) => r.current !== 0) ?? false;
 
 const showApplicationChartSection =
   appLoading || !!appError || appBarData.length > 0;
@@ -781,9 +784,12 @@ const showApplicationChartSection =
               </p>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <RegionSelector />
-              <MonthSelector />
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center space-x-4">
+                <RegionSelector />
+                <MonthSelector />
+              </div>
+              <LastPublishedHint />
             </div>
           </div>
         </div>
@@ -829,7 +835,7 @@ const showApplicationChartSection =
           {showOemChartSection && (
   <ChartWrapper
     title="Three-Wheeler OEM Segment Share"
-    summary={oemSummary}
+    summary={oemHasMeaningfulData ? oemSummary : undefined}
     controls={
       <div className="flex items-center space-x-3">
         <CompareToggle value={oemCompare} onChange={setOemCompare} />
@@ -848,25 +854,29 @@ const showApplicationChartSection =
         Loading three-wheeler OEM market share…
       </div>
     ) : oemComputed && oemComputed.chartData.length ? (
-      <BarChart
-        data={oemComputed.chartData}
-        bars={[
-          {
-            key: "current",
-            name: "Current Period",
-            color: "#007AFF",
-          },
-          {
-            key: "previous",
-            name:
-              oemCompare === "mom" ? "Previous Month" : "Previous Year",
-            color: "#6B7280",
-          },
-        ]}
-        height={350}
-        layout="horizontal"
-        tooltipRenderer={renderOemTooltip}
-      />
+      oemHasMeaningfulData ? (
+        <BarChart
+          data={oemComputed.chartData}
+          bars={[
+            { key: "current", name: "Current Period", color: "#007AFF" },
+            {
+              key: "previous",
+              name: oemCompare === "mom" ? "Previous Month" : "Previous Year",
+              color: "#6B7280",
+            },
+          ]}
+          height={350}
+          layout="horizontal"
+          tooltipRenderer={renderOemTooltip}
+        />
+      ) : (
+        <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+          <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+          <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+            OEM market share data is not yet available for this period and country.
+          </div>
+        </div>
+      )
     ) : null}
     <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
   Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
@@ -878,7 +888,7 @@ const showApplicationChartSection =
          {showEvChartSection && (
   <ChartWrapper
     title="Three-Wheeler EV Electric OEM Market Share"
-    summary={evSummary}
+    summary={evHasMeaningfulData ? evSummary : undefined}
     controls={
       <div className="flex items-center space-x-3">
         <CompareToggle value={evCompare} onChange={setEvCompare} />
@@ -897,25 +907,29 @@ const showApplicationChartSection =
         Loading three-wheeler EV / alt-fuel share…
       </div>
     ) : evComputed && evComputed.chartData.length ? (
-      <BarChart
-        data={evComputed.chartData}
-        bars={[
-          {
-            key: "current",
-            name: "Current Period",
-            color: "#2ECC71",
-          },
-          {
-            key: "previous",
-            name:
-              evCompare === "mom" ? "Previous Month" : "Previous Year",
-            color: "#6B7280",
-          },
-        ]}
-        height={300}
-        layout="vertical"
-        tooltipRenderer={renderEvTooltip}
-      />
+      evHasMeaningfulData ? (
+        <BarChart
+          data={evComputed.chartData}
+          bars={[
+            { key: "current", name: "Current Period", color: "#2ECC71" },
+            {
+              key: "previous",
+              name: evCompare === "mom" ? "Previous Month" : "Previous Year",
+              color: "#6B7280",
+            },
+          ]}
+          height={300}
+          layout="vertical"
+          tooltipRenderer={renderEvTooltip}
+        />
+      ) : (
+        <div className="flex h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+          <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+          <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+            EV / alternative fuel share data is not yet available for this period and country.
+          </div>
+        </div>
+      )
     ) : null}
   </ChartWrapper>
 )}
@@ -952,7 +966,7 @@ const showApplicationChartSection =
   <div className="grid">
     <ChartWrapper
       title="Three-Wheeler Application Chart"
-      summary={appSummary}
+      summary={appBarData.length ? appSummary : undefined}
       controls={
         <MonthSelector
           value={appMonth}
@@ -983,7 +997,10 @@ const showApplicationChartSection =
           valueSuffix="%"
         />
       ) : null}
-    </ChartWrapper>
+    <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
+  Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
+</p>
+  </ChartWrapper>
   </div>
 )}
         </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/sendEmail";
 import { enterpriseInquiryEmail } from "@/lib/emailTemplates";
+import { FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS } from "@/lib/forecastInternalNotificationRecipients";
 
 const EMAIL_REGEX = /^\S+@\S+\.\S+$/;
 
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     });
 
     await sendEmail({
-      to: "arunpandian972000@gmail.com",
+      to: [...FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS],
       subject: template.subject,
       html: template.html,
       text: template.text,

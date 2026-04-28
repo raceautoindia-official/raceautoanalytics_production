@@ -424,6 +424,7 @@ const countries = useMemo<CountryItem[]>(
                   <span>Explore full dataset</span>
                 </PillButton>
               </div>
+
             </div>
 
             {/* right: countries (3 per row) */}
@@ -452,6 +453,7 @@ const countries = useMemo<CountryItem[]>(
             </div>
           </div>
         </section>
+
       </main>
 
       <CountryModal

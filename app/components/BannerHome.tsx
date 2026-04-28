@@ -72,7 +72,7 @@ function ChartTooltip({ active, payload, label }: any) {
         >
           <span className="capitalize text-white/60">{p.dataKey}</span>
           <span className="font-medium tabular-nums">
-            {p.value.toLocaleString()}
+            {p.value.toLocaleString("en-US")}
           </span>
         </div>
       ))}
@@ -440,7 +440,7 @@ export default function LandingHero() {
                         axisLine={false}
                         tickLine={false}
                         domain={[160000, 225000]}
-                        tickFormatter={(v) => v.toLocaleString()}
+                        tickFormatter={(v) => v.toLocaleString("en-US")}
                       />
                       {/* <Tooltip content={<ChartTooltip />} cursor={{ stroke: "#94a3b8", strokeOpacity: 0.25 }} /> */}
                       <Line

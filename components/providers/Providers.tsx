@@ -12,7 +12,8 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface AppContextType {
-  region: string;
+  region: string; // committed region (always paired with a resolved month)
+  pendingRegion: string; // user's latest selection — used by the selector for instant feedback
   month: string; // YYYY-MM (current selection)
   maxMonth: string; // ✅ stable upper bound (default/latest allowed)
   minMonth: string; // ✅ stable lower bound
@@ -111,7 +112,14 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const minMonth = MIN_MONTH;
 
+  // committed region — only updates atomically together with month/maxMonth
+  // once loadLatestMonthForRegion resolves the new country's data.
+  // segment pages read this so they never see a (newRegion, staleMonth) pair.
   const [region, setRegionState] = useState("india");
+
+  // user's latest pick — drives loadLatestMonthForRegion and the selector UI.
+  // updates immediately on click so the selector feels instant.
+  const [pendingRegion, setPendingRegion] = useState("india");
 
   // ✅ Current month selection (clamped to [minMonth, maxMonth])
   const [month, setMonthState] = useState(() =>
@@ -120,7 +128,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const urlCountry = searchParams.get("country") ?? searchParams.get("region");
-    if (urlCountry) setRegionState(sanitizeCountry(urlCountry));
+    if (urlCountry) setPendingRegion(sanitizeCountry(urlCountry));
   }, [searchParams]);
 
   useEffect(() => {
@@ -135,7 +143,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
       try {
         const params = new URLSearchParams();
-        params.set("country", region);
+        params.set("country", pendingRegion);
         params.set("forceHistorical", "1");
         params.set("horizon", "6");
 
@@ -152,7 +160,6 @@ export function Providers({ children }: { children: ReactNode }) {
             : fallback;
 
         if (cancelled) return;
-        setMaxMonth(nextMax);
         const urlMonth = searchParams.get("month");
         const shouldRespectUrlMonth =
           !initializedMonthRef.current && urlMonth && isYYYYMM(urlMonth);
@@ -160,7 +167,11 @@ export function Providers({ children }: { children: ReactNode }) {
           ? clampYYYYMM(String(urlMonth), minMonth, nextMax)
           : nextMax;
 
+        // Atomic commit: region + maxMonth + month all flip together so
+        // segment pages re-render exactly once with a consistent pair.
+        setMaxMonth(nextMax);
         setMonthState(nextMonth);
+        setRegionState(pendingRegion);
         initializedMonthRef.current = true;
 
         if (
@@ -170,9 +181,9 @@ export function Providers({ children }: { children: ReactNode }) {
           const currentUrlMonth = searchParams.get("month");
           const currentUrlCountry =
             searchParams.get("country") ?? searchParams.get("region");
-          if (currentUrlMonth !== nextMonth || currentUrlCountry !== region) {
+          if (currentUrlMonth !== nextMonth || currentUrlCountry !== pendingRegion) {
             const params = new URLSearchParams(searchParams.toString());
-            params.set("country", region);
+            params.set("country", pendingRegion);
             params.set("month", nextMonth);
             router.replace(`${window.location.pathname}?${params.toString()}`, {
               scroll: false,
@@ -183,13 +194,14 @@ export function Providers({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setMaxMonth(fallback);
         setMonthState(fallback);
+        setRegionState(pendingRegion);
         initializedMonthRef.current = true;
         if (
           typeof window !== "undefined" &&
           pathname?.startsWith("/flash-reports")
         ) {
           const params = new URLSearchParams(searchParams.toString());
-          params.set("country", region);
+          params.set("country", pendingRegion);
           params.set("month", fallback);
           router.replace(`${window.location.pathname}?${params.toString()}`, {
             scroll: false,
@@ -204,7 +216,7 @@ export function Providers({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [region, minMonth, pathname, router]);
+  }, [pendingRegion, minMonth, pathname, router]);
   // searchParams intentionally omitted: including it would re-run this effect
   // every time the user manually changes the month (which updates the URL),
   // causing loadLatestMonthForRegion to fire and reset the month back to the
@@ -215,10 +227,18 @@ export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!pathname?.startsWith("/flash-reports")) return;
     const urlMonth = searchParams.get("month");
-    if (urlMonth && isYYYYMM(urlMonth)) {
+    const urlCountry = searchParams.get("country") ?? searchParams.get("region");
+    // Only sync the URL month into state when the URL country matches the
+    // committed region. Otherwise we'd briefly apply the previous country's
+    // month under the new country (the source of the "1-second flash" bug).
+    if (
+      urlMonth &&
+      isYYYYMM(urlMonth) &&
+      (!urlCountry || sanitizeCountry(urlCountry) === region)
+    ) {
       setMonthState(clampYYYYMM(urlMonth, minMonth, maxMonth));
     }
-  }, [pathname, searchParams, minMonth, maxMonth]);
+  }, [pathname, searchParams, minMonth, maxMonth, region]);
 
   const updateUrl = (params: Record<string, string>) => {
     const current = new URLSearchParams(searchParams.toString());
@@ -230,8 +250,22 @@ export function Providers({ children }: { children: ReactNode }) {
   };
 
   const setRegion = (newRegion: string) => {
-    setRegionState(newRegion);
-    updateUrl({ country: newRegion, month });
+    const clean = sanitizeCountry(newRegion);
+    if (clean === pendingRegion) return;
+    // Defer the committed `region` update — it flips together with `month`/
+    // `maxMonth` once loadLatestMonthForRegion resolves the new country's
+    // latest data month. Only push the country into the URL here (and drop
+    // the previous country's month so the URL→state sync effect doesn't
+    // briefly apply it under the new country).
+    setPendingRegion(clean);
+    const current = new URLSearchParams(searchParams.toString());
+    current.set("country", clean);
+    current.delete("month");
+    const search = current.toString();
+    const query = search ? `?${search}` : "";
+    if (typeof window !== "undefined") {
+      router.replace(`${window.location.pathname}${query}`, { scroll: false });
+    }
   };
 
   const setMonth = (newMonth: string) => {
@@ -243,6 +277,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const ctxValue = useMemo(
     () => ({
       region,
+      pendingRegion,
       month,
       maxMonth,
       minMonth,
@@ -250,7 +285,7 @@ export function Providers({ children }: { children: ReactNode }) {
       setMonth,
       updateUrl,
     }),
-    [region, month, maxMonth, minMonth],
+    [region, pendingRegion, month, maxMonth, minMonth],
   );
 
   return <AppContext.Provider value={ctxValue}>{children}</AppContext.Provider>;

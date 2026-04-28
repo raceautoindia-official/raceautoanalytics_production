@@ -11,32 +11,32 @@ const softBorder = "ring-1 ring-inset ring-[#2F3949]/40";
 const CATEGORIES = [
   {
     title: "Passenger Vehicles",
-    img: "/images/pass-1.png",
+    img: "/images/cars-flash-report.jpeg",
     href: "flash-reports/passenger-vehicles", // ← change as needed
   },
   {
     title: "Commercial Vehicles",
-    img: "/images/comm.png",
+    img: "/images/truck-flash-report.jpeg",
     href: "/flash-reports/commercial-vehicles",
   },
   {
     title: "Two Wheeler",
-    img: "/images/two.png",
+    img: "/images/2w-flash-report.png",
     href: "/flash-reports/two-wheeler",
   },
   {
     title: "Three Wheeler",
-    img: "/images/three-wheeler.png",
+    img: "/images/3w-flash-report.png",
     href: "/flash-reports/three-wheeler",
   },
   {
     title: "Tractor",
-    img: "/images/tractor.png",
+    img: "/images/tractor-flash-report.png",
     href: "/flash-reports/tractor",
   },
   {
     title: "Overall Industry",
-    img: "/images/over.png",
+    img: "/images/overall-flash-report.png",
     href: "/flash-reports/overall-automotive-industry",
   },
 ];

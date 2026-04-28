@@ -8,6 +8,7 @@ import { DonutChart } from "@/components/charts/DonutChart";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
+import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
 import {
@@ -728,9 +729,11 @@ useEffect(() => {
 
     const showMarketChartSection =
   marketLoading || !!marketError || marketChartData.length > 0;
+  const marketHasMeaningfulData = marketChartData.some((r) => r.current !== 0);
 
 const showEvChartSection =
   evLoading || !!evError || evChartData.length > 0;
+const evHasMeaningfulData = evChartData.some((r) => r.current !== 0);
 
 const showApplicationChartSection =
   appLoading || !!appError || appChartData.length > 0;
@@ -762,9 +765,12 @@ const showApplicationChartSection =
               </p>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <RegionSelector />
-              <MonthSelector />
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center space-x-4">
+                <RegionSelector />
+                <MonthSelector />
+              </div>
+              <LastPublishedHint />
             </div>
           </div>
         </div>
@@ -810,7 +816,7 @@ const showApplicationChartSection =
          {showMarketChartSection && (
   <ChartWrapper
     title="Passenger Vehicle OEM Segment Share"
-    summary={marketSummary}
+    summary={marketHasMeaningfulData ? marketSummary : undefined}
     controls={
       <div className="flex items-center space-x-3">
         <CompareToggle
@@ -832,22 +838,14 @@ const showApplicationChartSection =
         Loading passenger vehicle OEM market share…
       </div>
     ) : marketChartData.length ? (
-      <>
+      marketHasMeaningfulData ? (
         <BarChart
           data={marketChartData}
           bars={[
-            {
-              key: "current",
-              name: "Current Period",
-              color: "#007AFF",
-              useGradient: true,
-            },
+            { key: "current", name: "Current Period", color: "#007AFF", useGradient: true },
             {
               key: "previous",
-              name:
-                marketCompare === "mom"
-                  ? "Previous Month"
-                  : "Previous Year",
+              name: marketCompare === "mom" ? "Previous Month" : "Previous Year",
               color: "#6B7280",
             },
           ]}
@@ -855,7 +853,14 @@ const showApplicationChartSection =
           layout="horizontal"
           tooltipRenderer={renderMarketTooltip}
         />
-      </>
+      ) : (
+        <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+          <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+          <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+            OEM market share data is not yet available for this period and country.
+          </div>
+        </div>
+      )
     ) : null}
     <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
   Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
@@ -872,7 +877,7 @@ const showApplicationChartSection =
          {showEvChartSection && (
   <ChartWrapper
     title="Passenger Vehicle EV Electric OEM Market Share"
-    summary={evSummary}
+    summary={evHasMeaningfulData ? evSummary : undefined}
     controls={
       <div className="flex items-center space-x-3">
         <CompareToggle value={evCompare} onChange={setEvCompare} />
@@ -891,22 +896,14 @@ const showApplicationChartSection =
         Loading passenger vehicle EV share…
       </div>
     ) : evChartData.length ? (
-      <>
+      evHasMeaningfulData ? (
         <BarChart
           data={evChartData}
           bars={[
-            {
-              key: "current",
-              name: "Current EV Share",
-              color: "#22C55E",
-              useGradient: true,
-            },
+            { key: "current", name: "Current EV Share", color: "#22C55E", useGradient: true },
             {
               key: "previous",
-              name:
-                evCompare === "mom"
-                  ? "Previous Month"
-                  : "Previous Year",
+              name: evCompare === "mom" ? "Previous Month" : "Previous Year",
               color: "#6B7280",
             },
           ]}
@@ -914,7 +911,14 @@ const showApplicationChartSection =
           layout="horizontal"
           tooltipRenderer={renderEvTooltip}
         />
-      </>
+      ) : (
+        <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+          <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+          <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+            EV / alternative fuel share data is not yet available for this period and country.
+          </div>
+        </div>
+      )
     ) : null}
   </ChartWrapper>
 )}
@@ -997,7 +1001,10 @@ const showApplicationChartSection =
           />
         </>
       ) : null}
-    </ChartWrapper>
+    <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
+  Note: Includes petrol, diesel, CNG, electric (EV), and other alternative-fuel vehicles.
+</p>
+  </ChartWrapper>
   </div>
 )}
         </div>

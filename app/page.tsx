@@ -13,6 +13,7 @@ import NavBar from "./components/Navbar";
 import MarketKPIGridDark from "./components/MarketKPIGrid";
 import OEMLeaderboardAndSegmentsEqualized from "./components/OEMLeaderboardAndSegments";
 import ForecastPreview from "./components/ForecastPreview";
+import QuickReferenceSection from "@/components/ui/QuickReferenceSection";
 
 export default function Page() {
   const jsonLd = {
@@ -41,13 +42,14 @@ export default function Page() {
       <NavBar/>
       {/* <BannerHome /> */}
       <QuickGuidesSection/>
-   {/* <MarketKPIGridDark /> 
+      
+   {/* <MarketKPIGridDark />
    <VehicleCategorySalesCard /> */}
       {/* <IndustryCategories /> * */}
       {/* <OEMLeaderboardAndSegmentsEqualized />  */}
     {/* <ForecastPreview /> */}
       {/* <KeyMarketInsights /> */}
-     
+
       <Footer />
     </>
   );

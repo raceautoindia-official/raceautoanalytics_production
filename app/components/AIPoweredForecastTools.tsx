@@ -26,7 +26,7 @@ const WORKFLOW = [
   },
   {
     title: "Choose Method",
-    desc: "Compare AI/Linear/BYOF/Survey-based outputs in one view.",
+    desc: "Compare AI/Linear/BYF/Survey-based outputs in one view.",
     icon: Sliders,
   },
   {

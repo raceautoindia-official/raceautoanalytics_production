@@ -15,6 +15,7 @@ import type { FlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import FlashSubscriptionGate from "@/app/flash-reports/components/FlashSubscriptionGate";
 import CountryAccessInfoModal from "@/app/components/CountryAccessInfoModal";
 import { resolveCountryCardAction } from "@/app/components/countryCardAccess";
+import QuickReferenceSection from "@/components/ui/QuickReferenceSection";
 
 type CountryItem = {
   name: string;
@@ -408,7 +409,7 @@ const VALUE_PROPS = [
   },
   {
     title: "Forecast + scenario planning",
-    body: "Compare AI, Linear, BYOF, and Survey-based forecasts to validate assumptions and direction.",
+    body: "Compare AI, Linear, BYF, and Survey-based forecasts to validate assumptions and direction.",
     icon: Sparkles,
   },
   {
@@ -589,7 +590,7 @@ const countries: CountryItem[] = useMemo(
   const forecastBullets = useMemo(
     () => [
       "Choose a segment and time range for forecasting.",
-      "Compare actual vs forecast and review assumptions (AI/linear/BYOF/survey).",
+      "Compare actual vs forecast and review assumptions (AI/linear/BYF/survey).",
       "Use scenario adjustments to tune inputs and validate outputs.",
       "Review confidence / risk indicators for better decisions.",
       "Cross-check forecasts against historical trend and seasonality.",
@@ -715,7 +716,7 @@ const countries: CountryItem[] = useMemo(
               />
             </div>
           </div>
-
+<QuickReferenceSection />
           <div className="mt-4">
             <h3 className="text-2xl font-extrabold tracking-tight md:text-3xl">
               What you get in one place

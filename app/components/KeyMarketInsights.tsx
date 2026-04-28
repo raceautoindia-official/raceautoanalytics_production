@@ -40,7 +40,7 @@ function monthLabelFromYYYYMM(yyyymm: string) {
 
 function formatNumber(n: number) {
   if (!Number.isFinite(n)) return "–";
-  return Math.round(n).toLocaleString("en-IN");
+  return Math.round(n).toLocaleString("en-US");
 }
 
 function formatLastUpdated(value?: string | null) {

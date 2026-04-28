@@ -236,7 +236,11 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
   const [yearNames, setYearNames] = useState<string[]>(() => _cached?.yearNames ?? []);
   const [allSubs, setAllSubs] = useState<any[]>(() => _cached?.allSubs ?? []);
   const [userSubs, setUserSubs] = useState<any[]>(() => _cached?.userSubs ?? []);
-  const [loading, setLoading] = useState(false);
+  // Initialize loading=true when forecast is expected and we have no cached
+  // data yet. This lets the consumer (LineChart) show a single placeholder
+  // until forecast is ready, instead of rendering historical-only first and
+  // then re-rendering once forecast arrives.
+  const [loading, setLoading] = useState(() => enabled && !!_ck && _cached === null);
   const [error, setError] = useState<string | null>(null);
 
   const enabledTypes = useMemo(() => {
@@ -298,6 +302,35 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
         setLoading(false);
         return;
       }
+
+      // Cache hit: restore state synchronously and skip the network round-trip.
+      // This lets the consumer render once with the correct forecast values
+      // instead of flashing the previous country/month's data.
+      const ck = makeForecastCacheKey(graphId, baseMonth, country);
+      const cached = ck ? forecastCache.get(ck) ?? null : null;
+      if (cached) {
+        setGraph(cached.graph);
+        setQuestions(cached.questions);
+        setYearNames(cached.yearNames);
+        setAllSubs(cached.allSubs);
+        setUserSubs(cached.userSubs);
+        setAiOverride(cached.aiOverride);
+        setRaceOverride(cached.raceOverride);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      // Cache miss: clear stale state up front so consumers don't render the
+      // previous (graphId, baseMonth, country) tuple's forecast under the new
+      // one. The loading flag below is what LineChart uses to gate the render.
+      setGraph(null);
+      setQuestions([]);
+      setYearNames([]);
+      setAllSubs([]);
+      setUserSubs([]);
+      setAiOverride(null);
+      setRaceOverride(null);
 
       try {
         setLoading(true);
@@ -368,7 +401,6 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
         if (cancelled) return;
 
         // Persist to module-level cache so remounts restore state instantly.
-        const ck = makeForecastCacheKey(graphId, baseMonth, country);
         if (ck) {
           forecastCache.set(ck, {
             graph: g,

@@ -265,7 +265,6 @@ export function generateTipperTractorData(region: string) {
   });
 }
 
-// Format number with Indian locale
 export function formatNumber(num: number): string {
-  return new Intl.NumberFormat('en-IN').format(num);
+  return new Intl.NumberFormat('en-US').format(num);
 }
