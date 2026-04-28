@@ -71,7 +71,7 @@ function getShortMonthFromYyyyMm(yyyymm: string): string {
 }
 
 export default function ThreeWheelerPage() {
-  const { region, month } = useAppContext();
+  const { region, month, maxMonth } = useAppContext();
   const suffix = useMemo(() => {
   const qs = new URLSearchParams();
   if (region) qs.set("country", region);
@@ -543,11 +543,12 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
         setOverallLoading(true);
         setOverallError(null);
 
+        const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6`,
+            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },

@@ -264,7 +264,7 @@ const SEGMENT_OEM_QUERY_MAP: Record<string, string> = {
 };
 
 export default function FlashReportsPage() {
-  const { region, month } = useAppContext();
+  const { region, month, maxMonth } = useAppContext();
   const suffix = useMemo(() => {
     const qs = new URLSearchParams();
     if (region) qs.set("country", region);
@@ -321,8 +321,11 @@ export default function FlashReportsPage() {
 
     async function loadFlashChartConfig() {
       try {
+        // Always fetch India's config so graphId stays stable across countries,
+        // navigation, and browser back/forward. The forecast hook handles
+        // country-specific data via its own country param.
         const res = await fetch(
-          withCountry("/api/flash-reports/config", region),
+          "/api/flash-reports/config?country=india",
           {
             cache: "no-store",
           },
@@ -450,8 +453,12 @@ export default function FlashReportsPage() {
         // Reset cached YoY row on month change (so UI doesn't show stale YoY while loading)
         setOverallLastYearRow(null);
 
+        // When the user picks a month older than the country's latest available
+        // month, treat it as a historical view: pass forceHistorical=1 so the
+        // server returns a historical-only window (no forward forecast extension).
+        const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
         const url1 = withCountry(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}`,
+          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}${isHistoricalView ? "&forceHistorical=1" : ""}`,
           region,
         );
 

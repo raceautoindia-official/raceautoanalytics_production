@@ -116,7 +116,7 @@ function sortMonthLabels(a: string, b: string) {
 }
 
 export default function BusesPage() {
-  const { region, month } = useAppContext();
+  const { region, month, maxMonth } = useAppContext();
   const [mounted, setMounted] = useState(false);
  const suffix = useMemo(() => {
   const qs = new URLSearchParams();
@@ -413,11 +413,12 @@ useEffect(() => {
         setOverallLoading(true);
         setOverallError(null);
 
+        const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6`,
+            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },

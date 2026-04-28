@@ -109,7 +109,7 @@ function mapVolumeKeyToCategory(rawKey: string): string | null {
 // [{ month: "YYYY-MM", data: { '2W', '3W', 'PV', 'TRAC', 'Truck', 'Bus', 'CV', 'Total' } }]
 
 export default function TwoWheelerPage() {
-  const { region, month } = useAppContext();
+  const { region, month, maxMonth } = useAppContext();
   const [mounted, setMounted] = useState(false);
 const suffix = useMemo(() => {
   const qs = new URLSearchParams();
@@ -585,11 +585,14 @@ useEffect(() => {
         setOverallLoading(true);
         setOverallError(null);
 
+        // Historical month selection (older than country's latest) → request a
+        // historical-only window so the forecast region does not extend forward.
+        const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6`,
+            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },
