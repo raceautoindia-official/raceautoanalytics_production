@@ -414,23 +414,7 @@ export async function getOverallChartDataWithMeta(opts?: {
     // allowForecast: true only when user is viewing this country's actual latest data month
     // India: latestDataMonth === prevMonthIST always → behavior unchanged
     // Non-India (e.g. Nepal Feb-25): latestDataMonth === baseMonth === "2025-02" → true
-    let allowForecast = !forceHistorical && !!latestDataMonth && baseMonth === latestDataMonth;
-
-    // Non-India fix: when a user selects a historical month (e.g. Dec-25 for Germany
-    // whose latest data is Mar-26), the initial window scan (which only covers
-    // baseMonth-9 → baseMonth) may find baseMonth as its latestDataMonth, incorrectly
-    // setting allowForecast=true and expanding the window into empty forecast territory.
-    // Probe the next `horizon` months to detect whether newer backend data actually
-    // exists — if it does, baseMonth is NOT the country's true latest, so collapse
-    // back to a historical-only view. India is unaffected (wantsNonIndia=false).
-    if (allowForecast && wantsNonIndia) {
-      for (let i = 1; i <= Math.min(horizon, 6); i++) {
-        if (readMonthData(addMonths(baseMonth, i)) !== null) {
-          allowForecast = false;
-          break;
-        }
-      }
-    }
+    const allowForecast = !forceHistorical && !!latestDataMonth && baseMonth === latestDataMonth;
 
     // When forecast is allowed, expand the window to include future forecast months
     const effectiveWindow = allowForecast
