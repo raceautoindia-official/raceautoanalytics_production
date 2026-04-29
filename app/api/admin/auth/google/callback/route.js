@@ -113,9 +113,10 @@ export async function GET(req) {
       return NextResponse.redirect(blockedUrl);
     }
 
-    // Generate a new session ID and store it with a 7-day expiry
+    // DB lock TTL is intentionally short (2 hours) so stranded sessions
+    // self-heal — see forecast-login/route.js for the full rationale.
     const sessionId = crypto.randomUUID();
-    const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const sessionExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
     await db.execute(
       "UPDATE users SET active_session_id = ?, session_expires_at = ?, last_login_at = NOW() WHERE id = ?",
@@ -138,14 +139,18 @@ export async function GET(req) {
     const response = NextResponse.redirect(redirectUrl);
 
     // 6. Set cookies
+    // sameSite=lax: see forecast-login/route.js for rationale (CSRF retained
+    // on POST/PUT/DELETE, allowed on top-level GET — fixes external-link nav).
     response.cookies.set("authToken", token, {
-      sameSite: "Strict",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
     });
 
     response.cookies.set("profilePic", userInfo.picture, {
-      sameSite: "Strict",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
     });

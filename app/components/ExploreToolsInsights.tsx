@@ -47,8 +47,10 @@ const FEATURES_LEFT = [
   { label: "Real-time Data", color: "#60A5FA" },
   { label: "Multi-scenario", color: "#E5E7EB" },
 ];
+// Audit I-8: replaced unverifiable "95% Accuracy" claim with a defensible
+// factual statement. See AIPoweredForecastTools.tsx for the same change.
 const FEATURES_RIGHT = [
-  { label: "95% Accuracy", color: "#E5E7EB" },
+  { label: "Validated Forecasts", color: "#E5E7EB" },
   { label: "Risk Analysis", color: "#EF4444" },
 ];
 

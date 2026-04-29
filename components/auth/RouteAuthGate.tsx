@@ -144,19 +144,21 @@ export default function RouteAuthGate() {
                   : "Request a one time access to continue."}
               </div>
 
-              {/* Gate view: show link + buttons */}
+              {/* Gate view: show buttons */}
               {view === "gate" && (
                 <>
-                  <div className="mt-4">
-<SubscribeButton
-  onAfterClick={() => setOpenGate(false)}
-  className="inline-flex text-sm text-[#EAF0FF]/90 underline decoration-white/30 underline-offset-4 hover:decoration-white/60"
->
-  View subscription plans
-</SubscribeButton>
-</div>
+                  {/* Audit U-3: "View Subscription Plans" was previously a
+                      tiny underlined text link that read as fine print. Now
+                      a proper full-width secondary button so it visually
+                      competes with the Login / Trial CTAs below. */}
+                  <SubscribeButton
+                    onAfterClick={() => setOpenGate(false)}
+                    className="mt-5 h-12 w-full rounded-2xl border border-white/15 bg-white/[0.04] text-[#EAF0FF] font-semibold hover:bg-white/[0.08] transition"
+                  >
+                    View Subscription Plans
+                  </SubscribeButton>
 
-                  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <button
                       onClick={() => setOpenAuth(true)}
                       className="h-12 rounded-2xl bg-[#4F67FF] text-white font-semibold shadow-[0_12px_30px_rgba(79,103,255,0.25)] hover:bg-[#3B55FF] transition"

@@ -28,6 +28,12 @@ export default function LoginForm({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [values, setValues] = useState({ email: "", password: "" });
+  // Tracks the recovery offer shown when the server returns a 409 SESSION_LOCKED
+  // for a stuck DB session lock. When non-null, the form displays a "Force
+  // logout from other device" button that re-validates the password against
+  // /api/auth/force-clear-session and immediately retries login on success.
+  const [forceClearOffer, setForceClearOffer] = useState(null);
+  const [forceClearLoading, setForceClearLoading] = useState(false);
 
   const [recovery, setRecovery] = useState(null);
   const [emailCode, setEmailCode] = useState("");
@@ -147,12 +153,14 @@ export default function LoginForm({ onSuccess }) {
 
   const onChange = (e) => {
     setError("");
+    setForceClearOffer(null);
     setValues((p) => ({ ...p, [e.target.name]: e.target.value }));
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setForceClearOffer(null);
     try {
       setLoading(true);
       await axios.post("/api/admin/forecast-login", values);
@@ -162,6 +170,23 @@ export default function LoginForm({ onSuccess }) {
       window.location.reload();
     } catch (err) {
       const payload = err?.response?.data;
+
+      // Session lock recovery path: server confirmed correct credentials but
+      // a DB lock from a previous (likely stranded) session is blocking us.
+      // Show a "Force logout from other device" button — the password the
+      // user just typed is preserved for the force-clear call, so they don't
+      // re-enter it.
+      if (err?.response?.status === 409 && payload?.canForceClear) {
+        setForceClearOffer({
+          email: payload.email || values.email,
+          password: values.password,
+        });
+        setError(
+          payload?.message ||
+            "You appear to be already logged in on another device.",
+        );
+        return;
+      }
 
       if (
         err?.response?.status === 403 &&
@@ -194,6 +219,36 @@ export default function LoginForm({ onSuccess }) {
       toast.error(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForceClearAndRetry = async () => {
+    if (!forceClearOffer) return;
+    setForceClearLoading(true);
+    setError("");
+    try {
+      // Step 1: server re-validates the password and clears the DB lock.
+      await axios.post("/api/auth/force-clear-session", {
+        email: forceClearOffer.email,
+        password: forceClearOffer.password,
+      });
+      // Step 2: immediately retry the normal login flow with the same creds.
+      await axios.post("/api/admin/forecast-login", {
+        email: forceClearOffer.email,
+        password: forceClearOffer.password,
+      });
+      toast.success("Logged in. The other device's session was cleared.");
+      onSuccess?.();
+      window.location.reload();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        "We couldn't clear the other session. Please try again or contact support.";
+      setError(msg);
+      toast.error(msg);
+      setForceClearOffer(null);
+    } finally {
+      setForceClearLoading(false);
     }
   };
 
@@ -422,6 +477,10 @@ export default function LoginForm({ onSuccess }) {
                       : "Resend Code"}
                 </button>
               </div>
+              {/* Audit N-1: tell the user what happens after clicking Verify. */}
+              <p className="mt-3 text-[11px] text-white/50 text-center">
+                After verifying, you&apos;ll be signed in and taken to your account.
+              </p>
             </div>
           )}
 
@@ -481,7 +540,30 @@ export default function LoginForm({ onSuccess }) {
 
       {error && (
         <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          {error}
+          <div>{error}</div>
+          {/* Session lock recovery: when the server confirms the password is
+              correct but a stale DB lock from a previous session is blocking
+              login, give the user a one-click escape hatch. The password they
+              just typed is reused so no re-entry is required. */}
+          {forceClearOffer && (
+            <div className="mt-3 flex flex-col gap-2">
+              <p className="text-xs text-red-100/80 leading-relaxed">
+                If you no longer have access to that other device (browser
+                crashed, cookies cleared, etc.) you can force the previous
+                session to log out and continue here.
+              </p>
+              <button
+                type="button"
+                disabled={forceClearLoading}
+                onClick={handleForceClearAndRetry}
+                className="self-start rounded-lg border border-red-300/40 bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-100 hover:bg-red-500/30 transition disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {forceClearLoading
+                  ? "Clearing other session…"
+                  : "Force logout from other device and continue"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -506,9 +588,15 @@ export default function LoginForm({ onSuccess }) {
             <label className="text-xs font-medium text-white/70">
               Password
             </label>
-            <span className="text-[11px] text-white/45">
-              Managed by Race Auto India
-            </span>
+            {/* Audit U-8: standard "Forgot password?" entry point. Routes to
+                /reset-password which already exists and handles the redirect
+                to raceautoindia.com. */}
+            <Link
+              href="/reset-password"
+              className="text-[11px] text-[#7B93FF] underline decoration-dotted underline-offset-2 hover:text-[#AFC2FF] transition"
+            >
+              Forgot password?
+            </Link>
           </div>
           <input
             name="password"

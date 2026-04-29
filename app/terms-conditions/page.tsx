@@ -288,12 +288,7 @@ export default function Page() {
                   Email:{" "}
                   <span className="text-white/90">info@raceautoindia.com</span>
                 </p>
-                <p>
-                  Address:{" "}
-                  <span className="text-white/90">
-                    No. 39/19A, M.M.D.A. Colony Main Road, Arumbakkam, Chennai - 600106, Tamil Nadu, India
-                  </span>
-                </p>
+         
               </div>
             </div>
           </div>

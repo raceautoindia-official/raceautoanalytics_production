@@ -810,7 +810,7 @@ const showApplicationChartSection =
         </div>
 
         {/* Summary */}
-        <div className="mb-8 p-6 bg-card/30 rounded-lg border border-border/50">
+        <div className="flash-summary-block mb-8 p-6 bg-card/30 rounded-lg border border-border/50">
           <h2 className="text-lg font-semibold mb-3">
             Market Summary - {pageMonthLabel}
           </h2>
@@ -835,7 +835,17 @@ const showApplicationChartSection =
             </div>
             <div>
               <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
-              <span className="ml-2 font-medium text-primary">
+              {/* Audit I-7: tooltip explains a bare "—" (data not yet available
+                  for the selected month/country) instead of leaving the user
+                  guessing whether it's missing, gated, or N/A. */}
+              <span
+                className="ml-2 font-medium text-primary"
+                title={
+                  altFuelHeaderLabel === "—"
+                    ? "Alternate fuel share is not yet available for the selected month and country."
+                    : undefined
+                }
+              >
 {altFuelHeaderLabel}
               </span>
             </div>

@@ -405,7 +405,9 @@ export default function TrialRequestForm({ onSuccess, onBack }: Props) {
               Your account has been created successfully.
             </div>
             <div className="mt-1 text-xs leading-relaxed text-[#EAF0FF]/70">
-              You are now signed in and have 5 minutes of access to the Flash Reports overview page.
+              You are now signed in and have 5 minutes of access to the Flash
+              Reports overview page. Detailed segment pages remain
+              subscription-only.
             </div>
           </div>
         </div>
@@ -443,7 +445,8 @@ export default function TrialRequestForm({ onSuccess, onBack }: Props) {
 
         <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-[#EAF0FF]/80 sm:p-4">
           <p className="mb-1 text-sm text-[#EAF0FF]">
-            Your account is already created. Complete verification to activate trial access.
+            Your account is already created. Complete verification to activate
+            your One Time Access.
           </p>
           {pendingEmail && pendingPhone && "Email and phone verification are still pending."}
           {pendingEmail && !pendingPhone && "Email verification is still pending."}
@@ -555,9 +558,46 @@ export default function TrialRequestForm({ onSuccess, onBack }: Props) {
           <div className="text-sm font-semibold text-[#EAF0FF]">
             Start Your One Time Access
           </div>
-          <div className="mt-0.5 text-xs text-[#EAF0FF]/60">
-            Create your account and get 5 minutes of access to the Flash Reports overview page.
+          {/* Audit N-6 + FT-5: be explicit about what the One Time Access
+              actually unlocks (so the value is clear vs. just creating a
+              free account) AND about its scope (overview only, not segment
+              detail pages). Prevents the disappointment of signing up
+              expecting full access to (e.g.) Passenger Vehicles. */}
+          <div className="mt-0.5 text-xs text-[#EAF0FF]/60 leading-relaxed">
+            Create your account to unlock 5 minutes of full access to the
+            Flash Reports overview page.
           </div>
+          <ul className="mt-2.5 space-y-1.5 text-[11px] text-[#EAF0FF]/70">
+            <li className="flex items-start gap-1.5">
+              <span className="text-emerald-300 mt-[1px]">✓</span>
+              <span>
+                See actual numeric values on industry charts (Total /
+                segment-level volumes, MoM and YoY growth)
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="text-emerald-300 mt-[1px]">✓</span>
+              <span>
+                Browse the OEM leaderboard and segment market share for the
+                latest published month
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="text-emerald-300 mt-[1px]">✓</span>
+              <span>
+                Preview the forecast charts (AI, Race expert, Survey ML
+                Avg) on the overview page
+              </span>
+            </li>
+            <li className="flex items-start gap-1.5 text-[#EAF0FF]/45">
+              <span className="mt-[1px]">·</span>
+              <span>
+                Detailed segment pages (Passenger Vehicles, Two-Wheeler,
+                etc.) and country-level Flash Reports remain
+                subscription-only.
+              </span>
+            </li>
+          </ul>
         </div>
 
         {onBack && (

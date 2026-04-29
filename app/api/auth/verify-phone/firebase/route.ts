@@ -39,8 +39,10 @@ async function activateTrialIfEligible(userId: number) {
 }
 
 async function createAuthSessionAndToken(userId: number, email: string) {
+  // DB lock TTL is intentionally short (2 hours) so stranded sessions
+  // self-heal — see forecast-login/route.js for the full rationale.
   const sessionId = crypto.randomUUID();
-  const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const sessionExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
   await db.execute(
     "UPDATE users SET active_session_id = ?, session_expires_at = ?, last_login_at = NOW() WHERE id = ?",
@@ -171,7 +173,9 @@ export async function POST(req: Request) {
 
     response.cookies.set("authToken", token, {
       path: "/",
-      sameSite: "strict",
+      // sameSite=lax: see forecast-login/route.js for rationale.
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60,
     });
 

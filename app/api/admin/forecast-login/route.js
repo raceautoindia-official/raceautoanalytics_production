@@ -79,7 +79,12 @@ export async function POST(req) {
       }
     }
 
-    // Block login if an active session already exists on another device
+    // Block login if an active session already exists on another device.
+    // The DB lock TTL is short (2 hours) so this naturally clears for stranded
+    // users. When the lock IS still active, we surface `canForceClear: true`
+    // alongside the 409 — the client uses this to offer a "Force logout from
+    // other device" button that calls /api/auth/force-clear-session (which
+    // re-validates the password before clearing).
     if (user.active_session_id && user.session_expires_at) {
       const expiresAt = new Date(user.session_expires_at);
       if (expiresAt > new Date()) {
@@ -87,6 +92,9 @@ export async function POST(req) {
           {
             message:
               "You are already logged in on another device. Please log out from that device first.",
+            error_code: "SESSION_LOCKED",
+            canForceClear: true,
+            email: normalizedEmail,
           },
           { status: 409 }
         );
@@ -141,9 +149,17 @@ export async function POST(req) {
       );
     }
 
-    // Generate a new session ID and store it with a 7-day expiry
+    // Generate a new session ID and store it with a 2-hour expiry.
+    // The DB lock is intentionally SHORTER than the cookie (7 days) so that:
+    //   - A genuinely active user re-logs in → lock refreshed to a new 2 hours
+    //     (the lock check below blocks concurrent sessions during this window)
+    //   - An inactive / stranded user → lock auto-expires after 2 hours so they
+    //     can log back in cleanly without contacting support, even if their
+    //     cookie was lost (browser cleanup, ITP, extension, expired maxAge).
+    // Cookie length is independent and stays at 7 days for UX continuity.
     const sessionId = crypto.randomUUID();
-    const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const SESSION_LOCK_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+    const sessionExpiresAt = new Date(Date.now() + SESSION_LOCK_TTL_MS);
 
     await db.execute(
       "UPDATE users SET active_session_id = ?, session_expires_at = ?, last_login_at = NOW() WHERE id = ?",
@@ -159,7 +175,11 @@ export async function POST(req) {
     const response = NextResponse.json({ message: "Login successful" });
     response.cookies.set("authToken", token, {
       path: "/",
-      sameSite: "Strict",
+      // sameSite=lax: cookie still blocked on cross-site POST/PUT/DELETE
+      // (CSRF protection retained), but allowed on top-level GET navigation.
+      // Fixes "click email link → see logged-out" complaints with Strict mode.
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60, // 7 days
     });
 

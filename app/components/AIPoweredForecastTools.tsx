@@ -13,8 +13,12 @@ const FEATURES_LEFT = [
   { label: "Real-time Data", color: "#60A5FA" },
   { label: "Multi-scenario", color: "#E5E7EB" },
 ];
+// Audit I-8: replaced unverifiable "95% Accuracy" claim (no methodology /
+// confidence interval published) with a defensible factual statement about
+// what the forecasts are based on. Avoids the trust issue an industry
+// analyst would flag immediately.
 const FEATURES_RIGHT = [
-  { label: "95% Accuracy", color: "#E5E7EB" },
+  { label: "Validated Forecasts", color: "#E5E7EB" },
   { label: "Risk Analysis", color: "#EF4444" },
 ];
 

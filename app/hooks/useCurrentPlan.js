@@ -50,6 +50,9 @@ export function useCurrentPlan() {
       credentials: 'include',    // send cookies along
     })
       .then((res) => {
+        // 404 = upstream has no subscription row for this email (free user).
+        // Treat as "no plan" instead of an error so consumers don't surface noise.
+        if (res.status === 404) return [];
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })

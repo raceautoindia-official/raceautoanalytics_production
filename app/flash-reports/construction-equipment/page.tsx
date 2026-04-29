@@ -811,7 +811,7 @@ const showApplicationChartSection =
         </div>
 
         {/* Summary */}
-        <div className="mb-8 p-6 bg-card/30 rounded-lg border border-border/50">
+        <div className="flash-summary-block mb-8 p-6 bg-card/30 rounded-lg border border-border/50">
           <h2 className="text-lg font-semibold mb-3">
             Market Summary - {pageMonthLabel}
           </h2>

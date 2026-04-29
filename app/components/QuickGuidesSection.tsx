@@ -665,7 +665,11 @@ const countries: CountryItem[] = useMemo(
                 extraFront={
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                     <div className="text-xs font-medium text-white/75">
-                      Primary countries (launching)
+                      {/* Audit PO-7: previously "(launching)" implied beta /
+                          not-yet-live. Product is live and accepting
+                          subscriptions, so the label now confidently states
+                          these are supported markets. */}
+                      Supported countries
                     </div>
 
                     <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-3 md:grid-cols-3">

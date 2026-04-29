@@ -71,6 +71,18 @@ export default async function SubscriptionPaymentSuccessPage({
     (readStringParam(searchParams?.currency) || "INR").toUpperCase();
   const orderId = readStringParam(searchParams?.orderId);
   const paymentId = readStringParam(searchParams?.paymentId);
+  // Audit N-4: when the subscription flow was started from a specific page
+  // (e.g. /flash-reports/passenger-vehicles → gate → subscribe), the caller
+  // can pass ?returnTo=<path> so this page can offer "Continue to {page}"
+  // instead of dropping the user on /flash-reports generically.
+  const rawReturnTo = readStringParam(searchParams?.returnTo);
+  // Only honor same-origin relative paths to prevent open-redirect abuse.
+  const returnTo =
+    rawReturnTo &&
+    rawReturnTo.startsWith("/") &&
+    !rawReturnTo.startsWith("//")
+      ? rawReturnTo
+      : null;
 
   const token = cookies().get("authToken")?.value || "";
   const payload = decodeJwtPayload(token);
@@ -155,24 +167,78 @@ export default async function SubscriptionPaymentSuccessPage({
           )}
         </div>
 
+        {/* S-11 audit follow-up: explicit next-step guidance + support contact
+            so the user knows what happens next after a successful payment
+            (invoice email, where to find billing history, who to contact). */}
+        <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-xs text-white/70">
+          <div className="font-semibold text-white text-sm">What&apos;s next</div>
+          <ul className="mt-2 space-y-1.5 list-disc list-inside">
+            <li>
+              An invoice will be emailed to your registered email. The amount
+              charged is inclusive of GST — no additional tax was added at
+              checkout.
+            </li>
+            <li>
+              Your subscription details and billing history are visible in{" "}
+              <Link
+                href="/settings"
+                className="text-[#7B93FF] underline decoration-dotted hover:text-[#a3b4ff]"
+              >
+                Settings
+              </Link>
+              .
+            </li>
+            <li>
+              Premium Flash Reports and Forecast features are unlocked
+              immediately. If you do not see access within a few minutes,
+              please reload the page.
+            </li>
+            <li>
+              For a GST invoice with your business GSTIN, or for any
+              refund / billing query, contact{" "}
+              <a
+                href={`mailto:info@raceautoindia.com?subject=${encodeURIComponent(
+                  "Subscription Support" + (paymentId ? ` - ${paymentId}` : ""),
+                )}`}
+                className="text-[#7B93FF] underline decoration-dotted hover:text-[#a3b4ff]"
+              >
+                info@raceautoindia.com
+              </a>
+              .
+            </li>
+          </ul>
+        </div>
+
         <div className="mt-6 flex flex-wrap gap-3">
+          {/* Audit N-4: if the subscription flow originated from a specific
+              page (gate → subscribe), prefer "Continue to that page" as the
+              primary CTA so the user lands back where they started. */}
+          {returnTo ? (
+            <Link
+              href={returnTo}
+              className="inline-flex h-11 items-center rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF]"
+            >
+              Continue where you left off
+            </Link>
+          ) : (
+            <Link
+              href="/flash-reports"
+              className="inline-flex h-11 items-center rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF]"
+            >
+              Open Flash Reports
+            </Link>
+          )}
           <Link
             href="/settings"
-            className="inline-flex h-11 items-center rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF]"
+            className="inline-flex h-11 items-center rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
           >
-            Go to Profile
+            View Profile / Billing
           </Link>
           <Link
             href="/subscription"
             className="inline-flex h-11 items-center rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
           >
             View Subscription
-          </Link>
-          <Link
-            href="/"
-            className="inline-flex h-11 items-center rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
-          >
-            Go Home
           </Link>
         </div>
       </div>

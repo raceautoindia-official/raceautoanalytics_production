@@ -14,6 +14,7 @@ import MarketKPIGridDark from "./components/MarketKPIGrid";
 import OEMLeaderboardAndSegmentsEqualized from "./components/OEMLeaderboardAndSegments";
 import ForecastPreview from "./components/ForecastPreview";
 import QuickReferenceSection from "@/components/ui/QuickReferenceSection";
+import PricingTeaser from "@/app/components/PricingTeaser";
 
 export default function Page() {
   const jsonLd = {
@@ -42,7 +43,10 @@ export default function Page() {
       <NavBar/>
       {/* <BannerHome /> */}
       <QuickGuidesSection/>
-      
+      {/* Audit I-2: pricing teaser so first-time visitors see a price range
+          on the homepage without having to click into /subscription. */}
+      <PricingTeaser />
+
    {/* <MarketKPIGridDark />
    <VehicleCategorySalesCard /> */}
       {/* <IndustryCategories /> * */}

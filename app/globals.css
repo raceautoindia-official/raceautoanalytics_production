@@ -589,3 +589,16 @@ body.flash-teaser-hide-numbers .recharts-tooltip-wrapper {
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* Flash Report free-user teaser: blur the Market Summary numeric values
+   (Total Sales, Growth Rate, Alt Fuel Adoption, etc.) on all segment
+   detail pages. The values still render to the DOM so subscriber
+   transitions don't flash, but they are visually unreadable until the
+   user upgrades. Marker class `.flash-summary-block` is added to the
+   outer summary container; the rule blurs the value spans inside. */
+body.flash-teaser-hide-numbers .flash-summary-block .ml-2.font-medium,
+body.flash-teaser-hide-numbers .flash-summary-value {
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
+}

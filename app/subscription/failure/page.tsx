@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import db from "@/lib/db";
 import { decodeJwtPayload } from "@/lib/internalSubscriptionFetch";
+import { mapRazorpayFailure } from "@/lib/razorpayErrorMessages";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 type PaymentLogRow = {
@@ -88,26 +89,43 @@ export default async function SubscriptionPaymentFailurePage({
     minute: "2-digit",
   });
 
+  // S-10: translate raw Razorpay reasons into a friendly title + explanation
+  // (e.g. "Card declined", "Payment cancelled") instead of the generic
+  // "Unverified Failure" / raw error code that was previously shown.
+  const friendly = mapRazorpayFailure({
+    reason,
+    status: paymentRow?.status,
+    message: paymentRow?.message,
+  });
+
+  // Friendlier human label for the badge — keeps the verified/unverified
+  // distinction since it carries important meaning (DB confirmation vs not),
+  // but no longer uses developer jargon.
+  const badgeLabel = verifiedFailure
+    ? "Confirmed by payment log"
+    : "Awaiting confirmation";
+
   return (
     <main className="min-h-screen bg-[#050B1A] px-4 py-10">
       <div className="mx-auto max-w-2xl rounded-2xl border border-red-400/25 bg-[#0B1228] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
         <div className="mb-4 inline-flex rounded-full border border-red-400/30 bg-red-500/12 px-3 py-1 text-xs font-semibold text-red-200">
-          Payment Status: {verifiedFailure ? "Verified Failed" : "Unverified Failure"}
+          Payment Status: {badgeLabel}
         </div>
-        <h1 className="text-2xl font-semibold text-red-200">Payment Failed</h1>
-        <p className="mt-2 text-sm text-white/70">
-          We couldn&apos;t complete your payment. Please try again.
-        </p>
+        <h1 className="text-2xl font-semibold text-red-200">{friendly.title}</h1>
+        <p className="mt-2 text-sm text-white/70">{friendly.detail}</p>
         <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/60">
           Attempted on: {failedAt}
         </div>
-        <p className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          {message}
-        </p>
+        {message && message !== friendly.title && message !== friendly.detail && (
+          <p className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200/90">
+            <span className="font-semibold">Technical detail:</span> {message}
+          </p>
+        )}
         {!verifiedFailure && (
           <p className="mt-3 text-xs text-white/60">
-            We could not verify this failure record from backend logs. If money was
-            debited, contact support with your order or payment ID.
+            We could not verify this failure record from backend logs yet. If
+            money was debited, please share the order / payment ID with our
+            support team and we will reconcile within 1 business day.
           </p>
         )}
         {(orderId || paymentId) && (
@@ -116,6 +134,40 @@ export default async function SubscriptionPaymentFailurePage({
             {paymentId && <div className="mt-1">Payment ID: {paymentId}</div>}
           </div>
         )}
+
+        {/* S-9: explicit support contact directly on the failure page so the
+            user has a recourse path the moment they see the error, not buried
+            in the footer. */}
+        <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/80">
+          <div className="font-semibold text-white">Need help?</div>
+          <p className="mt-1 text-xs text-white/60">
+            Our team can reconcile any debited-but-unconfirmed payment, retry on your behalf, or process a refund if applicable.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <a
+              href={`mailto:info@raceautoindia.com?subject=${encodeURIComponent(
+                "Payment Failure Support" + (paymentId ? ` - ${paymentId}` : ""),
+              )}&body=${encodeURIComponent(
+                `Hello Race Auto Analytics support,\n\nMy payment failed on the subscription page.\n\nOrder ID: ${
+                  orderId || "(not available)"
+                }\nPayment ID: ${paymentId || "(not available)"}\nReason shown: ${
+                  friendly.title
+                }\n\nPlease assist.\n\nThank you.`,
+              )}`}
+              className="inline-flex items-center rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
+            >
+              ✉ info@raceautoindia.com
+            </a>
+            <a
+              href="https://raceautoindia.com/page/contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 font-semibold text-white/85 transition hover:bg-white/10"
+            >
+              Contact Support ↗
+            </a>
+          </div>
+        </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Link

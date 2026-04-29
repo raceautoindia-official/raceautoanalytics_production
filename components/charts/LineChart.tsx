@@ -598,9 +598,15 @@ const yAxisDomain = useMemo(() => {
                   </span>
                   <span className="opacity-80">Stats</span>
                 </span> */}
+                {/* Audit U-6: each badge below uses an abbreviation
+                    (ML Survey, BYF, AI MoM, Race MoM). Hover tooltip + help
+                    cursor expose the full meaning so first-time users don't
+                    have to guess. Single source of truth — applies to every
+                    chart that uses LineChart. */}
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
+                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70 cursor-help"
                   style={{ color: forecastColors.score }}
+                  title="ML Survey: month-over-month change in the survey-based forecast curated using a machine-learning blend."
                 >
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.score)}
@@ -608,8 +614,9 @@ const yAxisDomain = useMemo(() => {
                   <span className="opacity-80">ML Survey</span>
                 </span>
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
+                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70 cursor-help"
                   style={{ color: forecastColors.byof }}
+                  title="BYF (Build Your Forecast): month-over-month change in the user-scored forecast you create via the Score Card."
                 >
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.byof)}
@@ -617,8 +624,9 @@ const yAxisDomain = useMemo(() => {
                   <span className="opacity-80">BYF</span>
                 </span>
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
+                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70 cursor-help"
                   style={{ color: forecastColors.ai }}
+                  title="AI MoM: month-over-month change in the AI-generated forecast (uses historical patterns and learned seasonality)."
                 >
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.ai)}
@@ -626,8 +634,9 @@ const yAxisDomain = useMemo(() => {
                   <span className="opacity-80">Δ AI MoM</span>
                 </span>
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70"
+                  className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70 cursor-help"
                   style={{ color: forecastColors.race }}
+                  title="Race MoM: month-over-month change in the Race expert opinion forecast (industry-expert survey input)."
                 >
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.race)}

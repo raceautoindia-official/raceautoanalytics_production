@@ -159,7 +159,10 @@ export default function AuthModal({
       </div>
       <ToastContainer
         position="top-right"
-        autoClose={3500}
+        // Audit PO-2: previously 3500ms — too short for users to read error
+        // messages. Bumped to 6000ms to match typical UX guidance for error
+        // toasts. Success/info still readable comfortably at this duration.
+        autoClose={6000}
         hideProgressBar={false}
         closeOnClick
         pauseOnHover

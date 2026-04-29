@@ -323,6 +323,7 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
   const [authOpen, setAuthOpen] = useState(false);
 
   const [email, setEmail] = useState<string | null>(null);
+  const [mobile, setMobile] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanCard[]>([]);
   const [currentPlan, setCurrentPlan] = useState<PlanKey | null>(null);
 
@@ -337,6 +338,19 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
   const [checkoutIntent, setCheckoutIntent] = useState<CheckoutIntent | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [enterpriseOpen, setEnterpriseOpen] = useState(false);
+  // FAQ contact form (replaces "Email info@raceautoindia.com" footer with a
+  // proper enquiry form). Submits to /api/contact/general-enquiry which fans
+  // out to all internal recipients in lib/forecastInternalNotificationRecipients.ts
+  const [enquiryForm, setEnquiryForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    enquiryType: "",
+    message: "",
+  });
+  const [enquirySending, setEnquirySending] = useState(false);
+  const [enquirySuccess, setEnquirySuccess] = useState<string | null>(null);
+  const [enquiryError, setEnquiryError] = useState<string | null>(null);
   const [enterpriseSending, setEnterpriseSending] = useState(false);
   const [enterpriseMessage, setEnterpriseMessage] = useState<string | null>(null);
   const [enterpriseError, setEnterpriseError] = useState<string | null>(null);
@@ -410,6 +424,16 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
           }
         );
 
+        // 404 from the upstream proxy = "no subscription record exists for this email".
+        // That's the normal state for free users — treat it as "no plan" instead of
+        // surfacing a scary red error banner at the moment they're deciding to buy.
+        if (myPlanRes.status === 404) {
+          setCurrentPlan(null);
+          setCategoryView("individual");
+          setSelectedPlan("bronze");
+          return;
+        }
+
         if (!myPlanRes.ok) {
           throw new Error(`Current plan fetch failed: ${myPlanRes.status}`);
         }
@@ -456,6 +480,7 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
 
     if (!token) {
       setEmail(null);
+      setMobile(null);
       setCurrentPlan(null);
       loadModalData(null);
       return;
@@ -465,6 +490,7 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
 
     if (!payload?.email) {
       setEmail(null);
+      setMobile(null);
       setCurrentPlan(null);
       loadModalData(null);
       return;
@@ -472,6 +498,17 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
 
     setEmail(payload.email);
     loadModalData(payload.email);
+
+    // Fetch user mobile for Razorpay prefill so the checkout uses the
+    // registered phone number instead of any stale value Razorpay may
+    // remember from prior sessions on this device.
+    fetch("/api/auth/profile", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const m = data?.mobile_number;
+        setMobile(typeof m === "string" && m.trim() ? m.trim() : null);
+      })
+      .catch(() => setMobile(null));
   }, [visible]);
 
   useEffect(() => {
@@ -651,6 +688,10 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
         order_id: createData.id,
         prefill: {
           email,
+          // Pass the user's registered mobile so Razorpay does not fall back
+          // to a stale phone number remembered from previous sessions on this
+          // browser/device. Only included when we have a value.
+          ...(mobile ? { contact: mobile } : {}),
         },
         notes: {
           email,
@@ -885,6 +926,69 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
     });
   }
 
+  // Submit the FAQ contact form. Pre-fills the user's email from the JWT
+  // when available; sends to all internal recipients on success.
+  async function submitGeneralEnquiry() {
+    setEnquirySuccess(null);
+    setEnquiryError(null);
+
+    const name = enquiryForm.name.trim();
+    const emailVal = (enquiryForm.email || email || "").trim();
+    const phone = enquiryForm.phone.trim();
+    const enquiryType = enquiryForm.enquiryType;
+    const message = enquiryForm.message.trim();
+
+    if (!name) {
+      setEnquiryError("Please enter your name.");
+      return;
+    }
+    if (!emailVal) {
+      setEnquiryError("Please enter your email.");
+      return;
+    }
+    if (!enquiryType) {
+      setEnquiryError("Please select an enquiry type.");
+      return;
+    }
+    if (!message) {
+      setEnquiryError("Please describe your enquiry.");
+      return;
+    }
+
+    setEnquirySending(true);
+    try {
+      const res = await fetch("/api/contact/general-enquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email: emailVal,
+          phone,
+          enquiryType,
+          message,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || "Unable to send enquiry.");
+      }
+      setEnquirySuccess(
+        data?.message || "Enquiry sent. Our team will get back to you shortly.",
+      );
+      setEnquiryForm({
+        name: "",
+        email: "",
+        phone: "",
+        enquiryType: "",
+        message: "",
+      });
+    } catch (err: any) {
+      setEnquiryError(err?.message || "Unable to send enquiry. Please try again.");
+    } finally {
+      setEnquirySending(false);
+    }
+  }
+
   async function submitEnterpriseInquiry() {
     if (
       !enterpriseForm.name.trim() ||
@@ -1073,13 +1177,34 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                     type="button"
                     onClick={() => setBillingCycle("annual")}
                     className={[
-                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                      "relative h-10 rounded-xl px-5 text-sm font-semibold transition",
                       billingCycle === "annual"
                         ? "bg-[#4F67FF] text-white"
                         : "text-white/70 hover:text-white",
                     ].join(" ")}
                   >
                     Annual
+                    {/* S-3: Show genuine annual savings vs 12× monthly. Only renders
+                        when both prices are present and annual is actually cheaper.
+                        No fake anchor pricing — pure derived-from-real-prices badge. */}
+                    {(() => {
+                      const refPlan =
+                        visiblePlans.find((p) => p.key === selectedPlan) ||
+                        visiblePlans[0];
+                      if (!refPlan) return null;
+                      const m = Number(refPlan.monthlyPrice) || 0;
+                      const a = Number(refPlan.annualPrice) || 0;
+                      if (m <= 0 || a <= 0) return null;
+                      const yearly = m * 12;
+                      if (a >= yearly) return null;
+                      const savePct = Math.round(((yearly - a) / yearly) * 100);
+                      if (savePct <= 0) return null;
+                      return (
+                        <span className="absolute -top-2 -right-2 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow">
+                          Save {savePct}%
+                        </span>
+                      );
+                    })()}
                   </button>
                 </div>
 
@@ -1111,32 +1236,52 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                   </button>
                 </div>
 
-                <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setCategoryView("individual")}
-                    className={[
-                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                      categoryView === "individual"
-                        ? "bg-[#F59E0B] text-white"
-                        : "text-white/70 hover:text-white",
-                    ].join(" ")}
+                {/* Audit U-7: previously the Individuals/Business toggle had
+                    no label — purpose unclear. Small heading + helper text
+                    above clarifies this is a plan category switch. */}
+                <div className="flex flex-col items-end gap-1">
+                  <div className="text-[11px] uppercase tracking-wide text-white/45">
+                    Plan category
+                  </div>
+                  <div
+                    className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1"
+                    role="tablist"
+                    aria-label="Plan category"
                   >
-                    Individuals
-                  </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={categoryView === "individual"}
+                      onClick={() => setCategoryView("individual")}
+                      className={[
+                        "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                        categoryView === "individual"
+                          ? "bg-[#F59E0B] text-white"
+                          : "text-white/70 hover:text-white",
+                      ].join(" ")}
+                    >
+                      Individuals
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setCategoryView("business")}
-                    className={[
-                      "h-10 rounded-xl px-5 text-sm font-semibold transition",
-                      categoryView === "business"
-                        ? "bg-[#F59E0B] text-white"
-                        : "text-white/70 hover:text-white",
-                    ].join(" ")}
-                  >
-                    Business
-                  </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={categoryView === "business"}
+                      onClick={() => setCategoryView("business")}
+                      className={[
+                        "h-10 rounded-xl px-5 text-sm font-semibold transition",
+                        categoryView === "business"
+                          ? "bg-[#F59E0B] text-white"
+                          : "text-white/70 hover:text-white",
+                      ].join(" ")}
+                    >
+                      Business
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-white/40 max-w-[260px] text-right leading-snug">
+                    Individuals: for analysts &amp; freelancers · Business: for
+                    teams &amp; enterprises
+                  </div>
                 </div>
               </div>
 
@@ -1158,7 +1303,23 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
               </div>
             ) : error ? (
               <div className="mb-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-200">
-                {error}
+                <div>{error}</div>
+                {/* Audit M-4: previously a load failure on the subscription
+                    page left the user with no recovery path except a manual
+                    page refresh. A "Retry" button calling the existing
+                    loadModalData(email) gives a one-click recovery without
+                    requiring a full reload. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    void loadModalData(email);
+                  }}
+                  disabled={loading}
+                  className="mt-3 inline-flex h-8 items-center rounded-lg border border-red-300/40 bg-red-500/20 px-3 text-xs font-semibold text-red-100 hover:bg-red-500/30 transition disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "Retrying…" : "Retry"}
+                </button>
               </div>
             ) : null}
 
@@ -1267,6 +1428,10 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                               </div>
                               <div className="mt-1 text-sm text-white/60">
                                 per {billingCycle === "annual" ? "year" : "month"}
+                                {/* S-6: GST-inclusive label (Option A) */}
+                                <span className="ml-1 text-[11px] text-white/45">
+                                  · incl. GST
+                                </span>
                               </div>
                             </>
                           ) : (
@@ -1277,9 +1442,17 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                                   : "Price unavailable"}
                               </div>
                               <div className="mt-1 text-sm text-white/60">
-                                {actualPrice > 0
-                                  ? `per ${billingCycle === "annual" ? "year" : "month"}`
-                                  : "Contact support or update plan pricing"}
+                                {actualPrice > 0 ? (
+                                  <>
+                                    per {billingCycle === "annual" ? "year" : "month"}
+                                    {/* S-6: GST-inclusive label (Option A) */}
+                                    <span className="ml-1 text-[11px] text-white/45">
+                                      · incl. GST
+                                    </span>
+                                  </>
+                                ) : (
+                                  "Contact support or update plan pricing"
+                                )}
                               </div>
                             </>
                           )}
@@ -1339,26 +1512,33 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                         </div>
 
                         <div className="mt-4 border-t border-white/10 pt-3">
-                          <div
-                            className={[
-                              "mb-2 text-xs uppercase tracking-wide",
-                              planStatus === "current"
-                                ? "text-[#FFD166]"
+                          {/* Audit U-5: keep informative status labels for
+                              current / included / upgrade states (they tell
+                              the user something they don't already know), but
+                              drop the filler "Ready to buy" — the Buy Now
+                              button below speaks for itself. */}
+                          {planStatus !== "buy" && (
+                            <div
+                              className={[
+                                "mb-2 text-xs uppercase tracking-wide",
+                                planStatus === "current"
+                                  ? "text-[#FFD166]"
+                                  : planStatus === "included"
+                                  ? "text-orange-300"
+                                  : planStatus === "upgrade"
+                                  ? "text-blue-300"
+                                  : "text-white/55",
+                              ].join(" ")}
+                            >
+                              {planStatus === "current"
+                                ? "Current access"
                                 : planStatus === "included"
-                                ? "text-orange-300"
+                                ? "Already covered"
                                 : planStatus === "upgrade"
-                                ? "text-blue-300"
-                                : "text-white/55",
-                            ].join(" ")}
-                          >
-                            {planStatus === "current"
-                              ? "Current access"
-                              : planStatus === "included"
-                              ? "Already covered"
-                              : planStatus === "upgrade"
-                              ? "Upgrade available"
-                              : "Ready to buy"}
-                          </div>
+                                ? "Upgrade available"
+                                : ""}
+                            </div>
+                          )}
 
                           <button
                             type="button"
@@ -1415,9 +1595,298 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                       >
                         Contact Sales Team
                       </button>
+                      {/* Audit N-5: set expectation before clicking — confirm
+                          this opens an in-app form (not a redirect to email)
+                          and what to expect afterward. */}
+                      <p className="mt-2 text-[11px] text-white/45 text-center leading-snug">
+                        Opens an inquiry form — our sales team responds within
+                        2 business days.
+                      </p>
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* S-4 Comparison table + S-5 FAQ — only on full-page mode (skip popup
+                modal which is height-constrained). Built from the same `plans`
+                state already used by the cards above; no extra fetches. */}
+            {isPage && plans.length > 0 && (
+              <div className="mt-10 space-y-10">
+                <section>
+                  <h2 className="text-xl font-semibold text-white mb-1">
+                    Compare plans
+                  </h2>
+                  <p className="text-sm text-white/60 mb-4">
+                    Each column lists only the features included in that plan —
+                    no clutter, no empty rows. Prices reflect the currently
+                    selected billing cycle
+                    ({billingCycle === "annual" ? "Annual" : "Monthly"}).
+                  </p>
+
+                  {/* Per-plan columns: each plan card lists ONLY the features
+                      it includes (no "—" placeholders for unavailable items).
+                      Users / seats and price are pinned to the top of each
+                      column so cards stay easy to compare at a glance. */}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {plans.map((p) => {
+                      const price =
+                        billingCycle === "annual" ? p.annualPrice : p.monthlyPrice;
+                      const priceDisplay =
+                        price > 0
+                          ? `${currencyMode === "USD" ? "$" : "₹"}${
+                              currencyMode === "USD"
+                                ? (price / USD_RATE).toFixed(2)
+                                : Number(price).toLocaleString("en-IN")
+                            }`
+                          : "—";
+                      const seats =
+                        p.key === "bronze" || p.key === "silver"
+                          ? "Single user"
+                          : p.key === "gold"
+                            ? "Team access"
+                            : "Multi-team access";
+
+                      return (
+                        <div
+                          key={`compare-${p.key}`}
+                          className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+                        >
+                          <div className="text-xs uppercase tracking-wide text-white/45">
+                            {p.title}
+                          </div>
+                          <div className="mt-2 text-2xl font-bold text-white">
+                            {priceDisplay}
+                          </div>
+                          <div className="mt-0.5 text-xs text-white/55">
+                            per {billingCycle === "annual" ? "year" : "month"}
+                            <span className="ml-1 text-[11px] text-white/40">
+                              · incl. GST
+                            </span>
+                          </div>
+
+                          <div className="mt-4 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/75">
+                            <span className="opacity-70">Seats:</span>
+                            <span className="font-medium text-white">{seats}</span>
+                          </div>
+
+                          {p.features.length > 0 && (
+                            <div className="mt-5">
+                              <div className="text-[11px] uppercase tracking-wide text-white/45 mb-2">
+                                Included
+                              </div>
+                              <ul className="space-y-2 text-sm text-white/85">
+                                {p.features.map((f, i) => (
+                                  <li
+                                    key={`compare-${p.key}-${i}`}
+                                    className="flex items-start gap-2"
+                                  >
+                                    <span className="mt-[2px] inline-flex h-4 w-4 flex-none items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                                      ✓
+                                    </span>
+                                    <span className="leading-snug">{f.label}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section>
+                  <h2 className="text-xl font-semibold text-white mb-1">
+                    Frequently asked questions
+                  </h2>
+                  <p className="text-sm text-white/60 mb-4">
+                    Billing, refunds, cancellation, and support — at a glance.
+                  </p>
+                  <div className="space-y-3">
+                    {[
+                      {
+                        q: "How am I billed?",
+                        a: "You are charged once at the time of purchase for the billing cycle you select (Monthly or Annual). For automatic renewals and cancellation policies, please refer to our terms and conditions.",
+                      },
+                      {
+                        q: "Are taxes (GST) included in the displayed price?",
+                        a: "Yes — all prices shown on this page are inclusive of applicable GST. The amount you pay at Razorpay checkout is the same as the price displayed on the plan card; no additional tax is added at checkout. If you need a GST invoice with your business GSTIN for reimbursement, please email info@raceautoindia.com with your payment ID after purchase.",
+                      },
+                      {
+                        q: "Can I get a refund?",
+                        a: "Refund eligibility depends on the plan and time elapsed since purchase. Email info@raceautoindia.com with your order or payment ID and we will respond within 2 business days.",
+                      },
+                      {
+                        q: "How do I cancel or downgrade?",
+                        a: "Subscription cancellation and downgrade requests are currently handled through our support team. Please email info@raceautoindia.com from your registered email address.",
+                      },
+                      {
+                        q: "Will my access stop immediately if I cancel?",
+                        a: "Access remains available until the end of your current billing period. After that, your plan reverts to the free tier.",
+                      },
+                      {
+                        q: "Where can I download my invoice?",
+                        a: "Invoices are emailed by Race Auto India after each successful payment. If you do not see one, contact info@raceautoindia.com with your payment ID.",
+                      },
+                      {
+                        q: "Need help choosing a plan?",
+                        a: "Use the Custom Plan / Contact Sales option above and our team will recommend the right tier based on your countries, regions and seat requirements.",
+                      },
+                    ].map((item) => (
+                      <details
+                        key={item.q}
+                        className="group rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm transition hover:bg-white/[0.05]"
+                      >
+                        <summary className="cursor-pointer list-none font-medium text-white flex items-center justify-between gap-3">
+                          <span>{item.q}</span>
+                          <span className="text-white/50 transition group-open:rotate-180">▾</span>
+                        </summary>
+                        <p className="mt-2 text-white/70 leading-relaxed">{item.a}</p>
+                      </details>
+                    ))}
+                  </div>
+                  {/* Contact form (replaces the previous "Email
+                      info@raceautoindia.com" footer). Submits to
+                      /api/contact/general-enquiry which fans the message out
+                      to all internal recipients. The direct mailto is still
+                      shown below as a fallback for users who prefer email. */}
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                    <div className="text-sm font-semibold text-white">
+                      Still have questions? Send us an enquiry
+                    </div>
+                    <div className="mt-1 text-xs text-white/55">
+                      Fill out the form and our team will respond within 2
+                      business days.
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[11px] uppercase tracking-wide text-white/45 mb-1">
+                          Your name <span className="text-red-300">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={enquiryForm.name}
+                          onChange={(e) =>
+                            setEnquiryForm((prev) => ({ ...prev, name: e.target.value }))
+                          }
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/25"
+                          placeholder="Full name"
+                          disabled={enquirySending}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] uppercase tracking-wide text-white/45 mb-1">
+                          Email <span className="text-red-300">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={enquiryForm.email || email || ""}
+                          onChange={(e) =>
+                            setEnquiryForm((prev) => ({ ...prev, email: e.target.value }))
+                          }
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/25"
+                          placeholder="you@company.com"
+                          disabled={enquirySending}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] uppercase tracking-wide text-white/45 mb-1">
+                          Phone (optional)
+                        </label>
+                        <input
+                          type="tel"
+                          value={enquiryForm.phone}
+                          onChange={(e) =>
+                            setEnquiryForm((prev) => ({ ...prev, phone: e.target.value }))
+                          }
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/25"
+                          placeholder="+91 9XXXXXXXXX"
+                          disabled={enquirySending}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] uppercase tracking-wide text-white/45 mb-1">
+                          Enquiry type <span className="text-red-300">*</span>
+                        </label>
+                        <select
+                          value={enquiryForm.enquiryType}
+                          onChange={(e) =>
+                            setEnquiryForm((prev) => ({ ...prev, enquiryType: e.target.value }))
+                          }
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                          disabled={enquirySending}
+                        >
+                          <option value="" className="bg-[#0B1228]">
+                            — Select —
+                          </option>
+                          {[
+                            "Billing",
+                            "Refunds",
+                            "Cancellation / Downgrade",
+                            "Plan recommendation",
+                            "GST invoice request",
+                            "Technical issue",
+                            "Other",
+                          ].map((opt) => (
+                            <option key={opt} value={opt} className="bg-[#0B1228]">
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] uppercase tracking-wide text-white/45 mb-1">
+                          Message <span className="text-red-300">*</span>
+                        </label>
+                        <textarea
+                          value={enquiryForm.message}
+                          onChange={(e) =>
+                            setEnquiryForm((prev) => ({ ...prev, message: e.target.value }))
+                          }
+                          rows={4}
+                          maxLength={4000}
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/25 resize-y"
+                          placeholder="Tell us what you need help with…"
+                          disabled={enquirySending}
+                        />
+                      </div>
+                    </div>
+
+                    {enquiryError && (
+                      <div className="mt-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                        {enquiryError}
+                      </div>
+                    )}
+                    {enquirySuccess && (
+                      <div className="mt-3 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                        {enquirySuccess}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-[11px] text-white/45 max-w-md leading-relaxed">
+                        Prefer email? Reach us directly at{" "}
+                        <a
+                          href="mailto:info@raceautoindia.com"
+                          className="text-[#7B93FF] underline decoration-dotted underline-offset-2 hover:text-[#a3b4ff]"
+                        >
+                          info@raceautoindia.com
+                        </a>
+                        .
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void submitGeneralEnquiry()}
+                        disabled={enquirySending}
+                        className="inline-flex h-10 items-center rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {enquirySending ? "Sending…" : "Send enquiry"}
+                      </button>
+                    </div>
+                  </div>
+                </section>
               </div>
             )}
           </div>
@@ -1579,6 +2048,12 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                   {formatDisplayPrice(checkoutIntent.amount, "INR")}
                 </span>
               </div>
+              {/* S-6: GST-inclusive disclosure (Option A) — confirms to the user
+                  that no extra tax will be added at Razorpay checkout. */}
+              <div className="mt-1 flex justify-between gap-3 text-[11px] text-white/55">
+                <span>Includes GST</span>
+                <span>No additional tax at checkout</span>
+              </div>
             </div>
 
             <label className="mt-4 flex items-start gap-2 text-sm text-white/75">
@@ -1588,7 +2063,18 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                 onChange={(e) => setAgreedToTerms(e.target.checked)}
                 className="mt-0.5 h-4 w-4 rounded border-white/30 bg-transparent"
               />
-              <span>I agree to the payment terms and conditions.</span>
+              <span>
+                I agree to the{" "}
+                <a
+                  href="/terms-conditions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline decoration-dotted underline-offset-2 text-[#7B93FF] hover:text-[#a3b4ff] transition"
+                >
+                  payment terms and conditions
+                </a>
+                .
+              </span>
             </label>
 
             <div className="mt-2 text-xs text-white/55">Secure payment powered by Razorpay.</div>

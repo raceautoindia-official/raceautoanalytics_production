@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import axios from "axios";
@@ -64,9 +64,15 @@ const maskMobile = (mobile) => {
   return `+**${"*".repeat(Math.max(2, digits.length - 6))}${digits.slice(-4)}`;
 };
 
-const SignupForm = ({ onSuccess }) => {
+const SignupForm = ({ onSuccess, onSwitchToLogin }) => {
   const [error, setError] = useState("");
   const [verificationState, setVerificationState] = useState(null);
+  // Audit N-2: track whether the user is mid-verification when the modal
+  // closes, so we can fire a "you can finish this later" toast instead of
+  // letting them silently disappear into the homepage with no idea what
+  // happened to their half-created account. Stored in a ref so the unmount
+  // cleanup sees the latest value (state in cleanups suffers stale-closure).
+  const verificationPendingRef = useRef(false);
   const [verificationSource, setVerificationSource] = useState(null);
   const [registeredEmail, setRegisteredEmail] = useState("");
   const [registeredMobile, setRegisteredMobile] = useState("");
@@ -88,6 +94,35 @@ const SignupForm = ({ onSuccess }) => {
     verifyPhone: false,
     resendPhone: false,
   });
+
+  // Audit N-2: keep the ref in sync with the live verification state so the
+  // unmount cleanup can read it. Cleared by handleVerificationComplete-like
+  // paths that set verificationState back to null.
+  useEffect(() => {
+    verificationPendingRef.current = Boolean(
+      verificationState?.pendingEmail || verificationState?.pendingPhone,
+    );
+  }, [verificationState]);
+
+  // Audit N-2: when the modal closes mid-verification (user clicks X or
+  // Escape after the OTP screen showed up), surface a toast so the user
+  // knows their account exists and they can resume by signing in. Without
+  // this, the modal silently vanishes and the user is left thinking nothing
+  // happened. Toast lib (react-toastify) is already imported above.
+  useEffect(() => {
+    return () => {
+      if (verificationPendingRef.current) {
+        try {
+          toast.info(
+            "Your account is created but not yet verified. Sign in anytime to complete verification.",
+            { autoClose: 6000 },
+          );
+        } catch {
+          // toast lib unavailable in some unmount paths — ignore
+        }
+      }
+    };
+  }, []);
 
   const getFirebaseErrorMessage = (err, fallback) => {
     const code = err?.code || err?.response?.data?.code;
@@ -232,6 +267,17 @@ const SignupForm = ({ onSuccess }) => {
         } catch (statusErr) {
           console.warn("Verification status lookup warning:", statusErr);
         }
+
+        // Audit PO-3: 409 + no pending verification = fully verified user
+        // already exists. Previously they got a generic "Account already
+        // exists." toast and no path forward. Now: surface an inline message
+        // with a "Log in instead" link that switches the modal to login mode.
+        setError("ACCOUNT_EXISTS_VERIFIED");
+        toast.info(
+          "An account with this email already exists. Please log in instead.",
+          { autoClose: 6000 },
+        );
+        return;
       }
 
       const serverMsg = payload?.message || payload?.error || "Unable to complete signup right now.";
@@ -475,6 +521,11 @@ const SignupForm = ({ onSuccess }) => {
                     : "Resend Code"}
               </button>
             </div>
+            {/* Audit N-1: tell the user what happens after clicking Verify
+                so the action doesn't feel like a black box. */}
+            <p className="mt-3 text-[11px] text-white/50 text-center">
+              After verifying, you&apos;ll be signed in and taken to your account.
+            </p>
           </div>
         )}
 
@@ -551,7 +602,28 @@ const SignupForm = ({ onSuccess }) => {
       <div>
       {error && (
         <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          {error}
+          {/* Audit PO-3: when the server reports the email already has a
+              fully verified account, show a friendly "Log in instead" CTA
+              that switches the modal to login mode (no nav, no reload). */}
+          {error === "ACCOUNT_EXISTS_VERIFIED" ? (
+            <div className="flex flex-col gap-2">
+              <span>An account with this email already exists.</span>
+              {onSwitchToLogin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    onSwitchToLogin();
+                  }}
+                  className="self-start rounded-lg border border-red-300/40 bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-100 hover:bg-red-500/30 transition"
+                >
+                  Log in instead →
+                </button>
+              )}
+            </div>
+          ) : (
+            error
+          )}
         </div>
       )}
 
