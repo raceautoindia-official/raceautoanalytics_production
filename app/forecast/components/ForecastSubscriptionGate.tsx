@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 import type { ForecastEntitlement } from "@/app/hooks/useForecastEntitlement";
 import SubscribeButton from "@/components/subscription/SubscribeButton";
 
@@ -14,17 +13,20 @@ const OPEN_DELAY_MS = 5_000;
 export default function ForecastSubscriptionGate({ entitlement }: Props) {
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pathname = usePathname();
 
   const isMembershipPending = Boolean(entitlement.membershipPendingApproval);
+  // Previously this gate only fired on the exact `/forecast` path, which meant
+  // free users browsing segment forecast paths (`/forecast/<segment>`) saw NO
+  // mandatory subscription gate at all. Removed the path restriction — the
+  // gate now appears on every forecast page (and re-appears on every page
+  // mount / refresh, since `open` state doesn't persist across reloads).
   const needsGate =
     isMembershipPending ||
     !entitlement.isSubscribed ||
     entitlement.effectiveStatus !== "active";
-  const shouldGateOnPath = needsGate && pathname === "/forecast";
 
   useEffect(() => {
-    if (!shouldGateOnPath) {
+    if (!needsGate) {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
       setOpen(false);
@@ -43,9 +45,9 @@ export default function ForecastSubscriptionGate({ entitlement }: Props) {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
     };
-  }, [shouldGateOnPath, open, isMembershipPending]);
+  }, [needsGate, open, isMembershipPending]);
 
-  if (!open || !shouldGateOnPath) return null;
+  if (!open || !needsGate) return null;
 
   return (
     <>
