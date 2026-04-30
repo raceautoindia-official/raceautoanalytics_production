@@ -7,11 +7,22 @@
  * Escalation flow (session-scoped):
  *   1. After FIRST_POPUP_DELAY_MS -> show popup WITH dismiss controls
  *   2. If dismissed -> after SECOND_POPUP_DELAY_MS -> show popup WITHOUT dismiss controls (mandatory)
+ *
+ * Path exclusions: the gate is intentionally suppressed on the Flash Reports
+ * overview page (`/flash-reports/overview`) so free users can browse the
+ * product preview without being interrupted by the mandatory paywall. The
+ * gate still fires everywhere else (segment pages, country pages, etc.)
+ * where users try to access actual gated data.
  */
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { FlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import SubscribeButton from "@/components/subscription/SubscribeButton";
+
+const GATE_EXEMPT_PATHS = new Set<string>([
+  "/flash-reports/overview",
+]);
 
 const FIRST_POPUP_DELAY_MS = 10_000; // existing first delay
 const SECOND_POPUP_DELAY_MS = 5_000; // existing repeat gap
@@ -42,11 +53,18 @@ function setStoredStep(step: number) {
 export default function FlashSubscriptionGate({ entitlement }: Props) {
   const [visibleStep, setVisibleStep] = useState<0 | 1 | 2>(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathname = usePathname();
 
   const isMembershipPending = Boolean(entitlement.membershipPendingApproval);
+  // Path exemption: free users can browse `/flash-reports/overview` without
+  // the mandatory paywall popping up. Body-class blur (data hiding) still
+  // applies — only the popup is suppressed on these preview/marketing pages.
+  const isExemptPath = !!pathname && GATE_EXEMPT_PATHS.has(pathname);
   const shouldGate =
-    isMembershipPending ||
-    !entitlement.isSubscribed || entitlement.effectiveStatus !== "active";
+    !isExemptPath &&
+    (isMembershipPending ||
+      !entitlement.isSubscribed ||
+      entitlement.effectiveStatus !== "active");
 
   function clearTimer() {
     if (timerRef.current) {

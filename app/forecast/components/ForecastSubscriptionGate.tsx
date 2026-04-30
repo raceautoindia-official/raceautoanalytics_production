@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { ForecastEntitlement } from "@/app/hooks/useForecastEntitlement";
 import SubscribeButton from "@/components/subscription/SubscribeButton";
 
@@ -10,20 +11,30 @@ interface Props {
 
 const OPEN_DELAY_MS = 5_000;
 
+// Path exemption: free users can browse the Forecast overview page (`/forecast`)
+// without the mandatory subscription popup interrupting them — they're
+// previewing the product. The gate still fires on every other forecast path
+// (`/forecast/<segment>`, deep-link routes, etc.) where users try to access
+// actual gated forecast data.
+const GATE_EXEMPT_PATHS = new Set<string>([
+  "/forecast",
+]);
+
 export default function ForecastSubscriptionGate({ entitlement }: Props) {
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathname = usePathname();
 
   const isMembershipPending = Boolean(entitlement.membershipPendingApproval);
-  // Previously this gate only fired on the exact `/forecast` path, which meant
-  // free users browsing segment forecast paths (`/forecast/<segment>`) saw NO
-  // mandatory subscription gate at all. Removed the path restriction — the
-  // gate now appears on every forecast page (and re-appears on every page
-  // mount / refresh, since `open` state doesn't persist across reloads).
+  const isExemptPath = !!pathname && GATE_EXEMPT_PATHS.has(pathname);
+  // Gate fires on every NON-exempt forecast path (and re-appears on every
+  // page mount / refresh, since `open` state doesn't persist across reloads).
+  // The exempt overview path lets free users see the product preview.
   const needsGate =
-    isMembershipPending ||
-    !entitlement.isSubscribed ||
-    entitlement.effectiveStatus !== "active";
+    !isExemptPath &&
+    (isMembershipPending ||
+      !entitlement.isSubscribed ||
+      entitlement.effectiveStatus !== "active");
 
   useEffect(() => {
     if (!needsGate) {
