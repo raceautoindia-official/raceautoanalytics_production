@@ -34,6 +34,11 @@ export default function LoginForm({ onSuccess }) {
   // /api/auth/force-clear-session and immediately retries login on success.
   const [forceClearOffer, setForceClearOffer] = useState(null);
   const [forceClearLoading, setForceClearLoading] = useState(false);
+  // Tracks the "use Google sign-in" hint shown when the server returns a 401
+  // USE_GOOGLE_LOGIN for an email that's registered as a Google-signup
+  // account (no password set). When true, the form renders the existing
+  // GoogleLogin component inline so the user can recover in one click.
+  const [showGoogleHint, setShowGoogleHint] = useState(false);
 
   const [recovery, setRecovery] = useState(null);
   const [emailCode, setEmailCode] = useState("");
@@ -154,6 +159,7 @@ export default function LoginForm({ onSuccess }) {
   const onChange = (e) => {
     setError("");
     setForceClearOffer(null);
+    setShowGoogleHint(false);
     setValues((p) => ({ ...p, [e.target.name]: e.target.value }));
   };
 
@@ -161,6 +167,7 @@ export default function LoginForm({ onSuccess }) {
     e.preventDefault();
     setError("");
     setForceClearOffer(null);
+    setShowGoogleHint(false);
     try {
       setLoading(true);
       await axios.post("/api/admin/forecast-login", values);
@@ -185,6 +192,23 @@ export default function LoginForm({ onSuccess }) {
           payload?.message ||
             "You appear to be already logged in on another device.",
         );
+        return;
+      }
+
+      // Google-only account collision: this email exists in our DB but was
+      // signed up via Google OAuth and has no password set. Show a clear
+      // message + render the inline GoogleLogin button so the user can
+      // recover in one click without retyping anything.
+      if (
+        err?.response?.status === 401 &&
+        payload?.error_code === "USE_GOOGLE_LOGIN"
+      ) {
+        const msg =
+          payload?.message ||
+          "This email is registered with Google sign-in. Please use 'Continue with Google' to sign in.";
+        setError(msg);
+        setShowGoogleHint(true);
+        toast.info(msg, { autoClose: 8000 });
         return;
       }
 
@@ -562,6 +586,21 @@ export default function LoginForm({ onSuccess }) {
                   ? "Clearing other session…"
                   : "Force logout from other device and continue"}
               </button>
+            </div>
+          )}
+
+          {/* Google-only account recovery: render the existing GoogleLogin
+              button inline so the user can sign in with Google without
+              navigating away or retyping anything. */}
+          {showGoogleHint && (
+            <div className="mt-3 flex flex-col gap-2">
+              <p className="text-xs text-red-100/80 leading-relaxed">
+                Click below to sign in with the Google account linked to this
+                email.
+              </p>
+              <div className="self-start">
+                <GoogleLogin />
+              </div>
             </div>
           )}
         </div>

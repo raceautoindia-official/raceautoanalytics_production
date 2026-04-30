@@ -2,7 +2,7 @@
 "use client";
 
 import React from "react";
-import { Car, Truck, Tractor as TractorIcon, Bike } from "lucide-react";
+import { Car, Truck, Tractor as TractorIcon, Bike, HardHat } from "lucide-react";
 
 type Cat = {
   name: string;
@@ -15,6 +15,9 @@ const CATEGORIES: Cat[] = [
   { name: "Commercial Vehicles", color: "#34D399", Icon: Truck },
   { name: "Tractors", color: "#FBBF24", Icon: TractorIcon },
   { name: "Two & Three Wheeler", color: "#C4B5FD", Icon: "TwoThree" },
+  // Added per product request — full segment coverage parity with the
+  // segment pages list (which already includes Construction Equipment).
+  { name: "Construction Equipment", color: "#65f89b", Icon: HardHat },
 ];
 
 /** Simple autorickshaw outline */
@@ -87,8 +90,10 @@ export default function IndustryCategoriesRow() {
           </p>
         </div>
 
-        {/* Category cards */}
-        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        {/* Category cards — grid bumped to 5 columns on xl so all 5 segments
+            (PV, CV, Tractor, 2W/3W, Construction Equipment) fit in one row
+            on desktop without an orphan card. Mobile/tablet stack naturally. */}
+        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
           {CATEGORIES.map(({ name, color, Icon }) => {
             const tint = `${color}1A`; // subtle tile tint
             return (

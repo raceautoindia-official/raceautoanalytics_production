@@ -54,6 +54,24 @@ export async function POST(req) {
           { email: normalizedEmail, password }
         );
       } catch (extErr) {
+        // Detect Google-only account: user EXISTS in our local DB but has no
+        // password_hash AND external password auth failed → almost certainly a
+        // Google-signup user who has no password set anywhere. Tell them
+        // clearly to use "Continue with Google" instead of leaving them with
+        // a misleading "Invalid credentials" message. The frontend recognizes
+        // `error_code: "USE_GOOGLE_LOGIN"` and renders an inline Google button
+        // so the user can recover in one click.
+        if (user) {
+          return NextResponse.json(
+            {
+              message:
+                "This email is registered with Google sign-in. Please use 'Continue with Google' to sign in.",
+              error_code: "USE_GOOGLE_LOGIN",
+              email: normalizedEmail,
+            },
+            { status: 401 }
+          );
+        }
         const msg =
           extErr?.response?.data?.message ||
           extErr?.response?.data?.error ||
