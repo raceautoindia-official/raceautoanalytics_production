@@ -21,6 +21,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { VehicleCategoryCard } from "@/components/ui/VehicleCategoryCard";
 import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { cn } from "@/lib/utils";
 import { withCountry } from "@/lib/withCountry";
 
@@ -265,6 +266,14 @@ const SEGMENT_OEM_QUERY_MAP: Record<string, string> = {
 
 export default function FlashReportsPage() {
   const { region, month, maxMonth } = useAppContext();
+  // Free-user detection — collapse the Automotive-Category line chart's
+  // forecast window so the historical line fills the chart width instead of
+  // leaving an empty forecast region. Subscribers/trial users see the full
+  // forecast view as today.
+  const flashEntitlement = useFlashEntitlementContext();
+  const isFreeUser =
+    !flashEntitlement?.entitlement?.isSubscribed ||
+    flashEntitlement?.entitlement?.effectiveStatus !== "active";
   const suffix = useMemo(() => {
     const qs = new URLSearchParams();
     if (region) qs.set("country", region);
@@ -457,8 +466,9 @@ export default function FlashReportsPage() {
         // month, treat it as a historical view: pass forceHistorical=1 so the
         // server returns a historical-only window (no forward forecast extension).
         const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const collapseToHistorical = isHistoricalView || isFreeUser;
         const url1 = withCountry(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}${isHistoricalView ? "&forceHistorical=1" : ""}`,
+          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}${collapseToHistorical ? "&forceHistorical=1" : ""}`,
           region,
         );
 

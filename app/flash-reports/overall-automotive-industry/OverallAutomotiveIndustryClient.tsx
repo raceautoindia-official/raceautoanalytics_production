@@ -9,6 +9,7 @@ import { RegionSelector } from "@/components/ui/RegionSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import type {
   OverallChartPoint,
   MarketBarRawData,
@@ -33,6 +34,13 @@ export function OverallAutomotiveIndustryClient({
   initialOverallAlternatePenetration,
 }: OverallAutomotiveIndustryClientProps) {
   const { region, month, maxMonth } = useAppContext();
+  // Free-user detection — collapse the overall industry line chart's
+  // forecast window so the historical line fills the chart width instead of
+  // leaving an empty forecast region. Subscribers see the full forecast view.
+  const flashEntitlement = useFlashEntitlementContext();
+  const isFreeUser =
+    !flashEntitlement?.entitlement?.isSubscribed ||
+    flashEntitlement?.entitlement?.effectiveStatus !== "active";
 
   const suffix = useMemo(() => {
     const qs = new URLSearchParams();
@@ -91,11 +99,12 @@ export function OverallAutomotiveIndustryClient({
         // Historical month selection (older than country's latest) → request a
         // historical-only window so the forecast region does not extend forward.
         const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const collapseToHistorical = isHistoricalView || isFreeUser;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
+            )}&horizon=6${collapseToHistorical ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },

@@ -14,6 +14,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { formatNumber } from "@/lib/mockData";
 import { Truck, Bus, ChevronRight } from "lucide-react";
 import { DataAvailabilityHint } from "@/components/ui/DataAvailabilityHint";
@@ -125,6 +126,10 @@ function toMonthLabel(yyyymm: string) {
 
 export default function CommercialVehiclesPage() {
   const { region, month, maxMonth } = useAppContext();
+  const flashEntitlement = useFlashEntitlementContext();
+  const isFreeUser =
+    !flashEntitlement?.entitlement?.isSubscribed ||
+    flashEntitlement?.entitlement?.effectiveStatus !== "active";
   const suffix = useMemo(() => {
   const qs = new URLSearchParams();
   if (region) qs.set("country", region);
@@ -410,11 +415,12 @@ const oemSummary = useMemo(
         setOverallError(null);
 
         const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const collapseToHistorical = isHistoricalView || isFreeUser;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
+            )}&horizon=6${collapseToHistorical ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },

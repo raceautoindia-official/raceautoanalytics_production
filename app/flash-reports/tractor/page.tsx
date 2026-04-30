@@ -11,6 +11,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
@@ -195,6 +196,10 @@ function createCompareTooltip(computed: any) {
 
 export default function TractorPage() {
   const { region, month, maxMonth } = useAppContext();
+  const flashEntitlement = useFlashEntitlementContext();
+  const isFreeUser =
+    !flashEntitlement?.entitlement?.isSubscribed ||
+    flashEntitlement?.entitlement?.effectiveStatus !== "active";
   const suffix = useMemo(() => {
   const qs = new URLSearchParams();
   if (region) qs.set("country", region);
@@ -361,11 +366,12 @@ useEffect(() => {
         setOverallError(null);
 
         const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const collapseToHistorical = isHistoricalView || isFreeUser;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
+            )}&horizon=6${collapseToHistorical ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },
@@ -554,8 +560,10 @@ useEffect(() => {
   oemLoading || !!oemError || oemChartData.length > 0;
   const oemHasMeaningfulData = oemChartData.some((r) => r.current !== 0);
 
+// Hide the Application Chart section for free users — currently it renders
+// just a title + "Note:" line with no chart, which looks broken.
 const showApplicationChartSection =
-  appLoading || !!appError || appChartData.length > 0;
+  !isFreeUser && (appLoading || !!appError || appChartData.length > 0);
 
   const segmentTotal = segmentData.reduce((sum, item) => sum + item.value, 0);
   const leadingSegment = segmentData[0];

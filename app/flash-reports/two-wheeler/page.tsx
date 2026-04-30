@@ -11,6 +11,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
@@ -110,6 +111,15 @@ function mapVolumeKeyToCategory(rawKey: string): string | null {
 
 export default function TwoWheelerPage() {
   const { region, month, maxMonth } = useAppContext();
+  // Free-user detection — matches the same convention used by FlashSubscriptionGate
+  // (`shouldGate`). Used to (a) collapse the line chart's forecast window so the
+  // historical line fills the full chart width instead of leaving an empty
+  // forecast region, and (b) hide the Application Chart section entirely (which
+  // currently shows just a title + "Note:" line for free users with no chart).
+  const flashEntitlement = useFlashEntitlementContext();
+  const isFreeUser =
+    !flashEntitlement?.entitlement?.isSubscribed ||
+    flashEntitlement?.entitlement?.effectiveStatus !== "active";
   const [mounted, setMounted] = useState(false);
 const suffix = useMemo(() => {
   const qs = new URLSearchParams();
@@ -587,12 +597,17 @@ useEffect(() => {
 
         // Historical month selection (older than country's latest) → request a
         // historical-only window so the forecast region does not extend forward.
+        // Free users → ALSO collapse to historical-only since they don't get
+        // forecast lines anyway (graphId is null for non-subscribers). This
+        // makes the line span the full chart width instead of leaving an
+        // empty forecast region that looks like the chart is broken.
         const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const collapseToHistorical = isHistoricalView || isFreeUser;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
+            )}&horizon=6${collapseToHistorical ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },
@@ -813,8 +828,12 @@ const showEvChartSection =
   evLoading || !!evError || !!(evComputed && evComputed.chartData.length);
   const evHasMeaningfulData = evComputed?.chartData.some((r) => r.current !== 0) ?? false;
 
+// Free users currently see this section as just a title + "Note:" line with
+// no chart (data is gated). That looks broken. Hide the entire section for
+// free users — they get the line chart and OEM/EV charts instead. Subscribers
+// see the application chart as before.
 const showApplicationChartSection =
-  appLoading || !!appError || appBarData.length > 0;
+  !isFreeUser && (appLoading || !!appError || appBarData.length > 0);
   
   useEffect(() => {
   setAppRaw([]);

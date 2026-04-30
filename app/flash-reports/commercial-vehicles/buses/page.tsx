@@ -11,6 +11,7 @@ import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { CompareToggle } from "@/components/ui/CompareToggle";
 import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
@@ -117,6 +118,10 @@ function sortMonthLabels(a: string, b: string) {
 
 export default function BusesPage() {
   const { region, month, maxMonth } = useAppContext();
+  const flashEntitlement = useFlashEntitlementContext();
+  const isFreeUser =
+    !flashEntitlement?.entitlement?.isSubscribed ||
+    flashEntitlement?.entitlement?.effectiveStatus !== "active";
   const [mounted, setMounted] = useState(false);
  const suffix = useMemo(() => {
   const qs = new URLSearchParams();
@@ -414,11 +419,12 @@ useEffect(() => {
         setOverallError(null);
 
         const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const collapseToHistorical = isHistoricalView || isFreeUser;
         const dataRes = await fetch(
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6${isHistoricalView ? "&forceHistorical=1" : ""}`,
+            )}&horizon=6${collapseToHistorical ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },
@@ -676,8 +682,10 @@ useEffect(() => {
 const showSegmentChartSection =
   segmentLoading || !!segmentError || segmentDonutData.length > 0;
   
+// Hide the Application Chart section for free users — currently it renders
+// just a title + "Note:" line with no chart, which looks broken.
 const showApplicationChartSection =
-  appLoading || !!appError || appChartData.length > 0;
+  !isFreeUser && (appLoading || !!appError || appChartData.length > 0);
 
   return (
     <div className="min-h-screen py-0">
