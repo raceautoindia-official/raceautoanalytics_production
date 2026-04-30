@@ -611,7 +611,7 @@ const yAxisDomain = useMemo(() => {
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.score)}
                   </span>
-                  <span className="opacity-80">ML Survey</span>
+                  <span className="opacity-80">ML Survey MoM</span>
                 </span>
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70 cursor-help"
@@ -621,7 +621,7 @@ const yAxisDomain = useMemo(() => {
                   <span className="font-semibold">
                     {formatGrowth(monthWiseGrowth.byof)}
                   </span>
-                  <span className="opacity-80">BYF</span>
+                  <span className="opacity-80">BYF MoM</span>
                 </span>
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 border border-border/70 cursor-help"
