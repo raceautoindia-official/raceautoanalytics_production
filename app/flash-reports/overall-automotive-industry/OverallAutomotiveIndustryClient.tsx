@@ -38,9 +38,12 @@ export function OverallAutomotiveIndustryClient({
   // forecast window so the historical line fills the chart width instead of
   // leaving an empty forecast region. Subscribers see the full forecast view.
   const flashEntitlement = useFlashEntitlementContext();
+  // Admin override (role OR passkey) bypasses the free-user collapse so admins
+  // see the full forecast view even on a free plan.
   const isFreeUser =
-    !flashEntitlement?.entitlement?.isSubscribed ||
-    flashEntitlement?.entitlement?.effectiveStatus !== "active";
+    !flashEntitlement?.isAdmin &&
+    (!flashEntitlement?.entitlement?.isSubscribed ||
+      flashEntitlement?.entitlement?.effectiveStatus !== "active");
 
   const suffix = useMemo(() => {
     const qs = new URLSearchParams();

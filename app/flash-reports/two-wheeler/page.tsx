@@ -117,9 +117,12 @@ export default function TwoWheelerPage() {
   // forecast region, and (b) hide the Application Chart section entirely (which
   // currently shows just a title + "Note:" line for free users with no chart).
   const flashEntitlement = useFlashEntitlementContext();
+  // Admin override (role OR passkey) bypasses the free-user collapse so admins
+  // see the full forecast chart + Application Chart even on a free plan.
   const isFreeUser =
-    !flashEntitlement?.entitlement?.isSubscribed ||
-    flashEntitlement?.entitlement?.effectiveStatus !== "active";
+    !flashEntitlement?.isAdmin &&
+    (!flashEntitlement?.entitlement?.isSubscribed ||
+      flashEntitlement?.entitlement?.effectiveStatus !== "active");
   const [mounted, setMounted] = useState(false);
 const suffix = useMemo(() => {
   const qs = new URLSearchParams();

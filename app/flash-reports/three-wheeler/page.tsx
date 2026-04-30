@@ -77,9 +77,12 @@ export default function ThreeWheelerPage() {
   // line chart fills the chart width, and hide the empty Application Chart
   // section that would otherwise show just a title + Note line.
   const flashEntitlement = useFlashEntitlementContext();
+  // Admin override (role OR passkey) bypasses the free-user collapse so admins
+  // see the full forecast chart + Application Chart even on a free plan.
   const isFreeUser =
-    !flashEntitlement?.entitlement?.isSubscribed ||
-    flashEntitlement?.entitlement?.effectiveStatus !== "active";
+    !flashEntitlement?.isAdmin &&
+    (!flashEntitlement?.entitlement?.isSubscribed ||
+      flashEntitlement?.entitlement?.effectiveStatus !== "active");
   const suffix = useMemo(() => {
   const qs = new URLSearchParams();
   if (region) qs.set("country", region);

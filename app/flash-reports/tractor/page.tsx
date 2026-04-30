@@ -197,9 +197,12 @@ function createCompareTooltip(computed: any) {
 export default function TractorPage() {
   const { region, month, maxMonth } = useAppContext();
   const flashEntitlement = useFlashEntitlementContext();
+  // Admin override (role OR passkey) bypasses the free-user collapse so admins
+  // see the full forecast chart + Application Chart even on a free plan.
   const isFreeUser =
-    !flashEntitlement?.entitlement?.isSubscribed ||
-    flashEntitlement?.entitlement?.effectiveStatus !== "active";
+    !flashEntitlement?.isAdmin &&
+    (!flashEntitlement?.entitlement?.isSubscribed ||
+      flashEntitlement?.entitlement?.effectiveStatus !== "active");
   const suffix = useMemo(() => {
   const qs = new URLSearchParams();
   if (region) qs.set("country", region);

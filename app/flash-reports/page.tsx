@@ -271,9 +271,12 @@ export default function FlashReportsPage() {
   // leaving an empty forecast region. Subscribers/trial users see the full
   // forecast view as today.
   const flashEntitlement = useFlashEntitlementContext();
+  // Admin override (role OR passkey) bypasses the free-user collapse so admins
+  // see the full forecast view even on a free plan.
   const isFreeUser =
-    !flashEntitlement?.entitlement?.isSubscribed ||
-    flashEntitlement?.entitlement?.effectiveStatus !== "active";
+    !flashEntitlement?.isAdmin &&
+    (!flashEntitlement?.entitlement?.isSubscribed ||
+      flashEntitlement?.entitlement?.effectiveStatus !== "active");
   const suffix = useMemo(() => {
     const qs = new URLSearchParams();
     if (region) qs.set("country", region);
