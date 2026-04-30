@@ -591,6 +591,14 @@ useEffect(() => {
 
   // ---------- FETCH OVERALL TIMESERIES FOR FORECAST (2W series) ----------
   useEffect(() => {
+    // Wait for entitlement to settle before deciding free-vs-paid. Otherwise
+    // the initial render (entitlement.loading=true → isSubscribed=undefined →
+    // isFreeUser=true) would incorrectly fetch a historical-only window for
+    // admins/subscribers, leaving them with no forecast lines until they
+    // refresh. Re-runs once when loading flips false (and again only if
+    // isFreeUser actually changes, i.e. user state changes mid-session).
+    if (flashEntitlement?.loading) return;
+
     let cancelled = false;
 
     async function loadOverall() {
@@ -642,7 +650,10 @@ useEffect(() => {
     return () => {
       cancelled = true;
     };
-  }, [month,region]);
+    // Deps include `flashEntitlement?.loading` and `isFreeUser` so the fetch
+    // re-fires when entitlement settles — fixes the race where admins/paid
+    // users got stuck with a historical-only chart on first load.
+  }, [month, region, flashEntitlement?.loading, isFreeUser]);
 
   useEffect(() => {
     let cancelled = false;

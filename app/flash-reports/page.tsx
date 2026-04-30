@@ -447,6 +447,9 @@ export default function FlashReportsPage() {
   }, [month, region]);
 
   useEffect(() => {
+    // Wait for entitlement to settle (race-condition fix — see two-wheeler).
+    if (flashEntitlement?.loading) return;
+
     let cancelled = false;
 
     async function loadOverall() {
@@ -560,7 +563,8 @@ export default function FlashReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, [month, region, overallForecastHorizon]);
+    // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
+  }, [month, region, overallForecastHorizon, flashEntitlement?.loading, isFreeUser]);
 
   useEffect(() => {
     let cancelled = false;

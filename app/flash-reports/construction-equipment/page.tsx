@@ -580,6 +580,9 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
   }, []);
 
   useEffect(() => {
+    // Wait for entitlement to settle (race-condition fix — see two-wheeler).
+    if (flashEntitlement?.loading) return;
+
     let cancelled = false;
 
     async function loadOverall() {
@@ -625,7 +628,8 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
     return () => {
       cancelled = true;
     };
-  }, [month, region]);
+    // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
+  }, [month, region, flashEntitlement?.loading, isFreeUser]);
 
   // ---------- FETCH APPLICATION DATA ----------
   useEffect(() => {

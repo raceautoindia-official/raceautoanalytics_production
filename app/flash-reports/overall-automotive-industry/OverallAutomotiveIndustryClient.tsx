@@ -94,6 +94,9 @@ export function OverallAutomotiveIndustryClient({
   }, []);
 
   useEffect(() => {
+    // Wait for entitlement to settle (race-condition fix — see two-wheeler).
+    if (flashEntitlement?.loading) return;
+
     let cancelled = false;
 
     async function load() {
@@ -133,7 +136,8 @@ export function OverallAutomotiveIndustryClient({
     return () => {
       cancelled = true;
     };
-  }, [month, region]);
+    // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
+  }, [month, region, flashEntitlement?.loading, isFreeUser]);
 
   useEffect(() => {
     // Skip the very first fire when `region` is still the default "india" value

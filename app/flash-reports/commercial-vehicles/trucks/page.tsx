@@ -416,6 +416,9 @@ useEffect(() => {
 
   // ---------- FETCH OVERALL TIMESERIES (for Truck forecast) ----------
   useEffect(() => {
+    // Wait for entitlement to settle (race-condition fix — see two-wheeler).
+    if (flashEntitlement?.loading) return;
+
     let cancelled = false;
 
     async function loadOverall() {
@@ -461,7 +464,8 @@ useEffect(() => {
     return () => {
       cancelled = true;
     };
-  }, [month, region]);
+    // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
+  }, [month, region, flashEntitlement?.loading, isFreeUser]);
 
   // ---------- FETCH SEGMENT SPLIT (LCV/MCV/HCV for trucks) ----------
   useEffect(() => {
