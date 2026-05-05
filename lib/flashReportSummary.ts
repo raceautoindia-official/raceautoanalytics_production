@@ -40,6 +40,107 @@ function isOtherLike(name: string) {
   return normalized === "others" || normalized === "other";
 }
 
+/**
+ * Permissive "Others" detector — matches the bare "Others" label AND any
+ * customized variant the admin may have authored in the CMS, e.g.:
+ *   "Others", "Other"
+ *   "Others[tata, mahindra, etc]"
+ *   "Others (small OEMs)"
+ *   "Others - misc"
+ *   "Others: long tail"
+ *   "Others 2024"
+ * The chart's bar grouping merges across months by exact name; if admin
+ * renamed the row mid-quarter, two bars would render. This matcher catches
+ * both shapes so they can be merged into a single bucket.
+ */
+export function isOthersLike(name: string | null | undefined): boolean {
+  const n = String(name || "").trim().toLowerCase();
+  if (!n) return false;
+  if (n === "others" || n === "other") return true;
+  // matches "others[" "others(" "others " "others-" "others:" and the singular
+  // forms — case-insensitive (we already lowercased above)
+  return /^others?[\s\[\(:\-]/.test(n);
+}
+
+/**
+ * Compare-row shape used by the OEM and EV bar charts on segment pages.
+ * Re-declared here (not imported from page files) so the helper stays
+ * standalone and reusable.
+ */
+type MergeableCompareRow = {
+  name: string;
+  current: number;
+  previous?: number;
+  symbol?: "" | "▲" | "▼";
+  deltaPct?: number | null;
+};
+
+/**
+ * Merges any "Others"-like rows (per `isOthersLike`) into a single bucket
+ * appended to the END of the returned list. Sums `current` and `previous`
+ * values; preserves the most descriptive admin-authored label (longest
+ * name, e.g. "Others[tata, mahindra]" beats bare "Others").
+ *
+ * If only one Others-like row exists (current healthy state), the merged
+ * row is functionally identical to the input row — backward compatible.
+ *
+ * If zero Others rows exist, returns the input rows unchanged (just sorted
+ * order preserved by caller — we do not re-sort here).
+ */
+export function mergeOthersRows<T extends MergeableCompareRow>(rows: T[]): T[] {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+  const others: T[] = [];
+  const nonOthers: T[] = [];
+  for (const row of rows) {
+    if (row && isOthersLike(row.name)) {
+      others.push(row);
+    } else {
+      nonOthers.push(row);
+    }
+  }
+
+  if (others.length === 0) return rows;
+
+  // Pick the most descriptive label — longest name wins. This preserves
+  // admin customization ("Others[tata, mahindra]") over the bare "Others"
+  // when both exist in the merged dataset across months.
+  const labelSource = others.reduce(
+    (best, r) => (String(r.name).length > String(best.name).length ? r : best),
+    others[0],
+  );
+  const labelLower = String(labelSource.name).trim().toLowerCase();
+  const displayName =
+    labelLower === "others" || labelLower === "other"
+      ? "Others"
+      : String(labelSource.name);
+
+  const sumCurrent = others.reduce(
+    (s, r) => s + (Number.isFinite(r.current) ? Number(r.current) : 0),
+    0,
+  );
+  const sumPrevious = others.reduce(
+    (s, r) => s + (Number.isFinite(r.previous) ? Number(r.previous) : 0),
+    0,
+  );
+  const delta = sumCurrent - sumPrevious;
+  const symbol: "" | "▲" | "▼" =
+    delta > 0 ? "▲" : delta < 0 ? "▼" : "";
+
+  // Build the merged row using the first row as a template (preserves any
+  // extra fields outside our minimum shape).
+  const merged: T = {
+    ...others[0],
+    name: displayName,
+    current: sumCurrent,
+    previous: sumPrevious,
+    deltaPct: delta,
+    symbol,
+  };
+
+  return [...nonOthers, merged];
+}
+
 export function buildLeadershipGrowthSummary({
   rows,
   compareMode,

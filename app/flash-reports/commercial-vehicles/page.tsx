@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { withCountry } from "@/lib/withCountry";
-import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, mergeOthersRows } from "@/lib/flashReportSummary";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -294,7 +294,7 @@ useEffect(() => {
         ? `${prevMonthShort} ${prevMonthYear}` // ✅ handles Jan -> Dec prev year
         : `${shortMonth} ${baseYear - 1}`; // ✅ YoY
 
-    const rows: CompareRow[] = oemRaw
+    let rows: CompareRow[] = oemRaw
       .map((item) => {
         const prev = parseFloat(String(item[prevKey] ?? "0")) || 0;
         const curr = parseFloat(String(item[currKey] ?? "0")) || 0;
@@ -314,6 +314,10 @@ useEffect(() => {
         };
       })
       .sort((a, b) => b.current - a.current);
+
+    // Merge any "Others"-like rows (handles admin-renamed variants like
+    // "Others[tata, mahindra]") into a single bucket pinned to the end.
+    rows = mergeOthersRows(rows);
 
     return {
       chartData: rows,

@@ -19,7 +19,7 @@ import {
 } from "@/lib/mockData";
 import { ChartSummary } from "@/components/charts/ChartSummary";
 import { withCountry } from "@/lib/withCountry";
-import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
 const MONTHS_SHORT = [
@@ -95,7 +95,7 @@ function buildCompareData(
       ? `${prevMonthShort} ${prevMonthYear}`
       : `${shortMonth} ${baseYear - 1}`;
 
-  const rows: CompareRow[] = raw
+  let rows: CompareRow[] = raw
     .map((item) => {
       const prev = parseFloat(String(item[prevKey] ?? "0")) || 0;
       const curr = parseFloat(String(item[currKey] ?? "0")) || 0;
@@ -116,14 +116,9 @@ function buildCompareData(
     })
     .sort((a, b) => b.current - a.current);
 
-  const othersIndex = rows.findIndex(
-    (r) => r.name.toLowerCase().trim() === "others",
-  );
-  if (othersIndex !== -1) {
-    const [others] = rows.splice(othersIndex, 1);
-    others.name = "Others";
-    rows.push(others);
-  }
+  // Merge any "Others"-like rows (handles admin-renamed variants like
+  // "Others[tata, mahindra]") into a single bucket pinned to the end.
+  rows = mergeOthersRows(rows);
 
   const totalCurrent = rows.reduce((sum, r) => sum + r.current, 0);
   const totalPrev = rows.reduce((sum, r) => sum + r.previous, 0);

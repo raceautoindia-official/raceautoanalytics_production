@@ -14,7 +14,7 @@ import { useAppContext } from "@/components/providers/Providers";
 import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
-import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 
 const MONTHS_SHORT = [
@@ -264,7 +264,7 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
         ? `${prevMonthShort} ${prevMonthYear}`
         : `${shortMonth} ${baseYear - 1}`;
 
-    const rows: CompareRow[] = oemRaw
+    let rows: CompareRow[] = oemRaw
       .map((item) => {
         const prev = parseFloat(String(item[prevKey] ?? "0")) || 0;
         const curr = parseFloat(String(item[currKey] ?? "0")) || 0;
@@ -285,14 +285,9 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
       })
       .sort((a, b) => b.current - a.current);
 
-    const othersIndex = rows.findIndex(
-      (r) => r.name.toLowerCase().trim() === "others",
-    );
-    if (othersIndex !== -1) {
-      const [others] = rows.splice(othersIndex, 1);
-      others.name = "Others";
-      rows.push(others);
-    }
+    // Merge any "Others"-like rows (handles admin-renamed variants) into a
+    // single bucket pinned to the end. See lib/flashReportSummary.ts.
+    rows = mergeOthersRows(rows);
 
     return {
       chartData: rows,
@@ -435,7 +430,7 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
         ? `${prevMonthShort} ${prevMonthYear}`
         : `${shortMonth} ${baseYear - 1}`;
 
-    const rows: CompareRow[] = evRaw
+    let rows: CompareRow[] = evRaw
       .map((item) => {
         const prev = parseFloat(String(item[prevKey] ?? "0")) || 0;
         const curr = parseFloat(String(item[currKey] ?? "0")) || 0;
@@ -455,6 +450,9 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
         };
       })
       .sort((a, b) => b.current - a.current);
+
+    // Same Others-merge as the OEM chart — handles admin-renamed labels.
+    rows = mergeOthersRows(rows);
 
     const topRow = rows[0] || null;
 
