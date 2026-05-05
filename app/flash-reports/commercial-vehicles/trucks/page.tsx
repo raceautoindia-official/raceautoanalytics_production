@@ -16,7 +16,7 @@ import { formatNumber } from "@/lib/mockData";
 import TipperTable from "@/components/charts/TipperTable";
 import TractorTrailerForecast from "@/components/charts/TractorTrailorTable";
 import { withCountry } from "@/lib/withCountry";
-import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, mergeOthersRows } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 const MONTHS_SHORT = [
   "jan",
@@ -359,7 +359,7 @@ useEffect(() => {
 
     return (
       <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg px-4 py-3 shadow-xl">
-        <p className="text-sm font-semibold mb-2">{row.name}</p>
+        <p className={`text-sm font-semibold mb-2 ${isOthersLike(row.name) ? "text-amber-400" : ""}`}>{row.name}</p>
         <div className="space-y-1 text-xs">
           <div className="flex items-baseline gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground" />
@@ -878,7 +878,14 @@ const showApplicationChartSection =
               showLegend={false}
               valueSuffix="%"
             />
-          ) : null}
+          ) : (
+            <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+              <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+              <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+                This segment data will be available soon. For early access, contact info@raceautoindia.com.
+              </div>
+            </div>
+          )}
         <p style={{margin:0, padding:0}} className="text-sm text-muted-foreground">
   Note: Includes diesel, CNG, electric (EV), and other alternative-fuel vehicles.
 </p>

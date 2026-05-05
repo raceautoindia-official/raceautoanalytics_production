@@ -16,7 +16,7 @@ import type {
   OverallAlternatePenetrationResult,
 } from "@/lib/flashReportsServer";
 import { withCountry } from "@/lib/withCountry";
-import { formatGrowthWithYoY } from "@/lib/flashReportSummary";
+import { formatGrowthWithYoY, isOthersLike } from "@/lib/flashReportSummary";
 
 interface OverallAutomotiveIndustryClientProps {
   initialOverallData: OverallChartPoint[];
@@ -391,7 +391,7 @@ const growthSummary = formatGrowthWithYoY(
 
     return (
       <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg px-4 py-3 shadow-xl">
-        <p className="text-sm font-semibold mb-2">{row.name}</p>
+        <p className={`text-sm font-semibold mb-2 ${isOthersLike(row.name) ? "text-amber-400" : ""}`}>{row.name}</p>
         <div className="space-y-1 text-xs">
           {hasPrev && (
             <div className="flex items-baseline gap-2">

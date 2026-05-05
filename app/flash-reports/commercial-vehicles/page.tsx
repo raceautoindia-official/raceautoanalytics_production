@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { withCountry } from "@/lib/withCountry";
-import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, mergeOthersRows } from "@/lib/flashReportSummary";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -363,7 +363,7 @@ const oemSummary = useMemo(
 
     return (
       <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg px-4 py-3 shadow-xl">
-        <p className="text-sm font-semibold mb-2">{row.name}</p>
+        <p className={`text-sm font-semibold mb-2 ${isOthersLike(row.name) ? "text-amber-400" : ""}`}>{row.name}</p>
         <div className="space-y-1 text-xs">
           <div className="flex items-baseline gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground" />
