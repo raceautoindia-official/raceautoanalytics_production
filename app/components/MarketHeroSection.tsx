@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
-import type { FlashEntitlement } from "@/app/hooks/useFlashEntitlement";
-import FlashSubscriptionGate from "@/app/flash-reports/components/FlashSubscriptionGate";
+import { ChevronRight, Sparkles } from "lucide-react";
 import CountryAccessInfoModal from "@/app/components/CountryAccessInfoModal";
 import { resolveCountryCardAction } from "@/app/components/countryCardAccess";
 
@@ -84,16 +82,11 @@ const COUNTRY_NOT_INCLUDED_TITLE = "Country Not Included";
 const COUNTRY_NOT_INCLUDED_MESSAGE =
   "This country is not included in your selected plan slots. Contact sales to add more countries.";
 
-const COUNTRY_CARD_FREE_GATE_ENTITLEMENT: FlashEntitlement = {
-  effectivePlan: null,
-  accessType: "none",
-  isSubscribed: false,
-  effectiveStatus: "inactive",
-  parentEmail: null,
-  flashReportCountryLimit: 0,
-  hasDirectPlan: false,
-  hasSharedPlan: false,
-};
+// Preferred order for picking a default segment graph when launching BYF
+// from the country modal. PV first, then fall back through the rest.
+const BYF_DEFAULT_GRAPH_KEYS: Array<
+  "pv" | "cv" | "tw" | "threew" | "tractor" | "truck" | "bus" | "ce"
+> = ["pv", "cv", "tw", "threew", "tractor", "truck", "bus", "ce"];
 
 type CountryItem = {
   name: string;
@@ -108,11 +101,15 @@ function CountryModal({
   onClose,
   onOpenDataset,
   openingDataset,
+  onOpenByf,
+  openingByf,
 }: {
   country: CountryItem | null;
   onClose: () => void;
   onOpenDataset: (country: CountryItem) => void;
   openingDataset: boolean;
+  onOpenByf: (country: CountryItem) => void;
+  openingByf: boolean;
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -174,6 +171,26 @@ function CountryModal({
               {openingDataset ? "Opening..." : "Click to view full dataset"}
             </button>
           </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenByf(country)}
+              disabled={openingByf}
+              className="group inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-amber-400 px-3 text-xs font-semibold text-slate-900 shadow-[0_6px_16px_rgba(245,158,11,0.4)] ring-1 ring-amber-300 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
+              aria-label={`Submit BYF Score for ${country.name}`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {openingByf
+                ? "Opening BYF…"
+                : `Submit BYF Score for ${country.name}`}
+            </button>
+          </div>
+          <p className="text-[11px] text-white/50">
+            Build Your Forecast lets you score this market’s drivers and
+            barriers — your personal forecast appears on the chart after you
+            subscribe.
+          </p>
         </div>
       </div>
     </div>
@@ -207,7 +224,7 @@ function CountryChip({
 export default function MarketHeroSection() {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
   const [openingDataset, setOpeningDataset] = useState(false);
-  const [showSubscriptionGate, setShowSubscriptionGate] = useState(false);
+  const [openingByf, setOpeningByf] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
 const countries = useMemo<CountryItem[]>(
@@ -344,11 +361,23 @@ const countries = useMemo<CountryItem[]>(
       }
 
       if (action.type === "subscribe") {
+        // Previously this only popped a local FlashSubscriptionGate overlay
+        // on the overview page and never navigated, leaving the user stuck on
+        // overview after dismissing the gate. Now we navigate to the country's
+        // flash-reports URL — the destination's FlashSubscriptionManager fires
+        // the gate at step 2 (the sessionStorage flag below makes it
+        // mandatory immediately), so the user actually lands on the right
+        // page with the gate up.
         if (typeof window !== "undefined") {
-          window.sessionStorage.setItem("flashReportsSubscriptionModalStep", "2");
+          window.sessionStorage.setItem(
+            "flashReportsSubscriptionModalStep",
+            "2",
+          );
         }
         setActiveCountry(null);
-        setShowSubscriptionGate(true);
+        window.location.href = `/flash-reports?country=${encodeURIComponent(
+          country.slug,
+        )}&month=${encodeURIComponent(targetMonth)}`;
         return;
       }
 
@@ -365,6 +394,53 @@ const countries = useMemo<CountryItem[]>(
       )}&month=${encodeURIComponent(targetMonth)}`;
     } finally {
       setOpeningDataset(false);
+    }
+  }
+
+  // Launch BYF for the chosen country: fetch the country's segment graph map
+  // and pick the first available graphId (PV preferred). Then jump straight
+  // to /score-card. Score-card itself handles auth-gate-at-submit, duplicate
+  // detection, and the post-submit subscribe CTA.
+  async function handleOpenByf(country: CountryItem) {
+    try {
+      setOpeningByf(true);
+      const res = await fetch(
+        `/api/flash-reports/config?country=${encodeURIComponent(country.slug)}`,
+        { cache: "no-store" },
+      );
+      let graphId: number | null = null;
+      if (res.ok) {
+        const cfg = await res.json();
+        for (const k of BYF_DEFAULT_GRAPH_KEYS) {
+          const v = cfg?.[k];
+          if (typeof v === "number" && Number.isFinite(v)) {
+            graphId = v;
+            break;
+          }
+        }
+      }
+
+      if (graphId == null) {
+        // No BYF graph configured for this country — send the user to the
+        // overview's BYF section with the country preselected so they can see
+        // the explanation and try a different segment.
+        window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
+          country.slug,
+        )}#byf`;
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set("graphId", String(graphId));
+      params.set("country", country.slug);
+      params.set("returnTo", "/flash-reports/overview");
+      window.location.href = `/score-card?${params.toString()}`;
+    } catch {
+      window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
+        country.slug,
+      )}#byf`;
+    } finally {
+      setOpeningByf(false);
     }
   }
 
@@ -461,10 +537,9 @@ const countries = useMemo<CountryItem[]>(
         onClose={() => setActiveCountry(null)}
         onOpenDataset={handleOpenDataset}
         openingDataset={openingDataset}
+        onOpenByf={handleOpenByf}
+        openingByf={openingByf}
       />
-      {showSubscriptionGate && (
-        <FlashSubscriptionGate entitlement={COUNTRY_CARD_FREE_GATE_ENTITLEMENT} />
-      )}
       <CountryAccessInfoModal
         open={countryAccessNoticeOpen}
         title={COUNTRY_NOT_INCLUDED_TITLE}

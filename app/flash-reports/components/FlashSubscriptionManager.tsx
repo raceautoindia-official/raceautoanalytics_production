@@ -210,7 +210,10 @@ export default function FlashSubscriptionManager({ children }: Props) {
 
       {/* Teaser + paywall popup for logged-in free/inactive users */}
       {shouldShowSubscriptionGate && (
-        <FlashSubscriptionGate entitlement={entitlement} />
+        <FlashSubscriptionGate
+          entitlement={entitlement}
+          byfTargetCountry={region || null}
+        />
       )}
 
       <TrialCountdownReminder

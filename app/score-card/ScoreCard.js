@@ -12,6 +12,11 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useCurrentPlan } from "../hooks/useCurrentPlan";
 import { useRouter, useSearchParams } from "next/navigation";
 import LoginNavButton from "../flash-reports/components/Login/LoginAuthButton";
+import { useAuthModal } from "@/utils/AuthModalcontext";
+import SubscribeButton from "@/components/subscription/SubscribeButton";
+
+const PENDING_BYF_KEY = "pendingByfSubmission";
+const PENDING_BYF_TTL_MS = 24 * 60 * 60 * 1000;
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -96,6 +101,20 @@ export default function ScoreCard() {
   const flashCountry = countryParamRaw || countryFromReturnTo || "india";
 
   const { email } = useCurrentPlan();
+  const { open: openAuthModal } = useAuthModal();
+
+  // Post-login auto-submit flow (anonymous users) + duplicate detection.
+  // 'idle' → form visible.
+  // 'checking' → spinner while verifying existing submission.
+  // 'submitting' → spinner while POSTing pending payload.
+  // 'duplicate-prompt' → card asking Replace vs Keep.
+  // 'success-submitted' → card after fresh submission.
+  // 'success-kept' → card after user chose Keep previous.
+  // 'error' → card with retry / back.
+  const [autoFlowState, setAutoFlowState] = useState("idle");
+  const [autoFlowError, setAutoFlowError] = useState(null);
+  const [pendingPayloadInfo, setPendingPayloadInfo] = useState(null);
+  const [existingSubmissionInfo, setExistingSubmissionInfo] = useState(null);
 
   const [value, setValue] = useState(1);
   const [questions, setQuestions] = useState([]);
@@ -358,6 +377,38 @@ export default function ScoreCard() {
       skipped: skipFlags[idx],
     }));
 
+    // Anonymous user → stash payload + open auth modal. After login the page
+    // hard-reloads (LoginForm always reloads); the post-login auto-flow effect
+    // below detects the stash, optionally prompts on duplicate, then submits.
+    if (!email) {
+      try {
+        const stash = {
+          graphId: Number(graphId),
+          basePeriod: basePeriod || null,
+          country: graphContext === "flash" ? flashCountry : null,
+          payload,
+          returnTo: returnToParam || null,
+          ts: Date.now(),
+        };
+        sessionStorage.setItem(PENDING_BYF_KEY, JSON.stringify(stash));
+      } catch (e) {
+        console.warn("Failed to stash BYF payload:", e);
+      }
+      notification.info({
+        message: "Sign in to submit",
+        description:
+          "Please log in or sign up. Your scores will be submitted right after you sign in.",
+        placement: "topRight",
+        duration: 4,
+      });
+      try {
+        openAuthModal?.();
+      } catch (e) {
+        console.warn("Failed to open auth modal:", e);
+      }
+      return;
+    }
+
     try {
       const res = await fetch("/api/saveScores", {
         method: "POST",
@@ -382,17 +433,14 @@ export default function ScoreCard() {
           duration: 3,
         });
 
-        if (returnToParam) {
-          router.push(returnToParam);
-          return;
-        }
-
-        setSelectedValues(
-          questions.map(() => Array(years.length).fill("Select")),
-        );
-        setSkipFlags(questions.map(() => false));
-        swiperRef.current?.slideTo(0);
-        setValue(1);
+        // Replace silent redirect with the unified success card so logged-in
+        // users see the same "Subscribe to see BYF data" CTA as post-login
+        // anonymous users. The Back button on the card preserves returnTo.
+        try {
+          sessionStorage.removeItem(PENDING_BYF_KEY);
+        } catch {}
+        setAutoFlowState("success-submitted");
+        return;
       } else {
         const errorText = await res.text();
         notification.error({
@@ -411,6 +459,134 @@ export default function ScoreCard() {
       });
     }
   };
+
+  // Submit a previously-stashed (or duplicate-prompt-confirmed) payload using
+  // the now-authenticated email. Shared by the auto-flow and the Replace path.
+  const submitPendingPayload = async (stash) => {
+    if (!stash || !email) return;
+    setAutoFlowState("submitting");
+    setAutoFlowError(null);
+    try {
+      const res = await fetch("/api/saveScores", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+        },
+        body: JSON.stringify({
+          user: email,
+          graphId: stash.graphId,
+          basePeriod: stash.basePeriod,
+          ...(stash.country ? { country: stash.country } : {}),
+          results: stash.payload,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Submit failed: ${res.status}`);
+      }
+      try {
+        sessionStorage.removeItem(PENDING_BYF_KEY);
+      } catch {}
+      setAutoFlowState("success-submitted");
+    } catch (err) {
+      console.error(err);
+      setAutoFlowError(err?.message || "Failed to submit your score.");
+      setAutoFlowState("error");
+    }
+  };
+
+  // Post-login auto-flow: detects pending stash, checks for an existing
+  // submission (under the now-authenticated email), and either auto-submits
+  // or shows a Replace/Keep prompt. Runs only once per page load (gated by
+  // autoFlowState !== 'idle' check + sessionStorage clear on completion).
+  useEffect(() => {
+    if (!email || !graphId) return;
+    // Wait for load() to finish hydrating graphContext + basePeriod from
+    // /api/graphs. Otherwise the initial render (graphContext defaults to
+    // "forecast") would mismatch a flash-context stash and prematurely clear it.
+    if (loading) return;
+    if (graphContext === "flash" && !basePeriod) return;
+    if (autoFlowState !== "idle") return;
+
+    let raw;
+    try {
+      raw = sessionStorage.getItem(PENDING_BYF_KEY);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+
+    let stash;
+    try {
+      stash = JSON.parse(raw);
+    } catch {
+      try {
+        sessionStorage.removeItem(PENDING_BYF_KEY);
+      } catch {}
+      return;
+    }
+
+    const matchGraph = Number(stash?.graphId) === Number(graphId);
+    const matchBase = (stash?.basePeriod || null) === (basePeriod || null);
+    const currentCountry = graphContext === "flash" ? flashCountry : null;
+    const matchCountry = (stash?.country || null) === currentCountry;
+    const fresh =
+      stash?.ts && Date.now() - Number(stash.ts) < PENDING_BYF_TTL_MS;
+
+    if (!matchGraph || !matchBase || !matchCountry || !fresh) {
+      try {
+        sessionStorage.removeItem(PENDING_BYF_KEY);
+      } catch {}
+      return;
+    }
+
+    setPendingPayloadInfo(stash);
+
+    let cancelled = false;
+    (async () => {
+      setAutoFlowState("checking");
+      setAutoFlowError(null);
+      try {
+        const url = new URL("/api/saveScores", window.location.origin);
+        url.searchParams.set("graphId", String(graphId));
+        url.searchParams.set("email", email);
+        if (basePeriod) url.searchParams.set("basePeriod", basePeriod);
+        if (currentCountry) url.searchParams.set("country", currentCountry);
+
+        const res = await fetch(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+          },
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`Existing-check failed: ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        const subs = Array.isArray(data?.submissions) ? data.submissions : [];
+        if (subs.length > 0) {
+          setExistingSubmissionInfo(subs[0]);
+          setAutoFlowState("duplicate-prompt");
+          return;
+        }
+
+        await submitPendingPayload(stash);
+      } catch (err) {
+        if (cancelled) return;
+        console.error(err);
+        setAutoFlowError(
+          err?.message || "Could not verify previous submission.",
+        );
+        setAutoFlowState("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, graphId, basePeriod, graphContext, flashCountry, loading]);
 
   // slider control
   const handleSliderChange = (e) => {
@@ -621,6 +797,265 @@ export default function ScoreCard() {
   if (!graphId) {
     router.replace(returnToParam || "/forecast");
     return null;
+  }
+
+  // Auto-flow overlay (post-login pending submit, duplicate prompt, or
+  // any successful submission) short-circuits the form. The hidden
+  // LoginNavButton mounts the AuthModal, kept in scope so it remains
+  // available in case the user opens the login dialog from this overlay.
+  if (autoFlowState !== "idle") {
+    const heading =
+      autoFlowState === "checking"
+        ? "Verifying your previous submissions…"
+        : autoFlowState === "submitting"
+          ? "Submitting your BYF score…"
+          : autoFlowState === "duplicate-prompt"
+            ? "You already submitted a BYF score"
+            : autoFlowState === "success-kept"
+              ? "Your previous BYF score is kept"
+              : autoFlowState === "success-submitted"
+                ? "BYF score submitted"
+                : "Something went wrong";
+
+    const isBusy = autoFlowState === "checking" || autoFlowState === "submitting";
+    const isSuccess =
+      autoFlowState === "success-submitted" || autoFlowState === "success-kept";
+    const isDuplicate = autoFlowState === "duplicate-prompt";
+    const isError = autoFlowState === "error";
+
+    const formattedExistingDate = (() => {
+      const raw = existingSubmissionInfo?.createdAt;
+      if (!raw) return null;
+      try {
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toLocaleString();
+      } catch {
+        return null;
+      }
+    })();
+
+    return (
+      <div className="min-h-screen bg-[#0B1220] text-slate-100">
+        <div className="hidden">
+          <LoginNavButton />
+        </div>
+
+        <div className="mx-auto w-full max-w-xl px-4 py-12 sm:px-6">
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0F1A2B] shadow-[0_30px_90px_rgba(0,0,0,0.85)]">
+            <div className="pointer-events-none absolute -top-20 left-1/2 h-40 w-[600px] -translate-x-1/2 rounded-full bg-[#4F67FF]/15 blur-3xl" />
+
+            <div className="relative px-6 py-8 sm:px-8">
+              <div className="flex items-center gap-3">
+                <div
+                  className={[
+                    "flex h-10 w-10 items-center justify-center rounded-full ring-1 ring-white/10",
+                    isSuccess
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : isError
+                        ? "bg-red-500/15 text-red-300"
+                        : isDuplicate
+                          ? "bg-amber-500/15 text-amber-300"
+                          : "bg-blue-500/15 text-blue-300",
+                  ].join(" ")}
+                  aria-hidden
+                >
+                  {isBusy ? (
+                    <svg
+                      className="h-5 w-5 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeOpacity="0.25"
+                        strokeWidth="3"
+                      />
+                      <path
+                        d="M22 12a10 10 0 0 1-10 10"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        fill="none"
+                      />
+                    </svg>
+                  ) : isSuccess ? (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M5 12l5 5L20 7"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ) : isError ? (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M12 8v5m0 3.5h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M12 9v4m0 3.5h.01M10.3 3.86l-7.5 13A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-3.13l-7.5-13a2 2 0 0 0-3.4 0z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <h2 className="text-xl font-semibold text-slate-50">
+                  {heading}
+                </h2>
+              </div>
+
+              <div className="mt-4 text-sm leading-relaxed text-slate-300">
+                {isBusy && (
+                  <p>Please wait while we finish processing your BYF score.</p>
+                )}
+
+                {isDuplicate && (
+                  <>
+                    <p>
+                      You already have a BYF score for{" "}
+                      <span className="font-semibold text-slate-100">
+                        {graphName || "this segment"}
+                      </span>
+                      {basePeriod ? (
+                        <>
+                          {" "}in{" "}
+                          <span className="font-semibold text-slate-100">
+                            {prettyYYYYMM(basePeriod)}
+                          </span>
+                        </>
+                      ) : null}
+                      .
+                    </p>
+                    {formattedExistingDate ? (
+                      <p className="mt-1 text-xs text-slate-400">
+                        Submitted on {formattedExistingDate}.
+                      </p>
+                    ) : null}
+                    <p className="mt-3">
+                      Submitting now will replace your previous response. You
+                      can also keep what you already submitted.
+                    </p>
+                  </>
+                )}
+
+                {autoFlowState === "success-submitted" && (
+                  <p>
+                    Your BYF score has been recorded. Subscribe to see your
+                    Build-Your-Forecast line on the chart alongside the other
+                    forecast methods.
+                  </p>
+                )}
+
+                {autoFlowState === "success-kept" && (
+                  <p>
+                    We kept your existing BYF score. Subscribe to see your
+                    Build-Your-Forecast line on the chart alongside the other
+                    forecast methods.
+                  </p>
+                )}
+
+                {isError && (
+                  <p className="text-red-300">
+                    {autoFlowError || "An unexpected error occurred."}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                {isDuplicate && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => submitPendingPayload(pendingPayloadInfo)}
+                      className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF] shadow-[0_8px_24px_rgba(79,103,255,0.25)]"
+                    >
+                      Replace previous score
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          sessionStorage.removeItem(PENDING_BYF_KEY);
+                        } catch {}
+                        setAutoFlowState("success-kept");
+                      }}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                    >
+                      Keep previous
+                    </button>
+                  </>
+                )}
+
+                {isSuccess && (
+                  <>
+                    <SubscribeButton
+                      className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF] shadow-[0_8px_24px_rgba(79,103,255,0.25)]"
+                    >
+                      Subscribe to see BYF data
+                    </SubscribeButton>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target =
+                          (pendingPayloadInfo && pendingPayloadInfo.returnTo) ||
+                          returnToParam ||
+                          "/flash-reports/overview";
+                        router.push(target);
+                      }}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                    >
+                      Back to Flash Reports
+                    </button>
+                  </>
+                )}
+
+                {isError && (
+                  <>
+                    {pendingPayloadInfo ? (
+                      <button
+                        type="button"
+                        onClick={() => submitPendingPayload(pendingPayloadInfo)}
+                        className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#4F67FF] px-4 text-sm font-semibold text-white transition hover:bg-[#3B55FF]"
+                      >
+                        Retry submit
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          sessionStorage.removeItem(PENDING_BYF_KEY);
+                        } catch {}
+                        setAutoFlowState("idle");
+                        setAutoFlowError(null);
+                      }}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                    >
+                      Back to form
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loadingMeta) {

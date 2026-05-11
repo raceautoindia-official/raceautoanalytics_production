@@ -10,6 +10,7 @@ import ExploreToolsInsights from "@/app/components/ExploreToolsInsights";
 import Footer from "@/app/components/Footer";
 import MarketHeroSection from "@/app/components/MarketHeroSection";
 import ExploreVehicleCategories from "@/app/components/ExploreVehicleCategories";
+import BYFSubmitCards from "./components/BYFSubmitCards";
 
 
 export default function Page() {
@@ -17,6 +18,7 @@ export default function Page() {
   return (
     <>
 <MarketHeroSection/>
+      <BYFSubmitCards />
       {/* <MarketKPIGrid /> */}
       <VehicleCategorySalesCard />
       <IndustryCategories />

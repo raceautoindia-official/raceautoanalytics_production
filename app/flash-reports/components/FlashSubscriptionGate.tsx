@@ -24,6 +24,20 @@ const GATE_EXEMPT_PATHS = new Set<string>([
   "/flash-reports/overview",
 ]);
 
+// Preferred order for picking a default segment graph when launching BYF
+// from the gate. PV first, then fall back through the rest. Mirrors the
+// CountryModal's BYF launch helper so behavior is consistent.
+const BYF_DEFAULT_GRAPH_KEYS = [
+  "pv",
+  "cv",
+  "tw",
+  "threew",
+  "tractor",
+  "truck",
+  "bus",
+  "ce",
+] as const;
+
 const FIRST_POPUP_DELAY_MS = 10_000; // existing first delay
 const SECOND_POPUP_DELAY_MS = 5_000; // existing repeat gap
 
@@ -32,6 +46,13 @@ const MANDATORY_APPEARANCE_STEP = 2;
 
 interface Props {
   entitlement: FlashEntitlement;
+  /**
+   * When set, render an additional "Submit BYF Score" button in the gate
+   * that takes the user straight to /score-card with the target country's
+   * default segment graph. Optional — when null/undefined, the gate renders
+   * exactly as before for all existing call sites.
+   */
+  byfTargetCountry?: string | null;
 }
 
 function getStoredStep(): number {
@@ -50,10 +71,58 @@ function setStoredStep(step: number) {
   );
 }
 
-export default function FlashSubscriptionGate({ entitlement }: Props) {
+export default function FlashSubscriptionGate({
+  entitlement,
+  byfTargetCountry = null,
+}: Props) {
   const [visibleStep, setVisibleStep] = useState<0 | 1 | 2>(0);
+  const [byfLaunching, setByfLaunching] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
+
+  // Launch BYF from the gate: fetch the country's segment graph map and
+  // jump to /score-card with the first available graphId (PV preferred).
+  // If no graph is configured, fall back to the BYF teaser on overview so
+  // the user still has a way in.
+  async function handleLaunchByf() {
+    const slug = String(byfTargetCountry || "").trim().toLowerCase();
+    if (!slug) return;
+    try {
+      setByfLaunching(true);
+      const res = await fetch(
+        `/api/flash-reports/config?country=${encodeURIComponent(slug)}`,
+        { cache: "no-store" },
+      );
+      let graphId: number | null = null;
+      if (res.ok) {
+        const cfg = await res.json();
+        for (const k of BYF_DEFAULT_GRAPH_KEYS) {
+          const v = cfg?.[k];
+          if (typeof v === "number" && Number.isFinite(v)) {
+            graphId = v;
+            break;
+          }
+        }
+      }
+      if (graphId == null) {
+        window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
+          slug,
+        )}#byf`;
+        return;
+      }
+      const params = new URLSearchParams();
+      params.set("graphId", String(graphId));
+      params.set("country", slug);
+      params.set("returnTo", typeof window !== "undefined" ? window.location.pathname + window.location.search : "/flash-reports/overview");
+      window.location.href = `/score-card?${params.toString()}`;
+    } catch {
+      window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
+        slug,
+      )}#byf`;
+    } finally {
+      setByfLaunching(false);
+    }
+  }
 
   const isMembershipPending = Boolean(entitlement.membershipPendingApproval);
   // Path exemption: free users can browse `/flash-reports/overview` without
@@ -242,6 +311,26 @@ export default function FlashSubscriptionGate({ entitlement }: Props) {
                 </button>
               )}
             </div>
+
+            {!isMembershipPending && byfTargetCountry ? (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={handleLaunchByf}
+                  disabled={byfLaunching}
+                  className="w-full h-11 rounded-xl border border-amber-400/40 bg-amber-500/10 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {byfLaunching
+                    ? "Opening BYF…"
+                    : "Or submit your BYF Score first"}
+                </button>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-[#EAF0FF]/40 text-center">
+                  Build Your Forecast lets you score this market’s drivers
+                  before subscribing — your forecast appears on the chart once
+                  you do.
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
