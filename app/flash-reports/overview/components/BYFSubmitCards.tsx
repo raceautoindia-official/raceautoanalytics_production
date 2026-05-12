@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Sparkles, ArrowRight, Info } from "lucide-react";
 import { LineChart } from "@/components/charts/LineChart";
+import {
+  checkByfAvailability,
+  type ByfAvailability,
+  type ByfSegmentKey,
+} from "@/lib/byfSegments";
 
 type ConfigShape = {
   pv?: number | null;
@@ -107,14 +112,15 @@ function buildDummyData() {
 export default function BYFSubmitCards() {
   const searchParams = useSearchParams();
 
-  // Per-country config cache. Key = country slug, value = config or null
-  // (null = fetched + missing). Avoids re-fetching when user toggles.
-  const [configsByCountry, setConfigsByCountry] = useState<
-    Record<string, ConfigShape | null>
+  // Per-(country, segment) availability cache. Key = `<country>|<segment>`.
+  // Holds the result of checkByfAvailability so we don't re-fetch when the
+  // user toggles back to a previously checked combo.
+  const [availabilityByKey, setAvailabilityByKey] = useState<
+    Record<string, ByfAvailability>
   >({});
-  const [configLoading, setConfigLoading] = useState(true);
+  const [checkingKey, setCheckingKey] = useState<string | null>(null);
 
-  const [selectedKey, setSelectedKey] = useState<keyof ConfigShape>("pv");
+  const [selectedKey, setSelectedKey] = useState<keyof ConfigShape>("cv");
   const [selectedCountry, setSelectedCountry] = useState<string>("india");
   const [showAbout, setShowAbout] = useState(false);
 
@@ -128,52 +134,33 @@ export default function BYFSubmitCards() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch config for the selected country (cached per slug).
+  // Validate availability for the (country, segment) combo. Cached so
+  // toggling back doesn't refetch. Strict — checks both that a graphId
+  // exists for the chosen segment AND that questions exist for that
+  // graph+country combo.
+  const cacheKey = `${selectedCountry}|${String(selectedKey)}`;
   useEffect(() => {
-    if (configsByCountry[selectedCountry] !== undefined) {
-      setConfigLoading(false);
+    if (availabilityByKey[cacheKey] !== undefined) {
+      if (checkingKey === cacheKey) setCheckingKey(null);
       return;
     }
 
     let cancelled = false;
-    setConfigLoading(true);
+    setCheckingKey(cacheKey);
     (async () => {
-      try {
-        const res = await fetch(
-          `/api/flash-reports/config?country=${encodeURIComponent(
-            selectedCountry,
-          )}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) {
-          if (!cancelled) {
-            setConfigsByCountry((prev) => ({
-              ...prev,
-              [selectedCountry]: null,
-            }));
-          }
-          return;
-        }
-        const json = await res.json();
-        if (!cancelled) {
-          setConfigsByCountry((prev) => ({
-            ...prev,
-            [selectedCountry]: (json as ConfigShape) || null,
-          }));
-        }
-      } catch (err) {
-        console.error("Failed to load BYF config", err);
-        if (!cancelled) {
-          setConfigsByCountry((prev) => ({ ...prev, [selectedCountry]: null }));
-        }
-      } finally {
-        if (!cancelled) setConfigLoading(false);
-      }
+      const result = await checkByfAvailability(
+        selectedCountry,
+        selectedKey as ByfSegmentKey,
+      );
+      if (cancelled) return;
+      setAvailabilityByKey((prev) => ({ ...prev, [cacheKey]: result }));
+      setCheckingKey((prev) => (prev === cacheKey ? null : prev));
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedCountry, configsByCountry]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKey]);
 
   const selected = useMemo(
     () => SEGMENTS.find((s) => s.configKey === selectedKey) || SEGMENTS[0],
@@ -187,21 +174,27 @@ export default function BYFSubmitCards() {
     return months[months.length - 1] || null;
   }, [dummyData]);
 
-  const config = configsByCountry[selectedCountry] ?? null;
-  const selectedGraphId = config?.[selected.configKey] ?? null;
+  const availability = availabilityByKey[cacheKey];
+  const isChecking = checkingKey === cacheKey || availability === undefined;
+  const isAvailable = availability?.status === "available";
   const selectedCountryLabel =
     COUNTRIES.find((c) => c.slug === selectedCountry)?.label || "India";
 
   const byfHref = useMemo(() => {
-    if (!selectedGraphId) return null;
+    if (!isAvailable) return null;
     const params = new URLSearchParams();
-    params.set("graphId", String(selectedGraphId));
+    params.set("graphId", String((availability as any).graphId));
     params.set("country", selectedCountry);
     params.set("returnTo", "/flash-reports/overview");
     return `/score-card?${params.toString()}`;
-  }, [selectedGraphId, selectedCountry]);
+  }, [isAvailable, availability, selectedCountry]);
 
-  const byfDisabled = configLoading || !selectedGraphId;
+  const byfDisabled = !isAvailable;
+  const byfButtonText = isChecking
+    ? "Checking availability…"
+    : isAvailable
+      ? "Submit BYF Score"
+      : `Coming soon for ${selected.label}`;
 
   return (
     <section id="byf" className="w-full bg-[#0b1218] text-white py-8 md:py-10">
@@ -346,21 +339,21 @@ export default function BYFSubmitCards() {
               <button
                 type="button"
                 disabled
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full bg-amber-500/40 px-3 text-xs font-semibold text-slate-900/70 cursor-not-allowed"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full bg-slate-700/60 px-3 text-xs font-semibold text-slate-300/80 cursor-not-allowed"
                 title={
-                  configLoading
-                    ? "Loading…"
-                    : "BYF for this segment / country is not yet available."
+                  isChecking
+                    ? "Checking availability…"
+                    : `BYF for ${selected.label} in ${selectedCountryLabel} is not yet available.`
                 }
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {configLoading ? "Loading…" : "Coming soon"}
+                {byfButtonText}
               </button>
             ) : (
               <Link href={byfHref!} prefetch={false}>
                 <span className="group inline-flex h-8 items-center justify-center gap-1.5 rounded-full bg-amber-400 px-3 text-xs font-semibold text-slate-900 shadow-[0_6px_16px_rgba(245,158,11,0.4)] ring-1 ring-amber-300 transition hover:bg-amber-300">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Submit BYF Score
+                  {byfButtonText}
                   <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </span>
               </Link>

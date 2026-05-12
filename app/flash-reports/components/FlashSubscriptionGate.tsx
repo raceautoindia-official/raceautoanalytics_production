@@ -19,24 +19,16 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { FlashEntitlement } from "@/app/hooks/useFlashEntitlement";
 import SubscribeButton from "@/components/subscription/SubscribeButton";
+import {
+  BYF_SEGMENTS,
+  checkByfAvailability,
+  type ByfAvailability,
+  type ByfSegmentKey,
+} from "@/lib/byfSegments";
 
 const GATE_EXEMPT_PATHS = new Set<string>([
   "/flash-reports/overview",
 ]);
-
-// Preferred order for picking a default segment graph when launching BYF
-// from the gate. PV first, then fall back through the rest. Mirrors the
-// CountryModal's BYF launch helper so behavior is consistent.
-const BYF_DEFAULT_GRAPH_KEYS = [
-  "pv",
-  "cv",
-  "tw",
-  "threew",
-  "tractor",
-  "truck",
-  "bus",
-  "ce",
-] as const;
 
 const FIRST_POPUP_DELAY_MS = 10_000; // existing first delay
 const SECOND_POPUP_DELAY_MS = 5_000; // existing repeat gap
@@ -76,52 +68,54 @@ export default function FlashSubscriptionGate({
   byfTargetCountry = null,
 }: Props) {
   const [visibleStep, setVisibleStep] = useState<0 | 1 | 2>(0);
-  const [byfLaunching, setByfLaunching] = useState(false);
+  const [byfSegmentKey, setByfSegmentKey] = useState<ByfSegmentKey>("cv");
+  const [availabilityByKey, setAvailabilityByKey] = useState<
+    Record<string, ByfAvailability>
+  >({});
+  const [checkingKey, setCheckingKey] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
 
-  // Launch BYF from the gate: fetch the country's segment graph map and
-  // jump to /score-card with the first available graphId (PV preferred).
-  // If no graph is configured, fall back to the BYF teaser on overview so
-  // the user still has a way in.
-  async function handleLaunchByf() {
-    const slug = String(byfTargetCountry || "").trim().toLowerCase();
-    if (!slug) return;
-    try {
-      setByfLaunching(true);
-      const res = await fetch(
-        `/api/flash-reports/config?country=${encodeURIComponent(slug)}`,
-        { cache: "no-store" },
-      );
-      let graphId: number | null = null;
-      if (res.ok) {
-        const cfg = await res.json();
-        for (const k of BYF_DEFAULT_GRAPH_KEYS) {
-          const v = cfg?.[k];
-          if (typeof v === "number" && Number.isFinite(v)) {
-            graphId = v;
-            break;
-          }
-        }
-      }
-      if (graphId == null) {
-        window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
-          slug,
-        )}#byf`;
-        return;
-      }
-      const params = new URLSearchParams();
-      params.set("graphId", String(graphId));
-      params.set("country", slug);
-      params.set("returnTo", typeof window !== "undefined" ? window.location.pathname + window.location.search : "/flash-reports/overview");
-      window.location.href = `/score-card?${params.toString()}`;
-    } catch {
-      window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
-        slug,
-      )}#byf`;
-    } finally {
-      setByfLaunching(false);
+  const slug = String(byfTargetCountry || "").trim().toLowerCase();
+  const byfCacheKey = slug ? `${slug}|${byfSegmentKey}` : "";
+
+  // Validate (country, segment) availability whenever either changes. The
+  // gate may render multiple times (step 1 dismiss → step 2 reappear) — the
+  // cache prevents re-fetching.
+  useEffect(() => {
+    if (!slug || !byfCacheKey) return;
+    if (availabilityByKey[byfCacheKey] !== undefined) {
+      if (checkingKey === byfCacheKey) setCheckingKey(null);
+      return;
     }
+    let cancelled = false;
+    setCheckingKey(byfCacheKey);
+    (async () => {
+      const result = await checkByfAvailability(slug, byfSegmentKey);
+      if (cancelled) return;
+      setAvailabilityByKey((prev) => ({ ...prev, [byfCacheKey]: result }));
+      setCheckingKey((prev) => (prev === byfCacheKey ? null : prev));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byfCacheKey]);
+
+  function handleLaunchByf() {
+    if (!slug) return;
+    const a = availabilityByKey[byfCacheKey];
+    if (a?.status !== "available") return;
+    const params = new URLSearchParams();
+    params.set("graphId", String(a.graphId));
+    params.set("country", slug);
+    params.set(
+      "returnTo",
+      typeof window !== "undefined"
+        ? window.location.pathname + window.location.search
+        : "/flash-reports/overview",
+    );
+    window.location.href = `/score-card?${params.toString()}`;
   }
 
   const isMembershipPending = Boolean(entitlement.membershipPendingApproval);
@@ -312,25 +306,75 @@ export default function FlashSubscriptionGate({
               )}
             </div>
 
-            {!isMembershipPending && byfTargetCountry ? (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={handleLaunchByf}
-                  disabled={byfLaunching}
-                  className="w-full h-11 rounded-xl border border-amber-400/40 bg-amber-500/10 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {byfLaunching
-                    ? "Opening BYF…"
-                    : "Or submit your BYF Score first"}
-                </button>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-[#EAF0FF]/40 text-center">
-                  Build Your Forecast lets you score this market’s drivers
-                  before subscribing — your forecast appears on the chart once
-                  you do.
-                </p>
-              </div>
-            ) : null}
+            {!isMembershipPending && byfTargetCountry ? (() => {
+              const byfAvailability = availabilityByKey[byfCacheKey];
+              const byfChecking =
+                checkingKey === byfCacheKey || byfAvailability === undefined;
+              const byfAvailable = byfAvailability?.status === "available";
+              const byfSegmentLabel =
+                BYF_SEGMENTS.find((s) => s.configKey === byfSegmentKey)
+                  ?.label || "";
+              return (
+                <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/5 p-3">
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="flash-gate-byf-segment"
+                      className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80"
+                    >
+                      Segment
+                    </label>
+                    <div className="relative flex-1">
+                      <select
+                        id="flash-gate-byf-segment"
+                        value={byfSegmentKey}
+                        onChange={(e) =>
+                          setByfSegmentKey(e.target.value as ByfSegmentKey)
+                        }
+                        className="w-full appearance-none rounded-md border border-white/10 bg-[#0E1833] py-1.5 pl-2.5 pr-7 text-xs font-semibold text-[#EAF0FF] shadow-sm focus:border-amber-400/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                      >
+                        {BYF_SEGMENTS.map((s) => (
+                          <option key={s.configKey} value={s.configKey}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#EAF0FF]/50">
+                        ▾
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleLaunchByf}
+                    disabled={!byfAvailable}
+                    className={
+                      byfAvailable
+                        ? "mt-2 w-full h-11 rounded-xl border border-amber-400/40 bg-amber-500/10 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20"
+                        : "mt-2 w-full h-11 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-[#EAF0FF]/50 cursor-not-allowed"
+                    }
+                    title={
+                      byfChecking
+                        ? "Checking availability…"
+                        : byfAvailable
+                          ? "Submit your BYF Score first"
+                          : `BYF for ${byfSegmentLabel} is not yet available for this country.`
+                    }
+                  >
+                    {byfChecking
+                      ? "Checking availability…"
+                      : byfAvailable
+                        ? "Or submit your BYF Score first"
+                        : `Coming soon for ${byfSegmentLabel}`}
+                  </button>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-[#EAF0FF]/40 text-center">
+                    Build Your Forecast lets you score this market’s drivers
+                    before subscribing — your forecast appears on the chart
+                    once you do.
+                  </p>
+                </div>
+              );
+            })() : null}
           </div>
         </div>
       </div>

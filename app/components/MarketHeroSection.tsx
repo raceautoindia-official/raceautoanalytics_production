@@ -4,6 +4,12 @@ import React, { useMemo, useState, useEffect } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import CountryAccessInfoModal from "@/app/components/CountryAccessInfoModal";
 import { resolveCountryCardAction } from "@/app/components/countryCardAccess";
+import {
+  BYF_SEGMENTS,
+  checkByfAvailability,
+  type ByfAvailability,
+  type ByfSegmentKey,
+} from "@/lib/byfSegments";
 
 /* small UI helpers */
 const Badge = ({ children }: React.PropsWithChildren) => (
@@ -82,12 +88,6 @@ const COUNTRY_NOT_INCLUDED_TITLE = "Country Not Included";
 const COUNTRY_NOT_INCLUDED_MESSAGE =
   "This country is not included in your selected plan slots. Contact sales to add more countries.";
 
-// Preferred order for picking a default segment graph when launching BYF
-// from the country modal. PV first, then fall back through the rest.
-const BYF_DEFAULT_GRAPH_KEYS: Array<
-  "pv" | "cv" | "tw" | "threew" | "tractor" | "truck" | "bus" | "ce"
-> = ["pv", "cv", "tw", "threew", "tractor", "truck", "bus", "ce"];
-
 type CountryItem = {
   name: string;
   code: string; // ISO-2 lowercase
@@ -101,16 +101,49 @@ function CountryModal({
   onClose,
   onOpenDataset,
   openingDataset,
-  onOpenByf,
-  openingByf,
 }: {
   country: CountryItem | null;
   onClose: () => void;
   onOpenDataset: (country: CountryItem) => void;
   openingDataset: boolean;
-  onOpenByf: (country: CountryItem) => void;
-  openingByf: boolean;
 }) {
+  // Local segment selection — defaults to Commercial Vehicles (most likely
+  // to have BYF questions). Reset whenever the modal reopens for a
+  // different country so prior selection doesn't carry over.
+  const [byfSegmentKey, setByfSegmentKey] = useState<ByfSegmentKey>("cv");
+  useEffect(() => {
+    if (country) setByfSegmentKey("cv");
+  }, [country?.slug]);
+
+  // Per-(country, segment) availability cache. Strict — checks that both a
+  // graphId is configured AND that scoring questions exist for that
+  // graph+country combo. Cached so toggling back doesn't refetch.
+  const [availabilityByKey, setAvailabilityByKey] = useState<
+    Record<string, ByfAvailability>
+  >({});
+  const [checkingKey, setCheckingKey] = useState<string | null>(null);
+  const cacheKey = country ? `${country.slug}|${byfSegmentKey}` : "";
+
+  useEffect(() => {
+    if (!country) return;
+    if (availabilityByKey[cacheKey] !== undefined) {
+      if (checkingKey === cacheKey) setCheckingKey(null);
+      return;
+    }
+    let cancelled = false;
+    setCheckingKey(cacheKey);
+    (async () => {
+      const result = await checkByfAvailability(country.slug, byfSegmentKey);
+      if (cancelled) return;
+      setAvailabilityByKey((prev) => ({ ...prev, [cacheKey]: result }));
+      setCheckingKey((prev) => (prev === cacheKey ? null : prev));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKey]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -120,6 +153,21 @@ function CountryModal({
   }, [country, onClose]);
 
   if (!country) return null;
+
+  const availability = availabilityByKey[cacheKey];
+  const isChecking = checkingKey === cacheKey || availability === undefined;
+  const isAvailable = availability?.status === "available";
+  const segmentLabel =
+    BYF_SEGMENTS.find((s) => s.configKey === byfSegmentKey)?.label || "";
+
+  function handleByfClick() {
+    if (!isAvailable || availability?.status !== "available") return;
+    const params = new URLSearchParams();
+    params.set("graphId", String(availability.graphId));
+    params.set("country", country.slug);
+    params.set("returnTo", "/flash-reports/overview");
+    window.location.href = `/score-card?${params.toString()}`;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
@@ -172,25 +220,71 @@ function CountryModal({
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 rounded-xl border border-amber-400/30 bg-amber-500/5 p-3">
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor={`byf-segment-${country.slug}`}
+                className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80"
+              >
+                Segment
+              </label>
+              <div className="relative flex-1">
+                <select
+                  id={`byf-segment-${country.slug}`}
+                  value={byfSegmentKey}
+                  onChange={(e) =>
+                    setByfSegmentKey(e.target.value as ByfSegmentKey)
+                  }
+                  className="w-full appearance-none rounded-md border border-white/10 bg-slate-950/70 py-1.5 pl-2.5 pr-7 text-xs font-semibold text-white shadow-sm focus:border-amber-400/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30"
+                >
+                  {BYF_SEGMENTS.map((s) => (
+                    <option key={s.configKey} value={s.configKey}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-white/50">
+                  ▾
+                </span>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={() => onOpenByf(country)}
-              disabled={openingByf}
-              className="group inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-amber-400 px-3 text-xs font-semibold text-slate-900 shadow-[0_6px_16px_rgba(245,158,11,0.4)] ring-1 ring-amber-300 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
-              aria-label={`Submit BYF Score for ${country.name}`}
+              onClick={handleByfClick}
+              disabled={!isAvailable}
+              className={
+                isAvailable
+                  ? "group inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-amber-400 px-3 text-xs font-semibold text-slate-900 shadow-[0_6px_16px_rgba(245,158,11,0.4)] ring-1 ring-amber-300 transition hover:bg-amber-300"
+                  : "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-slate-700/60 px-3 text-xs font-semibold text-slate-300/80 cursor-not-allowed"
+              }
+              aria-label={
+                isAvailable
+                  ? `Submit BYF Score for ${country.name}`
+                  : `BYF for ${segmentLabel} in ${country.name} not available yet`
+              }
+              title={
+                isChecking
+                  ? "Checking availability…"
+                  : isAvailable
+                    ? `Submit BYF Score for ${country.name}`
+                    : `BYF for ${segmentLabel} in ${country.name} is not yet available.`
+              }
             >
               <Sparkles className="h-3.5 w-3.5" />
-              {openingByf
-                ? "Opening BYF…"
-                : `Submit BYF Score for ${country.name}`}
+              {isChecking
+                ? "Checking availability…"
+                : isAvailable
+                  ? `Submit BYF Score for ${country.name}`
+                  : `Coming soon for ${segmentLabel}`}
             </button>
+
+            <p className="text-[11px] text-white/55">
+              Build Your Forecast lets you score this market’s drivers and
+              barriers — your personal forecast appears on the chart after you
+              subscribe.
+            </p>
           </div>
-          <p className="text-[11px] text-white/50">
-            Build Your Forecast lets you score this market’s drivers and
-            barriers — your personal forecast appears on the chart after you
-            subscribe.
-          </p>
         </div>
       </div>
     </div>
@@ -224,7 +318,6 @@ function CountryChip({
 export default function MarketHeroSection() {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
   const [openingDataset, setOpeningDataset] = useState(false);
-  const [openingByf, setOpeningByf] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
 const countries = useMemo<CountryItem[]>(
@@ -397,52 +490,9 @@ const countries = useMemo<CountryItem[]>(
     }
   }
 
-  // Launch BYF for the chosen country: fetch the country's segment graph map
-  // and pick the first available graphId (PV preferred). Then jump straight
-  // to /score-card. Score-card itself handles auth-gate-at-submit, duplicate
-  // detection, and the post-submit subscribe CTA.
-  async function handleOpenByf(country: CountryItem) {
-    try {
-      setOpeningByf(true);
-      const res = await fetch(
-        `/api/flash-reports/config?country=${encodeURIComponent(country.slug)}`,
-        { cache: "no-store" },
-      );
-      let graphId: number | null = null;
-      if (res.ok) {
-        const cfg = await res.json();
-        for (const k of BYF_DEFAULT_GRAPH_KEYS) {
-          const v = cfg?.[k];
-          if (typeof v === "number" && Number.isFinite(v)) {
-            graphId = v;
-            break;
-          }
-        }
-      }
-
-      if (graphId == null) {
-        // No BYF graph configured for this country — send the user to the
-        // overview's BYF section with the country preselected so they can see
-        // the explanation and try a different segment.
-        window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
-          country.slug,
-        )}#byf`;
-        return;
-      }
-
-      const params = new URLSearchParams();
-      params.set("graphId", String(graphId));
-      params.set("country", country.slug);
-      params.set("returnTo", "/flash-reports/overview");
-      window.location.href = `/score-card?${params.toString()}`;
-    } catch {
-      window.location.href = `/flash-reports/overview?byfCountry=${encodeURIComponent(
-        country.slug,
-      )}#byf`;
-    } finally {
-      setOpeningByf(false);
-    }
-  }
+  // BYF launch is now self-contained inside CountryModal — it pre-validates
+  // (graphId + questions exist for the picked country/segment combo) and
+  // navigates directly using the validated graphId. No parent handler needed.
 
   return (
     <>
@@ -537,8 +587,6 @@ const countries = useMemo<CountryItem[]>(
         onClose={() => setActiveCountry(null)}
         onOpenDataset={handleOpenDataset}
         openingDataset={openingDataset}
-        onOpenByf={handleOpenByf}
-        openingByf={openingByf}
       />
       <CountryAccessInfoModal
         open={countryAccessNoticeOpen}
