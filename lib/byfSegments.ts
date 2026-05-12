@@ -73,35 +73,67 @@ export type ByfAvailability =
   | { status: "unavailable"; reason: "no-graph" | "no-questions" }
   | { status: "error"; message: string };
 
+async function fetchByfConfig(
+  country: string,
+): Promise<ByfConfigShape | null> {
+  try {
+    const res = await fetch(
+      `/api/flash-reports/config?country=${encodeURIComponent(country)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as ByfConfigShape;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the graphId for a (country, segment) combo. Strategy:
+ *  1. Try the country-specific config row first — if an admin has added a
+ *     per-country graph mapping (the table supports it), use that.
+ *  2. Otherwise fall back to India's config — in current production, the
+ *     `flash_reports_text` table only has a fully-populated row under India,
+ *     and segment pages already hardcode `country=india` to read graphIds.
+ *     Per-country differentiation lives in the `questions` table, not the
+ *     config mapping.
+ */
+async function resolveByfGraphId(
+  country: string,
+  segmentKey: ByfSegmentKey,
+): Promise<number | null> {
+  const norm = String(country || "").toLowerCase().trim();
+  const isIndia = !norm || norm === "india" || norm === "in";
+
+  if (!isIndia) {
+    const cfg = await fetchByfConfig(norm);
+    const v = cfg?.[segmentKey];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+
+  const indiaCfg = await fetchByfConfig("india");
+  const iv = indiaCfg?.[segmentKey];
+  if (typeof iv === "number" && Number.isFinite(iv)) return iv;
+  return null;
+}
+
 /**
  * Strict availability check for a (country, segment) combo:
- *  1. Fetch /api/flash-reports/config?country=<slug>
- *  2. If no graphId is configured for that exact segment → `no-graph`
- *  3. Else fetch /api/questions?graphId=<id>&country=<slug>
- *  4. If the questions array is empty → `no-questions`
- *  5. Else → available with the graphId
- *
- * Used by every newly-added BYF launcher (overview teaser, country modals,
- * subscribe gate) to decide whether to enable the navigate button or render
- * a disabled "Coming soon" state. Strict — does NOT fall back to a different
- * segment, so the user always sees feedback for the segment they picked.
+ *  1. Resolve a graphId (country-specific config first, India fallback) —
+ *     see resolveByfGraphId for why the fallback is required.
+ *  2. If still no graphId → `no-graph`
+ *  3. Fetch /api/questions?graphId=<id>&country=<slug> — this filters by
+ *     the user's actually-selected country, so per-country question sets
+ *     are honoured.
+ *  4. If empty → `no-questions`
+ *  5. Else → available
  */
 export async function checkByfAvailability(
   country: string,
   segmentKey: ByfSegmentKey,
 ): Promise<ByfAvailability> {
   try {
-    const cfgRes = await fetch(
-      `/api/flash-reports/config?country=${encodeURIComponent(country)}`,
-      { cache: "no-store" },
-    );
-    if (!cfgRes.ok) {
-      return { status: "error", message: `Config ${cfgRes.status}` };
-    }
-    const cfg = (await cfgRes.json()) as ByfConfigShape;
-    const raw = cfg?.[segmentKey];
-    const graphId =
-      typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+    const graphId = await resolveByfGraphId(country, segmentKey);
     if (graphId == null) {
       return { status: "unavailable", reason: "no-graph" };
     }
