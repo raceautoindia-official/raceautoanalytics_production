@@ -592,14 +592,14 @@ useEffect(() => {
           <Breadcrumbs
             items={[
               { label: "Flash Reports", href: `/flash-reports${suffix}` },
-              { label: "Tractor" },
+              { label: "AG Tractor" },
             ]}
             className="mb-4"
           />
 
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Tractor Market</h1>
+              <h1 className="text-3xl font-bold mb-2">AG Tractor Market</h1>
               <p className="text-muted-foreground">
                 Agricultural and farm equipment tractor market analysis across
                 horsepower segments
@@ -624,7 +624,7 @@ useEffect(() => {
           <div className="grid md:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">
-                Total Tractor Sales:
+                Total AG Tractor Sales:
               </span>
               <span className="ml-2 font-medium">
                 {formatNumber(latestTractor || 0)} units
@@ -660,7 +660,7 @@ useEffect(() => {
           {/* 1) Tractor OEM Performance */}
          {showOemChartSection && (
   <ChartWrapper
-    title="Tractor OEM Segment Share"
+    title="AG Tractor OEM Segment Share"
     summary={oemHasMeaningfulData ? oemSummary : undefined}
     controls={
       <div className="flex items-center space-x-3">
@@ -712,7 +712,7 @@ useEffect(() => {
 
           {/* 2) Tractor Sales Forecast (TRAC series from overallData) */}
           <ChartWrapper
-            title="Tractor Sales Forecast"
+            title="AG Tractor Sales Forecast"
             summary={
               overallError
                 ? overallError
@@ -743,7 +743,7 @@ useEffect(() => {
           {showApplicationChartSection && (
   <div className="grid gap-8">
     <ChartWrapper
-      title="Tractor Application Chart"
+      title="AG Tractor Application Chart"
     summary={
   leadingApp && appTotal
     ? (() => {

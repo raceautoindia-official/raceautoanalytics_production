@@ -105,13 +105,36 @@ export default function ScoreCard() {
 
   // Post-login auto-submit flow (anonymous users) + duplicate detection.
   // 'idle' → form visible.
+  // 'pending-resume' → fresh stash detected on mount, waiting for the
+  //   newly-authenticated user's email to hydrate (useCurrentPlan reads
+  //   cookie asynchronously). Renders overlay so the form NEVER flashes
+  //   between page reload and auto-submit firing.
   // 'checking' → spinner while verifying existing submission.
   // 'submitting' → spinner while POSTing pending payload.
   // 'duplicate-prompt' → card asking Replace vs Keep.
   // 'success-submitted' → card after fresh submission.
   // 'success-kept' → card after user chose Keep previous.
   // 'error' → card with retry / back.
-  const [autoFlowState, setAutoFlowState] = useState("idle");
+  //
+  // Initialised via lazy initializer so that on every fresh mount (incl.
+  // post-login hard reload) we synchronously decide based on sessionStorage
+  // whether a resume is pending. This is the fix for "user signs up, reloads,
+  // and sees the empty form again instead of the auto-submit overlay" — the
+  // form is short-circuited from the very first render.
+  const [autoFlowState, setAutoFlowState] = useState(() => {
+    if (typeof window === "undefined") return "idle";
+    try {
+      const raw = window.sessionStorage.getItem(PENDING_BYF_KEY);
+      if (!raw) return "idle";
+      const stash = JSON.parse(raw);
+      const ts = Number(stash?.ts);
+      if (!Number.isFinite(ts)) return "idle";
+      if (Date.now() - ts >= PENDING_BYF_TTL_MS) return "idle";
+      return "pending-resume";
+    } catch {
+      return "idle";
+    }
+  });
   const [autoFlowError, setAutoFlowError] = useState(null);
   const [pendingPayloadInfo, setPendingPayloadInfo] = useState(null);
   const [existingSubmissionInfo, setExistingSubmissionInfo] = useState(null);
@@ -507,15 +530,24 @@ export default function ScoreCard() {
     // "forecast") would mismatch a flash-context stash and prematurely clear it.
     if (loading) return;
     if (graphContext === "flash" && !basePeriod) return;
-    if (autoFlowState !== "idle") return;
+    // Run only from 'idle' or 'pending-resume'. Other states are already
+    // mid-flow (checking / submitting / success / etc.) and must not be
+    // re-triggered.
+    if (autoFlowState !== "idle" && autoFlowState !== "pending-resume") return;
 
     let raw;
     try {
       raw = sessionStorage.getItem(PENDING_BYF_KEY);
     } catch {
+      // If we were optimistically showing the resume overlay but storage is
+      // inaccessible, drop back to the form so the user isn't stuck.
+      if (autoFlowState === "pending-resume") setAutoFlowState("idle");
       return;
     }
-    if (!raw) return;
+    if (!raw) {
+      if (autoFlowState === "pending-resume") setAutoFlowState("idle");
+      return;
+    }
 
     let stash;
     try {
@@ -524,6 +556,7 @@ export default function ScoreCard() {
       try {
         sessionStorage.removeItem(PENDING_BYF_KEY);
       } catch {}
+      if (autoFlowState === "pending-resume") setAutoFlowState("idle");
       return;
     }
 
@@ -538,6 +571,9 @@ export default function ScoreCard() {
       try {
         sessionStorage.removeItem(PENDING_BYF_KEY);
       } catch {}
+      // Mismatched stash (e.g. user navigated to a different segment) — drop
+      // the resume overlay and show the fresh form.
+      if (autoFlowState === "pending-resume") setAutoFlowState("idle");
       return;
     }
 
@@ -805,19 +841,24 @@ export default function ScoreCard() {
   // available in case the user opens the login dialog from this overlay.
   if (autoFlowState !== "idle") {
     const heading =
-      autoFlowState === "checking"
-        ? "Verifying your previous submissions…"
-        : autoFlowState === "submitting"
-          ? "Submitting your BYF score…"
-          : autoFlowState === "duplicate-prompt"
-            ? "You already submitted a BYF score"
-            : autoFlowState === "success-kept"
-              ? "Your previous BYF score is kept"
-              : autoFlowState === "success-submitted"
-                ? "BYF score submitted"
-                : "Something went wrong";
+      autoFlowState === "pending-resume"
+        ? "Resuming your BYF submission…"
+        : autoFlowState === "checking"
+          ? "Verifying your previous submissions…"
+          : autoFlowState === "submitting"
+            ? "Submitting your BYF score…"
+            : autoFlowState === "duplicate-prompt"
+              ? "You already submitted a BYF score"
+              : autoFlowState === "success-kept"
+                ? "Your previous BYF score is kept"
+                : autoFlowState === "success-submitted"
+                  ? "BYF score submitted"
+                  : "Something went wrong";
 
-    const isBusy = autoFlowState === "checking" || autoFlowState === "submitting";
+    const isBusy =
+      autoFlowState === "pending-resume" ||
+      autoFlowState === "checking" ||
+      autoFlowState === "submitting";
     const isSuccess =
       autoFlowState === "success-submitted" || autoFlowState === "success-kept";
     const isDuplicate = autoFlowState === "duplicate-prompt";
@@ -920,7 +961,16 @@ export default function ScoreCard() {
               </div>
 
               <div className="mt-4 text-sm leading-relaxed text-slate-300">
-                {isBusy && (
+                {autoFlowState === "pending-resume" && (
+                  <p>
+                    We saved the scores you filled in before signing in.
+                    Finishing the submission now — please complete sign-in if
+                    prompted.
+                  </p>
+                )}
+
+                {(autoFlowState === "checking" ||
+                  autoFlowState === "submitting") && (
                   <p>Please wait while we finish processing your BYF score.</p>
                 )}
 

@@ -39,7 +39,7 @@ const SEGMENTS: SegmentOption[] = [
   { configKey: "cv", category: "CV", label: "Commercial Vehicles", base: 75000, amp: 12000, phase: 0.8 },
   { configKey: "tw", category: "2W", label: "Two-Wheeler", base: 1400000, amp: 220000, phase: 1.4 },
   { configKey: "threew", category: "3W", label: "Three-Wheeler", base: 70000, amp: 14000, phase: 2.0 },
-  { configKey: "tractor", category: "TRAC", label: "Tractor", base: 65000, amp: 18000, phase: 2.6 },
+  { configKey: "tractor", category: "TRAC", label: "AG Tractor", base: 65000, amp: 18000, phase: 2.6 },
   { configKey: "truck", category: "Truck", label: "Trucks", base: 45000, amp: 8000, phase: 3.2 },
   { configKey: "bus", category: "Bus", label: "Buses", base: 9000, amp: 2200, phase: 3.8 },
   { configKey: "ce", category: "CE", label: "Construction Equipment", base: 8500, amp: 1800, phase: 4.4 },

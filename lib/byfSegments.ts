@@ -23,7 +23,7 @@ export const BYF_SEGMENTS: ByfSegment[] = [
   { configKey: "cv", label: "Commercial Vehicles" },
   { configKey: "tw", label: "Two-Wheeler" },
   { configKey: "threew", label: "Three-Wheeler" },
-  { configKey: "tractor", label: "Tractor" },
+  { configKey: "tractor", label: "AG Tractor" },
   { configKey: "truck", label: "Trucks" },
   { configKey: "bus", label: "Buses" },
   { configKey: "ce", label: "Construction Equipment" },

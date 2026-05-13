@@ -92,7 +92,7 @@ const CATEGORIES = [
   },
   {
     id: "tractor",
-    title: "Tractor",
+    title: "AG Tractor",
     description: "Agricultural and industrial tractors",
     icon: Tractor,
     color: "text-orange-400",

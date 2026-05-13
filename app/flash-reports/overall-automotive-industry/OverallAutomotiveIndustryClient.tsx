@@ -27,6 +27,14 @@ interface OverallAutomotiveIndustryClientProps {
 
 const ALT_FUEL_CATEGORIES = ["2W", "3W", "PV", "Tractor", "CV", "CE"];
 
+// Display label overrides for the alt-fuel categories. The constant above is
+// used as a DATA key against the API response, so we can't rename "Tractor"
+// in place — instead we map the data key to a friendlier label only when
+// rendering. Other keys pass through unchanged.
+const ALT_FUEL_CATEGORY_LABELS: Record<string, string> = {
+  Tractor: "AG Tractor",
+};
+
 export function OverallAutomotiveIndustryClient({
   initialOverallData,
   overAllText,
@@ -351,7 +359,7 @@ const growthSummary = formatGrowthWithYoY(
       const delta = leftMonth ? parseFloat((current - previous).toFixed(1)) : 0;
 
       return {
-        name: cat,
+        name: ALT_FUEL_CATEGORY_LABELS[cat] ?? cat,
         previous,
         current,
         delta,
@@ -495,7 +503,7 @@ const growthSummary = formatGrowthWithYoY(
           {/* Line chart */}
           <ChartWrapper
             title="Sales & Forecast"
-            summary="Forecast indicates trajectory based on historical volumes and computed projections. Tractors and Construction Equipment are excluded."
+            summary="Forecast indicates trajectory based on historical volumes and computed projections. AG Tractors and Construction Equipment are excluded."
           >
             <LineChart
               overallData={overallData}
