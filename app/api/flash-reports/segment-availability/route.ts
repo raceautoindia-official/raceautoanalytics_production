@@ -82,7 +82,31 @@ const FORECAST_SERIES_KEY_BY_SEGMENT: Record<string, string> = {
 };
 
 function getOrigin(req: Request) {
-  return new URL(req.url).origin;
+  const url = new URL(req.url);
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const host = (forwardedHost || req.headers.get("host") || url.host).trim();
+
+  let protocol = (forwardedProto || url.protocol.replace(":", "")).trim();
+  if (!protocol) protocol = "http";
+  protocol = protocol.split(",")[0].trim();
+
+  const hostname = host.replace(/:\d+$/, "").trim().toLowerCase();
+  const isPrivate172 = /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+  const isLocalOrPrivate =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "0.0.0.0" ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("192.168.") ||
+    isPrivate172;
+
+  if (protocol === "https" && isLocalOrPrivate) {
+    protocol = "http";
+  }
+
+  return `${protocol}://${host}`;
 }
 
 function prevMonthRefIST() {

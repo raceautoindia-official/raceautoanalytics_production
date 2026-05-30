@@ -23,7 +23,35 @@ const MONTHS_SHORT = [
 ] as const;
 
 function getOrigin(req: Request) {
-  return new URL(req.url).origin;
+  const url = new URL(req.url);
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const host = (forwardedHost || req.headers.get("host") || url.host).trim();
+
+  let protocol = (forwardedProto || url.protocol.replace(":", "")).trim();
+  if (!protocol) protocol = "http";
+  protocol = protocol.split(",")[0].trim();
+
+  // When traffic is proxied, we may see https with a local/private host
+  // (localhost/127.x/10.x/192.168.x/172.16-31.x), which causes
+  // ERR_SSL_WRONG_VERSION_NUMBER if the app port is plain HTTP.
+  const hostname = host.replace(/:\d+$/, "").trim().toLowerCase();
+  const isPrivate172 =
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+  const isLocalOrPrivate =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "0.0.0.0" ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("192.168.") ||
+    isPrivate172;
+
+  if (protocol === "https" && isLocalOrPrivate) {
+    protocol = "http";
+  }
+
+  return `${protocol}://${host}`;
 }
 
 // ✅ Flash cadence: rollover happens on/after 5th of the month (IST)
