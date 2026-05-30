@@ -99,11 +99,15 @@ function CountryModal({
   onClose,
   onOpenDataset,
   openingDataset,
+  onOpenCountryData,
+  openingCountryData,
 }: {
   country: CountryItem | null;
   onClose: () => void;
   onOpenDataset: (country: CountryItem) => void;
   openingDataset: boolean;
+  onOpenCountryData: (country: CountryItem) => void;
+  openingCountryData: boolean;
 }) {
   // Local segment selection — defaults to Commercial Vehicles (most likely
   // to have BYF questions configured). Reset when modal reopens.
@@ -202,14 +206,24 @@ function CountryModal({
           {country.description}
         </p>
 
-        <button
-          type="button"
-          onClick={() => onOpenDataset(country)}
-          disabled={openingDataset}
-          className="mt-4 text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {openingDataset ? "Opening..." : "Click to view full dataset"}
-        </button>
+        <div className="mt-4 flex flex-col items-start gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenDataset(country)}
+            disabled={openingDataset}
+            className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {openingDataset ? "Opening..." : "Click to view full dataset"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenCountryData(country)}
+            disabled={openingCountryData}
+            className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {openingCountryData ? "Opening..." : "Explore Country Data"}
+          </button>
+        </div>
 
         <div className="mt-4 flex flex-col gap-2 rounded-xl border border-amber-400/30 bg-amber-500/5 p-3">
           <div className="flex items-center gap-2">
@@ -549,6 +563,7 @@ const HOW_IT_WORKS = [
 export default function QuickGuidesSection() {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
   const [openingDataset, setOpeningDataset] = useState(false);
+  const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
 const countries: CountryItem[] = useMemo(
@@ -723,11 +738,6 @@ const countries: CountryItem[] = useMemo(
       }
 
       if (action.type === "subscribe") {
-        // Previously this only popped a local FlashSubscriptionGate overlay
-        // on the homepage and never navigated. Now we navigate to the
-        // country's flash-reports URL so the destination's
-        // FlashSubscriptionManager fires the gate at step 2 (the sessionStorage
-        // flag below makes it mandatory immediately).
         if (typeof window !== "undefined") {
           window.sessionStorage.setItem(
             "flashReportsSubscriptionModalStep",
@@ -757,6 +767,14 @@ const countries: CountryItem[] = useMemo(
     }
   }
 
+  function handleOpenCountryData(country: CountryItem) {
+    setOpeningCountryData(true);
+    setActiveCountry(null);
+    window.location.href = `/flash-reports/country-data/${encodeURIComponent(
+      country.slug,
+    )}`;
+  }
+
   // BYF launch is now self-contained inside CountryModal — it pre-validates
   // (graphId + questions exist for the picked country/segment combo) and
   // navigates directly using the validated graphId. No parent handler needed.
@@ -771,9 +789,9 @@ const countries: CountryItem[] = useMemo(
         <div className="mx-auto max-w-none w-[95vw] px-2 pt-10 sm:px-3 md:pt-12 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
           <div className="grid grid-cols-1 items-stretch gap-6 pb-10 md:grid-cols-2">
             <div className="flex h-full flex-col space-y-3">
-              <h3 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
+              <h2 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
                 Flash Reports
-              </h3>
+              </h2>
 
               <FlipInfoCard
                 ariaLabel="Flash Reports info card"
@@ -813,9 +831,9 @@ const countries: CountryItem[] = useMemo(
             </div>
 
             <div className="flex h-full flex-col space-y-3">
-              <h3 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
+              <h2 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">
                 Forecast
-              </h3>
+              </h2>
 
               <FlipInfoCard
                 ariaLabel="Forecast info card"
@@ -844,9 +862,9 @@ const countries: CountryItem[] = useMemo(
           </div>
 <QuickReferenceSection />
           <div className="mt-4">
-            <h3 className="text-2xl font-extrabold tracking-tight md:text-3xl">
+            <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">
               What you get in one place
-            </h3>
+            </h2>
             <p className="mt-2 max-w-3xl text-white/70">
               Designed for fast monthly review: data, splits, trend checks, and
               forecast validation.
@@ -880,9 +898,9 @@ const countries: CountryItem[] = useMemo(
           </div>
 
           <div className="mt-14">
-            <h3 className="text-2xl font-extrabold tracking-tight md:text-3xl">
+            <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">
               How it works
-            </h3>
+            </h2>
             <p className="mt-2 max-w-3xl text-white/70">
               A simple workflow to keep the month-to-month review consistent.
             </p>
@@ -948,6 +966,8 @@ const countries: CountryItem[] = useMemo(
         onClose={() => setActiveCountry(null)}
         onOpenDataset={handleOpenDataset}
         openingDataset={openingDataset}
+        onOpenCountryData={handleOpenCountryData}
+        openingCountryData={openingCountryData}
       />
       <CountryAccessInfoModal
         open={countryAccessNoticeOpen}

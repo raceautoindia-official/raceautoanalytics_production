@@ -4,6 +4,5 @@ export const FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS = [
   "kh@raceinnovations.in",
   "raceautoindia@gmail.com",
   "director@raceautoindia.com",
-  "mkt_research@raceinnovation.in",
+  "mkt_research@raceinnovations.in",
 ] as const;
-

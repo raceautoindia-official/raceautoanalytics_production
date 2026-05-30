@@ -179,9 +179,9 @@ export default function AIPoweredForecastTools() {
       <div className="mt-16 grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
         {/* copy */}
         <div>
-          <h3 className="text-3xl md:text-5xl font-extrabold tracking-tight">
+          <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">
             RACE — AI POWERED FORECAST TOOLS
-          </h3>
+          </h2>
           <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white/75">
             Advanced machine learning algorithms analyze market patterns,
             seasonal trends, and economic indicators to deliver precise
@@ -234,9 +234,9 @@ export default function AIPoweredForecastTools() {
       <div className="mt-16">
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <h3 className="text-3xl font-extrabold tracking-tight">
+            <h2 className="text-3xl font-extrabold tracking-tight">
               Latest Insights
-            </h3>
+            </h2>
             <p className="mt-2 text-white/70">
               Key market developments and trending analysis
             </p>
@@ -274,9 +274,9 @@ export default function AIPoweredForecastTools() {
       {/* ---------- Forecast Workflow (NEW) ---------- */}
       <div className="mt-16">
         <div className="mb-6">
-          <h3 className="text-3xl font-extrabold tracking-tight">
+          <h2 className="text-3xl font-extrabold tracking-tight">
             Forecast Workflow
-          </h3>
+          </h2>
           <p className="mt-2 max-w-3xl text-white/70">
             A simple, repeatable flow to build forecasts, compare methods, and
             lock decisions with confidence.
@@ -311,9 +311,9 @@ export default function AIPoweredForecastTools() {
       {/* ---------- Forecast Methods (NEW) ---------- */}
       <div className="mt-16">
         <div className="mb-6">
-          <h3 className="text-3xl font-extrabold tracking-tight">
+          <h2 className="text-3xl font-extrabold tracking-tight">
             Methods You Can Compare
-          </h3>
+          </h2>
           <p className="mt-2 max-w-3xl text-white/70">
             Validate outcomes by comparing multiple forecasting approaches in one view.
           </p>
@@ -342,9 +342,9 @@ export default function AIPoweredForecastTools() {
       {/* ---------- Use Cases (NEW) ---------- */}
       <div className="mt-16">
         <div className="mb-6">
-          <h3 className="text-3xl font-extrabold tracking-tight">
+          <h2 className="text-3xl font-extrabold tracking-tight">
             What You Can Do With Forecasts
-          </h3>
+          </h2>
           <p className="mt-2 max-w-3xl text-white/70">
             Turn forecast outputs into practical decisions across sales, operations, and strategy.
           </p>

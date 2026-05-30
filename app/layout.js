@@ -29,7 +29,7 @@ const siteName = "Race Auto Analytics";
 const title =
   "Race Auto Analytics | Automotive Sales Forecast & Market Analytics";
 const description =
-  "Automotive market analytics and forecasting platform with segment-wise volumes, AI forecasts, trends, and country-wise flash reports for OEMs and industry teams.";
+  "Automotive market analytics & forecasting platform with segment-wise volumes, AI forecasts, and country-wise flash reports for OEMs and industry teams.";
 
 export const metadata = {
   metadataBase: new URL(siteUrl),

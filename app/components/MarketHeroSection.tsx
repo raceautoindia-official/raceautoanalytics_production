@@ -76,18 +76,6 @@ function FlagIcon({
   );
 }
 
-function getPreviousMonthYyyyMm() {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
-const COUNTRY_NOT_INCLUDED_TITLE = "Country Not Included";
-const COUNTRY_NOT_INCLUDED_MESSAGE =
-  "This country is not included in your selected plan slots. Contact sales to add more countries.";
-
 type CountryItem = {
   name: string;
   code: string; // ISO-2 lowercase
@@ -101,11 +89,15 @@ function CountryModal({
   onClose,
   onOpenDataset,
   openingDataset,
+  onOpenCountryData,
+  openingCountryData,
 }: {
   country: CountryItem | null;
   onClose: () => void;
   onOpenDataset: (country: CountryItem) => void;
   openingDataset: boolean;
+  onOpenCountryData: (country: CountryItem) => void;
+  openingCountryData: boolean;
 }) {
   // Local segment selection — defaults to Commercial Vehicles (most likely
   // to have BYF questions). Reset whenever the modal reopens for a
@@ -210,14 +202,24 @@ function CountryModal({
           </p>
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-            <button
-              type="button"
-              onClick={() => onOpenDataset(country)}
-              disabled={openingDataset}
-              className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {openingDataset ? "Opening..." : "Click to view full dataset"}
-            </button>
+            <div className="flex flex-col items-start gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenDataset(country)}
+                disabled={openingDataset}
+                className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {openingDataset ? "Opening..." : "Click to view full dataset"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenCountryData(country)}
+                disabled={openingCountryData}
+                className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {openingCountryData ? "Opening..." : "Explore Country Data"}
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 rounded-xl border border-amber-400/30 bg-amber-500/5 p-3">
@@ -318,6 +320,7 @@ function CountryChip({
 export default function MarketHeroSection() {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
   const [openingDataset, setOpeningDataset] = useState(false);
+  const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
 const countries = useMemo<CountryItem[]>(
@@ -454,13 +457,6 @@ const countries = useMemo<CountryItem[]>(
       }
 
       if (action.type === "subscribe") {
-        // Previously this only popped a local FlashSubscriptionGate overlay
-        // on the overview page and never navigated, leaving the user stuck on
-        // overview after dismissing the gate. Now we navigate to the country's
-        // flash-reports URL — the destination's FlashSubscriptionManager fires
-        // the gate at step 2 (the sessionStorage flag below makes it
-        // mandatory immediately), so the user actually lands on the right
-        // page with the gate up.
         if (typeof window !== "undefined") {
           window.sessionStorage.setItem(
             "flashReportsSubscriptionModalStep",
@@ -488,6 +484,14 @@ const countries = useMemo<CountryItem[]>(
     } finally {
       setOpeningDataset(false);
     }
+  }
+
+  function handleOpenCountryData(country: CountryItem) {
+    setOpeningCountryData(true);
+    setActiveCountry(null);
+    window.location.href = `/flash-reports/country-data/${encodeURIComponent(
+      country.slug,
+    )}`;
   }
 
   // BYF launch is now self-contained inside CountryModal — it pre-validates
@@ -531,12 +535,12 @@ const countries = useMemo<CountryItem[]>(
                 AI-Powered Analytics
               </Badge>
 
-              <h2 className="mt-6 text-5xl font-extrabold leading-tight tracking-tight md:text-6xl">
+              <h1 className="mt-6 text-5xl font-extrabold leading-tight tracking-tight md:text-6xl">
                 <span className="block text-white">Flash Reports for</span>
                 <span className="mt-2 block bg-gradient-to-r from-blue-400 via-blue-300 to-indigo-300 bg-clip-text text-transparent">
                   Automotive Markets
                 </span>
-              </h2>
+              </h1>
 
               <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/70">
                 Monthly insights on vehicle sales across six categories with
@@ -558,9 +562,9 @@ const countries = useMemo<CountryItem[]>(
               <GlassCard className="relative z-10 w-full">
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-white/90">
+                    <h2 className="text-lg font-semibold text-white/90">
                       Countries
-                    </h3>
+                    </h2>
                     <p className="mt-1 text-sm text-white/60">
                       Tap a country to view flash report scope and release schedule.
                     </p>
@@ -587,6 +591,8 @@ const countries = useMemo<CountryItem[]>(
         onClose={() => setActiveCountry(null)}
         onOpenDataset={handleOpenDataset}
         openingDataset={openingDataset}
+        onOpenCountryData={handleOpenCountryData}
+        openingCountryData={openingCountryData}
       />
       <CountryAccessInfoModal
         open={countryAccessNoticeOpen}
@@ -597,3 +603,17 @@ const countries = useMemo<CountryItem[]>(
     </>
   );
 }
+
+function getPreviousMonthYyyyMm() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+const COUNTRY_NOT_INCLUDED_TITLE = "Country Not Included";
+const COUNTRY_NOT_INCLUDED_MESSAGE =
+  "This country is not included in your selected plan slots. Contact sales to add more countries.";
+
+

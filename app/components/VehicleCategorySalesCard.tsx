@@ -145,9 +145,9 @@ const CrossCategoryPerformance: React.FC = () => {
         className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4
 "
       >
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+        <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
           Cross-Category Performance
-        </h1>
+        </h2>
         <p className="mt-2 text-white/70">
           {latestMonthLabel
             ? `Sales comparison across vehicle categories — ${latestMonthLabel}`

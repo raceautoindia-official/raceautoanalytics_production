@@ -1,23 +1,42 @@
 // app/page.tsx
-import BannerHome from "@/app/components/BannerHome";
-// import MarketKPIGrid from "@/app/components/MarketKPIGrid";
-import VehicleCategorySalesCard from "@/app/components/VehicleCategorySalesCard";
-import IndustryCategories from "@/app/components/IndustryCategories";
-// import OEMLeaderboardAndSegments from "@/app/components/OEMLeaderboardAndSegments";
-// import ForecastPreview from "@/app/components/ForecastPreview";
-import KeyMarketInsights from "@/app/components/KeyMarketInsights";
-import ExploreToolsInsights from "@/app/components/ExploreToolsInsights";
+import type { Metadata } from "next";
 import Footer from "@/app/components/Footer";
 import QuickGuidesSection from "./components/QuickGuidesSection";
 import NavBar from "./components/Navbar";
-import MarketKPIGridDark from "./components/MarketKPIGrid";
-import OEMLeaderboardAndSegmentsEqualized from "./components/OEMLeaderboardAndSegments";
-import ForecastPreview from "./components/ForecastPreview";
-import QuickReferenceSection from "@/components/ui/QuickReferenceSection";
 import PricingTeaser from "@/app/components/PricingTeaser";
 
+export const metadata: Metadata = {
+  title: "Automotive Sales Forecast & Market Analytics Platform",
+  description:
+    "Race Auto Analytics provides automotive sales forecasting, flash reports, OEM market share tracking, EV trend insights, and segment-wise market intelligence.",
+  alternates: {
+    canonical: "/",
+  },
+  keywords: [
+    "automotive sales forecast",
+    "automotive market analytics",
+    "flash reports",
+    "OEM market share",
+    "EV sales insights",
+    "vehicle segment analysis",
+  ],
+  openGraph: {
+    title: "Automotive Sales Forecast & Market Analytics Platform",
+    description:
+      "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise flash reports.",
+    url: "https://raceautoanalytics.com/",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Automotive Sales Forecast & Market Analytics Platform",
+    description:
+      "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise flash reports.",
+  },
+};
+
 export default function Page() {
-  const jsonLd = {
+  const appJsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "Race Auto Analytics",
@@ -34,25 +53,50 @@ export default function Page() {
     url: "https://raceautoanalytics.com/",
   };
 
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Race Auto Analytics",
+    url: "https://raceautoanalytics.com/",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://raceautoanalytics.com/flash-reports?country={country}",
+      "query-input": "required name=country",
+    },
+  };
+
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(appJsonLd) }}
       />
-      <NavBar/>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+      />
+      <NavBar />
+      <main>
+        <h1 className="sr-only">
+          Automotive Sales Forecast and Market Analytics Platform
+        </h1>
+        <p className="sr-only">
+          Country-wise flash reports, OEM market share insights, EV trends, and
+          segment-level forecasting for automotive and mobility teams.
+        </p>
       {/* <BannerHome /> */}
-      <QuickGuidesSection/>
-      {/* Audit I-2: pricing teaser so first-time visitors see a price range
-          on the homepage without having to click into /subscription. */}
-      <PricingTeaser />
+        <QuickGuidesSection />
+        {/* Audit I-2: pricing teaser so first-time visitors see a price range
+            on the homepage without having to click into /subscription. */}
+        <PricingTeaser />
 
-   {/* <MarketKPIGridDark />
-   <VehicleCategorySalesCard /> */}
-      {/* <IndustryCategories /> * */}
-      {/* <OEMLeaderboardAndSegmentsEqualized />  */}
-    {/* <ForecastPreview /> */}
-      {/* <KeyMarketInsights /> */}
+        {/* <MarketKPIGridDark />
+        <VehicleCategorySalesCard /> */}
+        {/* <IndustryCategories /> * */}
+        {/* <OEMLeaderboardAndSegmentsEqualized />  */}
+        {/* <ForecastPreview /> */}
+        {/* <KeyMarketInsights /> */}
+      </main>
 
       <Footer />
     </>
