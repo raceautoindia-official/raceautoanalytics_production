@@ -20,10 +20,26 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-   typescript: {
+  typescript: {
     // 🚨 This makes `next build` succeed even if there are TS errors
     ignoreBuildErrors: true,
+  },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host",
+            value: "www.raceautoanalytics.com",
+          },
+        ],
+        destination: "https://raceautoanalytics.com/:path*",
+        permanent: true,
+      },
+    ];
   },
 };
 
 export default withPlaiceholder(nextConfig);
+

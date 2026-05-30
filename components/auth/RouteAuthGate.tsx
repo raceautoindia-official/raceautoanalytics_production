@@ -14,6 +14,7 @@ const EXCLUDED = new Set([
 
 function isProtectedPath(pathname: string) {
   if (EXCLUDED.has(pathname)) return false;
+  if (pathname === "/flash-reports/country-data") return false;
   if (pathname.startsWith("/flash-reports/country-data/")) return false;
   if (pathname.startsWith("/flash-reports")) return true;
   if (pathname.startsWith("/forecast")) return true;

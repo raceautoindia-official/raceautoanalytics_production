@@ -77,13 +77,17 @@ export default function Page() {
       />
       <NavBar />
       <main>
-        <h1 className="sr-only">
-          Automotive Sales Forecast and Market Analytics Platform
-        </h1>
-        <p className="sr-only">
-          Country-wise flash reports, OEM market share insights, EV trends, and
-          segment-level forecasting for automotive and mobility teams.
-        </p>
+        <section className="bg-slate-950 px-2 pb-4 pt-6 text-white sm:px-3 lg:px-4">
+          <div className="mx-auto w-[95vw] max-w-none xl:w-[93vw] 2xl:w-[90vw]">
+            <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">
+              Automotive Sales Forecast and Market Analytics Platform
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/75 md:text-base">
+              Country-wise flash reports, OEM market share insights, EV trends,
+              and segment-level forecasting for automotive and mobility teams.
+            </p>
+          </div>
+        </section>
       {/* <BannerHome /> */}
         <QuickGuidesSection />
         {/* Audit I-2: pricing teaser so first-time visitors see a price range
