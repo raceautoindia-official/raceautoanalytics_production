@@ -6,9 +6,9 @@ import NavBar from "./components/Navbar";
 import PricingTeaser from "@/app/components/PricingTeaser";
 
 export const metadata: Metadata = {
-  title: "Automotive Sales Forecast & Market Analytics Platform",
+  title: "Race Auto Analytics | Automotive Sales Forecast & Flash Reports",
   description:
-    "Race Auto Analytics provides automotive sales forecasting, flash reports, OEM market share tracking, EV trend insights, and segment-wise market intelligence.",
+    "Race Auto Analytics provides automotive sales forecasting, country-wise flash reports, OEM market share tracking, EV sales insights, and segment-wise market intelligence for mobility teams.",
   alternates: {
     canonical: "/",
   },
@@ -19,19 +19,31 @@ export const metadata: Metadata = {
     "OEM market share",
     "EV sales insights",
     "vehicle segment analysis",
+    "country wise flash reports",
+    "automotive market intelligence platform",
   ],
   openGraph: {
-    title: "Automotive Sales Forecast & Market Analytics Platform",
+    title: "Race Auto Analytics | Automotive Sales Forecast & Flash Reports",
     description:
-      "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise flash reports.",
+      "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise automotive flash reports.",
     url: "https://raceautoanalytics.com/",
     type: "website",
+    siteName: "Race Auto Analytics",
+    images: [
+      {
+        url: "/images/logo.webp",
+        width: 1200,
+        height: 630,
+        alt: "Race Auto Analytics automotive market analytics platform",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Automotive Sales Forecast & Market Analytics Platform",
+    title: "Race Auto Analytics | Automotive Sales Forecast & Flash Reports",
     description:
-      "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise flash reports.",
+      "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise automotive flash reports.",
+    images: ["/images/logo.webp"],
   },
 };
 
@@ -51,6 +63,55 @@ export default function Page() {
       description: "Request demo / trial available",
     },
     url: "https://raceautoanalytics.com/",
+  };
+
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Race Auto Analytics",
+    alternateName: ["RACE Analytics", "Race Auto India Analytics"],
+    url: "https://raceautoanalytics.com/",
+    logo: "https://raceautoanalytics.com/images/logo.webp",
+    description:
+      "Race Auto Analytics is an automotive market intelligence platform for vehicle sales forecasting, flash reports, OEM market share, EV adoption, and segment-level analytics.",
+    sameAs: [
+      "https://www.facebook.com/raceautoindia/",
+      "https://x.com/raceautoindia",
+      "https://www.instagram.com/race.auto.india/",
+      "https://www.linkedin.com/company/race-auto-india/",
+      "https://www.youtube.com/@RaceAutoIndia",
+    ],
+    knowsAbout: [
+      "Automotive sales forecasting",
+      "Vehicle market analytics",
+      "OEM market share",
+      "Electric vehicle sales trends",
+      "Country-wise automotive flash reports",
+      "Commercial vehicle analytics",
+      "Passenger vehicle analytics",
+      "Two-wheeler and three-wheeler market data",
+    ],
+  };
+
+  const webPageJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Race Auto Analytics | Automotive Sales Forecast & Flash Reports",
+    url: "https://raceautoanalytics.com/",
+    description:
+      "Automotive sales forecasting and country-wise flash reports for OEM market share, EV trends, and vehicle segment analysis.",
+    about: [
+      { "@type": "Thing", name: "Automotive sales forecast" },
+      { "@type": "Thing", name: "Automotive market analytics" },
+      { "@type": "Thing", name: "OEM market share" },
+      { "@type": "Thing", name: "EV sales insights" },
+      { "@type": "Thing", name: "Country-wise flash reports" },
+    ],
+    isPartOf: {
+      "@type": "WebSite",
+      name: "Race Auto Analytics",
+      url: "https://raceautoanalytics.com/",
+    },
   };
 
   const websiteJsonLd = {
@@ -73,23 +134,32 @@ export default function Page() {
       />
       <script
         type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
       <NavBar />
       <main>
-        <section className="bg-slate-950 px-2 pb-4 pt-6 text-white sm:px-3 lg:px-4">
-          <div className="mx-auto w-[95vw] max-w-none xl:w-[93vw] 2xl:w-[90vw]">
+      {/* <BannerHome /> */}
+        <QuickGuidesSection
+          intro={
+          <>
             <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">
-              Automotive Sales Forecast and Market Analytics Platform
+              Race Auto Analytics for Automotive Sales Forecasting
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/75 md:text-base">
               Country-wise flash reports, OEM market share insights, EV trends,
               and segment-level forecasting for automotive and mobility teams.
             </p>
-          </div>
-        </section>
-      {/* <BannerHome /> */}
-        <QuickGuidesSection />
+          </>
+          }
+        />
         {/* Audit I-2: pricing teaser so first-time visitors see a price range
             on the homepage without having to click into /subscription. */}
         <PricingTeaser />

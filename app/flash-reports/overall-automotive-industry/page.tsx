@@ -3,9 +3,11 @@ import {
   getOverallText,
   getMarketBarRawData,
   getOverallAlternatePenetration,
+  type OverallChartResponse,
+  type OverallAlternatePenetrationResult,
+  type MarketBarRawData,
 } from "@/lib/flashReportsServer";
 import { OverallAutomotiveIndustryClient } from "./OverallAutomotiveIndustryClient";
-import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
 export const dynamic = "force-dynamic";
 
@@ -24,16 +26,45 @@ export default async function OverallAutomotiveIndustryPage({
       ? searchParams.region
       : undefined;
 
-  const [overallResult, overAllText, altFuelRaw, overallAlternatePenetration] = await Promise.all([
-    getOverallChartDataWithMeta({
-      baseMonth,
+  const defaultOverallResult: OverallChartResponse = {
+    data: [],
+    meta: {
+      baseMonth: baseMonth || "",
+      allowForecast: false,
       horizon: 6,
-      country: regionOrCountry,
-    }),
-    getOverallText(regionOrCountry),
-    getMarketBarRawData("alternative fuel", baseMonth, regionOrCountry),
-    getOverallAlternatePenetration(baseMonth, regionOrCountry),
-  ]);
+      windowMonths: [],
+    },
+  };
+
+  const defaultAltPenetration: OverallAlternatePenetrationResult = {
+    value: null,
+    baseMonth: baseMonth || "",
+  };
+
+  const [overallResultSettled, overAllTextSettled, altFuelRawSettled, overallAltSettled] =
+    await Promise.allSettled([
+      getOverallChartDataWithMeta({
+        baseMonth,
+        horizon: 6,
+        country: regionOrCountry,
+      }),
+      getOverallText(regionOrCountry),
+      getMarketBarRawData("alternative fuel", baseMonth, regionOrCountry),
+      getOverallAlternatePenetration(baseMonth, regionOrCountry),
+    ]);
+
+  const overallResult =
+    overallResultSettled.status === "fulfilled"
+      ? overallResultSettled.value
+      : defaultOverallResult;
+  const overAllText =
+    overAllTextSettled.status === "fulfilled" ? overAllTextSettled.value : {};
+  const altFuelRaw: MarketBarRawData | null =
+    altFuelRawSettled.status === "fulfilled" ? altFuelRawSettled.value : null;
+  const overallAlternatePenetration =
+    overallAltSettled.status === "fulfilled"
+      ? overallAltSettled.value
+      : defaultAltPenetration;
 
   return (
     <>

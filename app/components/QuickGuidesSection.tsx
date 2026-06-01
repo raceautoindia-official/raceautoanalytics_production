@@ -560,7 +560,11 @@ const HOW_IT_WORKS = [
   },
 ];
 
-export default function QuickGuidesSection() {
+export default function QuickGuidesSection({
+  intro,
+}: {
+  intro?: React.ReactNode;
+}) {
   const [activeCountry, setActiveCountry] = useState<CountryItem | null>(null);
   const [openingDataset, setOpeningDataset] = useState(false);
   const [openingCountryData, setOpeningCountryData] = useState(false);
@@ -786,7 +790,8 @@ const countries: CountryItem[] = useMemo(
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950/98 to-slate-950" />
         </div>
 
-        <div className="mx-auto max-w-none w-[95vw] px-2 pt-10 sm:px-3 md:pt-12 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
+        <div className="mx-auto max-w-none w-[95vw] px-2 pt-5 sm:px-3 md:pt-6 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
+          {intro ? <div className="mb-6 md:mb-7">{intro}</div> : null}
           <div className="grid grid-cols-1 items-stretch gap-6 pb-10 md:grid-cols-2">
             <div className="flex h-full flex-col space-y-3">
               <h2 className="text-xl font-bold tracking-tight text-white/95 md:text-2xl">

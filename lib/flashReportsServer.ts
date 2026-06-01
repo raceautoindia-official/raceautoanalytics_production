@@ -153,6 +153,34 @@ function toNumLoose(v: any) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+function resolveInternalSiteUrl(raw?: string | null) {
+  const fallback = "http://localhost:3000";
+  const candidate = String(raw || fallback).trim();
+
+  try {
+    const parsed = new URL(candidate);
+    const hostname = parsed.hostname.toLowerCase();
+    const isPrivate172 = /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+    const isLocalOrPrivate =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "0.0.0.0" ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("192.168.") ||
+      isPrivate172;
+
+    // Avoid TLS handshake errors when site URL points to local/private HTTP upstream.
+    if (parsed.protocol === "https:" && isLocalOrPrivate) {
+      parsed.protocol = "http:";
+    }
+
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return fallback.replace(/\/$/, "");
+  }
+}
+
 // ✅ main function with meta
 export async function getOverallChartDataWithMeta(opts?: {
   baseMonth?: string;
@@ -188,8 +216,9 @@ export async function getOverallChartDataWithMeta(opts?: {
   const wantsNonIndia = !!opts?.country && countryKey !== "india";
 
   const backendBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const siteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const siteUrl = siteUrlRaw.replace(/\/$/, "");
+  const siteUrl = resolveInternalSiteUrl(
+    process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL,
+  );
 
   const loadBackend = async () => {
     const [hierarchyRes, volumeRes] = await Promise.all([
@@ -480,12 +509,9 @@ export async function getOverallChartData(opts?: {
 
 // ---- OVERALL PAGE TEXT (SERVER) ----
 export async function getOverallText(country?: string) {
-  const siteUrlRaw =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    "http://localhost:3000";
-
-  const siteUrl = siteUrlRaw.replace(/\/$/, "");
+  const siteUrl = resolveInternalSiteUrl(
+    process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL,
+  );
 
   const qs = new URLSearchParams();
   if (country) {
@@ -496,10 +522,13 @@ export async function getOverallText(country?: string) {
     qs.toString() ? `?${qs.toString()}` : ""
   }`;
 
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch overall text");
-
-  return res.json();
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return {};
+    return res.json();
+  } catch {
+    return {};
+  }
 }
 
 
@@ -610,8 +639,9 @@ export async function getOverallAlternatePenetration(
   const wantsNonIndia = !!country && countryKey !== "india";
 
   const backendBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const siteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? "http://localhost:3000";
-  const siteUrl = siteUrlRaw.replace(/\/$/, "");
+  const siteUrl = resolveInternalSiteUrl(
+    process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL,
+  );
 
   const loadBackend = async () => {
     const [hierarchyRes, volumeRes] = await Promise.all([
@@ -786,10 +816,9 @@ export async function getMarketBarRawData(
   country?: string,
 ): Promise<MarketBarRawData | null> {
   try {
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      process.env.SITE_URL ||
-      "http://localhost:3000";
+    const siteUrl = resolveInternalSiteUrl(
+      process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL,
+    );
 
     const qs = new URLSearchParams({
       segmentName,
