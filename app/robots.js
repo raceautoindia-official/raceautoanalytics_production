@@ -1,30 +1,14 @@
-// Generated robots.txt via Next.js App Router metadata API.
-// Crawled at https://raceautoanalytics.com/robots.txt
+import { SITE_URL } from "@/lib/seoRoutes";
+
 export default function robots() {
   return {
     rules: [
       {
         userAgent: "*",
-        allow: [
-          "/",
-          "/flash-reports/overview",
-          "/forecast/overview",
-          "/flash-reports/country-data",
-          "/flash-reports/country-data/",
-        ],
-        disallow: [
-          "/admin",
-          "/admin/",
-          "/api",
-          "/api/",
-          "/score-card",
-          "/score-card/",
-          "/settings",
-          "/forecast-new",
-        ],
+        allow: "/",
       },
     ],
-    sitemap: "https://raceautoanalytics.com/sitemap.xml",
-    host: "https://raceautoanalytics.com",
+    sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL,
   };
 }

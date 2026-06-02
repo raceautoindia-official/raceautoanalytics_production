@@ -217,7 +217,7 @@ function CountryModal({
                 disabled={openingCountryData}
                 className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {openingCountryData ? "Opening..." : "Explore Country Data"}
+                {openingCountryData ? "Opening..." : "What's inside"}
               </button>
             </div>
           </div>
@@ -500,7 +500,7 @@ const countries = useMemo<CountryItem[]>(
 
   return (
     <>
-      <main className="relative min-h-[60svh] overflow-hidden bg-slate-950 text-white mb-6">
+      <main className="relative overflow-hidden bg-slate-950 text-white">
         {/* background */}
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950" />
@@ -516,7 +516,7 @@ const countries = useMemo<CountryItem[]>(
 
         {/* hero */}
         <section className="relative">
-          <div className="mx-auto grid w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none grid-cols-1 items-start gap-10 px-2 sm:px-3 lg:px-4 py-12 md:grid-cols-2 md:py-16 lg:gap-14 lg:py-20">
+          <div className="mx-auto grid w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none grid-cols-1 items-start gap-8 px-2 py-10 sm:px-3 md:grid-cols-2 md:py-12 lg:gap-12 lg:px-4 lg:py-14">
             {/* left copy */}
             <div className="relative z-10">
               <Badge>

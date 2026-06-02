@@ -1,25 +1,24 @@
 import type { MetadataRoute } from "next";
 import { FLASH_REPORT_COUNTRY_DATASETS } from "@/lib/flashReportCountryDataset";
+import { SEO_COUNTRY_SLUGS, SITE_URL } from "@/lib/seoRoutes";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = "https://raceautoanalytics.com";
   const now = new Date();
-  const countryEntries = Object.keys(FLASH_REPORT_COUNTRY_DATASETS).map(
+  const countryEntries = SEO_COUNTRY_SLUGS.filter(
+    (slug) => FLASH_REPORT_COUNTRY_DATASETS[slug],
+  ).map(
     (slug) => ({
-      url: `${base}/flash-reports/country-data/${slug}`,
+      url: `${SITE_URL}/flash-reports/country-data/${slug}`,
       lastModified: now,
-      changeFrequency: "weekly" as const,
-      priority: 0.8,
+      changeFrequency: "monthly" as const,
+      priority: 0.85,
     }),
   );
 
   return [
-    { url: `${base}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
-    { url: `${base}/flash-reports`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${base}/flash-reports/overview`, lastModified: now, changeFrequency: "daily", priority: 0.95 },
-    { url: `${base}/flash-reports/country-data`, lastModified: now, changeFrequency: "weekly", priority: 0.85 },
-    { url: `${base}/forecast`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${base}/forecast/overview`, lastModified: now, changeFrequency: "daily", priority: 0.95 },
+    { url: `${SITE_URL}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
+    { url: `${SITE_URL}/flash-reports/overview`, lastModified: now, changeFrequency: "weekly", priority: 0.95 },
+    { url: `${SITE_URL}/forecast/overview`, lastModified: now, changeFrequency: "weekly", priority: 0.95 },
     ...countryEntries,
   ];
 }

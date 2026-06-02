@@ -1,7 +1,7 @@
 // middleware.js
 import { NextResponse } from 'next/server';
+import { SEO_SKIP_PREFIXES, isIndexableSeoPath } from './lib/seoRoutes.js';
 
-const API_SECRET = process.env.API_SECRET;
 const BASIC_USER = 'admin';
 const BASIC_PASS = 'letMeIn321';
 
@@ -14,7 +14,7 @@ export function middleware(req) {
   if (isProtected) {
     const authHeader = req.headers.get('authorization') || '';
     if (!authHeader.startsWith('Basic ')) {
-      return unauthorizedBasic();
+      return unauthorizedBasic(true);
     }
 
     const base64Credentials = authHeader.slice(6).trim();
@@ -22,36 +22,49 @@ export function middleware(req) {
     try {
       decoded = Buffer.from(base64Credentials, 'base64').toString('utf8');
     } catch {
-      return unauthorizedBasic();
+      return unauthorizedBasic(true);
     }
 
     const [user, pass] = decoded.split(':');
     if (user !== BASIC_USER || pass !== BASIC_PASS) {
-      return unauthorizedBasic();
+      return unauthorizedBasic(true);
     }
 
-    return NextResponse.next();
+    return withSeoHeaders(NextResponse.next(), pathname);
   }
 
-  return NextResponse.next();
+  return withSeoHeaders(NextResponse.next(), pathname);
 }
 
-function unauthorizedBasic() {
+function unauthorizedBasic(noindex = false) {
+  const headers = {
+    'WWW-Authenticate': 'Basic realm="Secure Area"',
+  };
+
+  if (noindex) {
+    headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive';
+  }
+
   return new NextResponse('Unauthorized', {
     status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="Secure Area"',
-    },
+    headers,
   });
+}
+
+function withSeoHeaders(res, pathname) {
+  if (SEO_SKIP_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return res;
+  }
+
+  if (!isIndexableSeoPath(pathname)) {
+    res.headers.set('X-Robots-Tag', 'noindex, follow, noarchive');
+  }
+
+  return res;
 }
 
 export const config = {
   matcher: [
-    '/admin',
-    '/admin/:path*',
-    '/forecast-new',
-    '/forecast-new/:path*',
-    '/score-card',
-    '/score-card/:path*',
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|llms.txt).*)',
   ],
 };

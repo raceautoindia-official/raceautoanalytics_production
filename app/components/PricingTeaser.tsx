@@ -19,7 +19,7 @@ type RawPricingRow = {
   gold?: string | number | null;
   platinum?: string | number | null;
   bronze?: string | number | null;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 function toNum(v: unknown): number {
@@ -84,7 +84,7 @@ export default function PricingTeaser() {
           </div>
           <div className="mt-1 text-lg font-semibold text-white sm:text-xl">
             {loading
-              ? "Loading pricing…"
+              ? "Flexible plans for individuals and businesses"
               : cheapest
                 ? `Plans starting from ₹${Number(cheapest).toLocaleString("en-IN")}/month`
                 : "Flexible plans for individuals and businesses"}

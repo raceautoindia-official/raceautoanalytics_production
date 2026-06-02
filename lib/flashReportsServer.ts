@@ -154,7 +154,7 @@ function toNumLoose(v: any) {
 }
 
 function resolveInternalSiteUrl(raw?: string | null) {
-  const fallback = "http://localhost:3000";
+  const fallback = `http://localhost:${process.env.PORT || "3003"}`;
   const candidate = String(raw || fallback).trim();
 
   try {
@@ -260,6 +260,18 @@ export async function getOverallChartDataWithMeta(opts?: {
       hierarchyData: await hierarchyRes.json(),
       volumeData: await volumeRes.json(),
     };
+  };
+
+  const loadBackendOrLocal = async () => {
+    try {
+      return await loadBackend();
+    } catch (error) {
+      console.warn(
+        "overall chart backend fetch failed; falling back to local APIs",
+        error,
+      );
+      return loadLocal();
+    }
   };
 
   // ✅ compute using the SAME reliable path logic for India + all countries
@@ -481,12 +493,12 @@ export async function getOverallChartDataWithMeta(opts?: {
 
   // ✅ INDIA: keep existing behavior (backend only)
   if (!wantsNonIndia) {
-    const backend = await loadBackend();
+    const backend = await loadBackendOrLocal();
     return computeFrom(backend.hierarchyData, backend.volumeData);
   }
 
   // ✅ NON-INDIA: backend first; if empty, fallback to local
-  const backend = await loadBackend();
+  const backend = await loadBackendOrLocal();
   const resBackend = computeFrom(backend.hierarchyData, backend.volumeData);
   const hasAnyBackend = resBackend.data.some(
     (p) => Object.keys(p.data || {}).length > 0,
@@ -687,6 +699,18 @@ export async function getOverallAlternatePenetration(
     };
   };
 
+  const loadBackendOrLocal = async () => {
+    try {
+      return await loadBackend();
+    } catch (error) {
+      console.warn(
+        "alternate penetration backend fetch failed; falling back to local APIs",
+        error,
+      );
+      return loadLocal();
+    }
+  };
+
   const computeFrom = (
     hierarchyData: any[],
     volumeData: any[],
@@ -794,11 +818,11 @@ export async function getOverallAlternatePenetration(
   };
 
   if (!wantsNonIndia) {
-    const backend = await loadBackend();
+    const backend = await loadBackendOrLocal();
     return computeFrom(backend.hierarchyData, backend.volumeData);
   }
 
-  const backend = await loadBackend();
+  const backend = await loadBackendOrLocal();
   const backendResult = computeFrom(backend.hierarchyData, backend.volumeData);
   if (backendResult.value != null) return backendResult;
 

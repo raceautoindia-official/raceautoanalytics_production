@@ -221,7 +221,7 @@ function CountryModal({
             disabled={openingCountryData}
             className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {openingCountryData ? "Opening..." : "Explore Country Data"}
+            {openingCountryData ? "Opening..." : "What's inside"}
           </button>
         </div>
 
@@ -933,7 +933,7 @@ const countries: CountryItem[] = useMemo(
             </div>
           </div>
 
-          <div className="mt-14 pb-16">
+          <div className="mt-10 pb-6">
             <div className="rounded-3xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>

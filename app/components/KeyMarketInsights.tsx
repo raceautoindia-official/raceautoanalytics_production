@@ -10,6 +10,7 @@ import {
   Activity,
   Globe2,
   Target,
+  type LucideIcon,
 } from "lucide-react";
 
 type OptionalBox = {
@@ -78,7 +79,9 @@ const Card = ({
 const KeyMarketInsights: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [topCategoryText, setTopCategoryText] = useState<string>("Loading…");
+  const [topCategoryText, setTopCategoryText] = useState<string>(
+    "Latest category movement is refreshed from monthly flash report data.",
+  );
   const [latestReportMonth, setLatestReportMonth] = useState<string>("");
   const [optionalBoxes, setOptionalBoxes] = useState<OptionalBox[]>([]);
 
@@ -191,7 +194,7 @@ const KeyMarketInsights: React.FC = () => {
           setOptionalBoxes(Array.isArray(optJson) ? optJson : []);
           setLoading(false);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error(e);
         if (!cancelled) {
           setError("Failed to load key market insights");
@@ -211,7 +214,7 @@ const KeyMarketInsights: React.FC = () => {
     return (optionalBoxes || []).filter((b) => b?.title && b?.body);
   }, [optionalBoxes]);
 
-  const IconByName: Record<string, any> = {
+  const IconByName: Record<string, LucideIcon> = {
     Activity,
     Globe2,
     Target,
@@ -229,7 +232,7 @@ const KeyMarketInsights: React.FC = () => {
     slate: "bg-[#0b141f]/70",
   };
 
-  const baseCardUpdatedLabel = latestReportMonth || "—";
+  const baseCardUpdatedLabel = latestReportMonth || "Monthly updates";
 
   return (
     <section className="w-full bg-[#0b1218] text-white py-10 md:py-14">
@@ -240,6 +243,28 @@ const KeyMarketInsights: React.FC = () => {
         {error ? <p className="mt-4 text-sm text-rose-300">{error}</p> : null}
 
         <div className="mt-8 grid grid-cols-1 gap-6 md:mt-10 md:grid-cols-2 xl:grid-cols-3">
+          <Card className="h-full bg-[#0b141f]/70">
+            <div className="flex h-full flex-col">
+              <div className="flex items-start gap-4">
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/15 text-blue-300">
+                  <TrendingUp className="h-6 w-6" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    Latest category movement
+                  </h3>
+                  <p className="mt-2 leading-relaxed text-white/80">
+                    {topCategoryText}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-white/10 pt-3 text-xs text-white/55">
+                Last updated: {baseCardUpdatedLabel}
+              </div>
+            </div>
+          </Card>
+
           {optionalCards.map((b) => {
             const Icon = IconByName[b.icon || "Activity"] || Activity;
             const bgClass =
@@ -321,7 +346,9 @@ const KeyMarketInsights: React.FC = () => {
         </div>
 
         {loading ? (
-          <p className="mt-4 text-sm text-white/50">Loading insights…</p>
+          <p className="mt-4 text-sm text-white/50">
+            Market insight cards refresh from the latest published data.
+          </p>
         ) : null}
       </div>
     </section>

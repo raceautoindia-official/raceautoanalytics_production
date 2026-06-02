@@ -1,5 +1,6 @@
 // app/page.tsx
 import type { Metadata } from "next";
+import Link from "next/link";
 import Footer from "@/app/components/Footer";
 import QuickGuidesSection from "./components/QuickGuidesSection";
 import NavBar from "./components/Navbar";
@@ -48,6 +49,24 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
+  const faqItems = [
+    {
+      question: "What does Race Auto Analytics provide?",
+      answer:
+        "Race Auto Analytics provides automotive sales forecast tools, monthly flash reports, country-wise vehicle sales data, OEM share tracking, EV penetration views, and segment-level market intelligence.",
+    },
+    {
+      question: "Which automotive segments are covered?",
+      answer:
+        "Coverage includes passenger vehicles, commercial vehicles, trucks, buses, two-wheelers, three-wheelers, tractors, construction equipment, EV trends, and application-level splits where available.",
+    },
+    {
+      question: "How are forecasts built?",
+      answer:
+        "Forecast views combine AI and machine learning baselines, survey outlooks, analyst assumptions, and Build Your Forecast scoring so planning teams can compare more than one demand signal.",
+    },
+  ];
+
   const appJsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -126,6 +145,47 @@ export default function Page() {
     },
   };
 
+  const serviceJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: "Automotive Sales Forecast and Flash Report Platform",
+    provider: {
+      "@type": "Organization",
+      name: "Race Auto Analytics",
+      url: "https://raceautoanalytics.com/",
+    },
+    serviceType: "Automotive market intelligence",
+    areaServed: "Global",
+    description:
+      "AI-powered automotive sales forecast and flash report platform covering country markets, OEM share, EV penetration, vehicle segments, and six-month demand outlooks.",
+  };
+
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Race Auto Analytics",
+        item: "https://raceautoanalytics.com/",
+      },
+    ],
+  };
+
   return (
     <>
       <script
@@ -144,6 +204,18 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <NavBar />
       <main>
       {/* <BannerHome /> */}
@@ -160,6 +232,7 @@ export default function Page() {
           </>
           }
         />
+        <HomeSeoContent faqItems={faqItems} />
         {/* Audit I-2: pricing teaser so first-time visitors see a price range
             on the homepage without having to click into /subscription. */}
         <PricingTeaser />
@@ -174,5 +247,145 @@ export default function Page() {
 
       <Footer />
     </>
+  );
+}
+
+function HomeSeoContent({
+  faqItems,
+}: {
+  faqItems: Array<{ question: string; answer: string }>;
+}) {
+  const countryLinks = [
+    ["India", "india"],
+    ["Brazil", "brazil"],
+    ["South Africa", "south-africa"],
+    ["Japan", "japan"],
+    ["Germany", "germany"],
+    ["Australia", "australia"],
+  ];
+
+  const segments = [
+    "Passenger vehicles",
+    "Commercial vehicles",
+    "Two-wheelers",
+    "Three-wheelers",
+    "Trucks and buses",
+    "Tractors and construction equipment",
+  ];
+
+  return (
+    <section className="bg-slate-950 pb-10 pt-0 text-white md:pb-12">
+      <div className="mx-auto w-[95vw] max-w-none px-2 sm:px-3 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_12px_40px_rgba(0,0,0,.45)] lg:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200/80">
+              Automotive sales forecast platform
+            </p>
+            <h2 className="mt-3 text-2xl font-extrabold tracking-tight md:text-3xl">
+              Forecast, flash reports, and market intelligence in one workflow
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-white/75 md:text-base">
+              Race Auto Analytics helps automotive teams monitor monthly
+              vehicle sales data, compare OEM market share, track EV
+              penetration, and build a six-month automotive sales forecast for
+              country markets. The public flash report and forecast pages are
+              designed for product discovery, while the subscribed application
+              keeps deeper dashboards, filters, and score-card workflows behind
+              the operational product experience.
+            </p>
+            <p className="mt-4 text-sm leading-7 text-white/75 md:text-base">
+              The platform supports OEM planning, dealer planning, inventory
+              review, export-import checks, pricing discussions, EV strategy,
+              and competitive benchmarking. Teams can start with monthly
+              automotive flash reports, then use AI/ML forecasts, survey
+              outlooks, analyst assumptions, and Build Your Forecast scoring to
+              validate demand direction before internal planning meetings.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/forecast/overview"
+                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+              >
+                Automotive sales forecast
+              </Link>
+              <Link
+                href="/flash-reports/overview"
+                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+              >
+                Automotive flash reports
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_12px_40px_rgba(0,0,0,.45)]">
+            <h2 className="text-xl font-bold tracking-tight">
+              Country coverage
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-white/70">
+              Public country pages summarize automotive sales data coverage and
+              link back into the flash report and forecast hubs.
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-2">
+              {countryLinks.map(([name, slug]) => (
+                <Link
+                  key={slug}
+                  href={`/flash-reports/country-data/${slug}`}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85 transition hover:bg-white/10"
+                >
+                  {name} automotive sales data
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_12px_40px_rgba(0,0,0,.45)]">
+            <h2 className="text-xl font-bold tracking-tight">
+              Segment coverage
+            </h2>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {segments.map((segment) => (
+                <div
+                  key={segment}
+                  className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white/80"
+                >
+                  {segment}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_12px_40px_rgba(0,0,0,.45)]">
+            <h2 className="text-xl font-bold tracking-tight">
+              Methodology signals
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-white/75">
+              Forecast pages explain the six-month rolling outlook, AI and ML
+              baselines, survey-led market sentiment, analyst assumptions, and
+              BYF scoring. Flash reports explain the monthly release cycle,
+              segment coverage, OEM share views, EV trend checks, and country
+              summary pages for search visitors.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_12px_40px_rgba(0,0,0,.45)]">
+          <h2 className="text-xl font-bold tracking-tight">FAQ</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {faqItems.map((item) => (
+              <div key={item.question}>
+                <h3 className="text-sm font-semibold text-white/95">
+                  {item.question}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-white/70">
+                  {item.answer}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

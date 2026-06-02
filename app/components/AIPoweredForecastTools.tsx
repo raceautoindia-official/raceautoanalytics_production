@@ -245,7 +245,9 @@ export default function AIPoweredForecastTools() {
             <CalendarDays className="h-5 w-5" />
             <span>
               Last updated:{" "}
-              <span className="text-white/85">{latestUpdatedLabel || "–"}</span>
+              <span className="text-white/85">
+                {latestUpdatedLabel || "Monthly refresh cycle"}
+              </span>
             </span>
           </div>
         </div>

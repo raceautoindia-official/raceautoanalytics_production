@@ -17,6 +17,23 @@ type OverallChartPoint = {
   data: Record<string, number>; // 2W, 3W, PV, TRAC, Truck, Bus, CV, Total
 };
 
+type CategoryDisplayPoint = {
+  key: string;
+  name: string;
+  sales: number | null;
+  color: string;
+};
+
+type CardTooltipProps = {
+  active?: boolean;
+  payload?: Array<{
+    payload?: {
+      name?: string;
+      sales?: number;
+    };
+  }>;
+};
+
 /* ---------- helpers ---------- */
 function formatIndian(n: number) {
   const s = n.toString();
@@ -27,7 +44,7 @@ function formatIndian(n: number) {
   );
 }
 
-function CardTooltip({ active, payload }: any) {
+function CardTooltip({ active, payload }: CardTooltipProps) {
   if (!active || !payload?.length) return null;
   const p = payload[0]?.payload;
   return (
@@ -104,7 +121,7 @@ const CrossCategoryPerformance: React.FC = () => {
           }) ?? null;
 
         if (!cancelled) setLatestPoint(latest);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error(e);
         if (!cancelled) {
           setError("Failed to load cross-category sales from backend.");
@@ -121,17 +138,24 @@ const CrossCategoryPerformance: React.FC = () => {
     };
   }, []);
 
-  const baseData = useMemo(() => {
+  const baseData = useMemo<CategoryDisplayPoint[]>(() => {
     const data = latestPoint?.data || {};
     return CATEGORY_CONFIG.map((c) => ({
       key: c.key,
       name: c.name,
-      sales: Number(data?.[c.key] ?? 0) || 0,
+      sales: latestPoint ? Number(data?.[c.key] ?? 0) || 0 : null,
       color: c.color,
     }));
   }, [latestPoint]);
 
-  const chartData = useMemo(() => baseData, [baseData]);
+  const chartData = useMemo(
+    () =>
+      baseData.map((item) => ({
+        ...item,
+        sales: item.sales ?? 0,
+      })),
+    [baseData],
+  );
 
   const latestMonthLabel = useMemo(() => {
     if (!latestPoint?.month) return "";
@@ -170,7 +194,7 @@ const CrossCategoryPerformance: React.FC = () => {
           >
             {loading ? (
               <div className="h-full flex items-center justify-center text-sm text-white/70">
-                Loading…
+                Preparing latest category view.
               </div>
             ) : error ? (
               <div className="h-full flex items-center justify-center text-sm text-white/70">
@@ -230,7 +254,7 @@ const CrossCategoryPerformance: React.FC = () => {
                 <div className="leading-tight">
                   <div className="font-medium">{d.name}</div>
                   <div className="text-xs text-white/70">
-                    {formatIndian(d.sales)}
+                    {latestPoint ? formatIndian(d.sales ?? 0) : "Monthly data"}
                   </div>
                 </div>
               </div>
