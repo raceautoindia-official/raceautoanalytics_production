@@ -78,7 +78,9 @@ export default function LeadCaptureForm() {
     event.preventDefault();
 
     if (!isComplete) {
-      setError("Please complete all required fields and accept the contact consent.");
+      setError(
+        "Please complete all required fields and accept the contact consent.",
+      );
       setSubmitted(false);
       return;
     }
@@ -88,12 +90,8 @@ export default function LeadCaptureForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:p-6"
-      aria-describedby="lead-form-note"
-    >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <TextField
           id="fullName"
           label="Full Name"
@@ -145,7 +143,7 @@ export default function LeadCaptureForm() {
         <div className="md:col-span-2">
           <label
             htmlFor="message"
-            className="block text-sm font-semibold text-slate-800"
+            className="block text-xs font-semibold uppercase tracking-[0.12em] text-white/60"
           >
             Message
           </label>
@@ -156,19 +154,19 @@ export default function LeadCaptureForm() {
             rows={4}
             value={form.message}
             onChange={(event) => updateField("message", event.target.value)}
-            className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
             placeholder="Tell us about your market intelligence requirement"
           />
         </div>
       </div>
 
-      <label className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+      <label className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-white/70">
         <input
           type="checkbox"
           checked={form.consent}
           required
           onChange={(event) => updateField("consent", event.target.checked)}
-          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+          className="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950 text-blue-600 focus:ring-blue-400"
         />
         <span>
           I agree to be contacted by Race Auto Analytics regarding reports,
@@ -177,20 +175,20 @@ export default function LeadCaptureForm() {
       </label>
 
       {error ? (
-        <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+        <p className="rounded-xl border border-red-300/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100">
           {error}
         </p>
       ) : null}
 
       {submitted ? (
-        <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+        <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-100">
           <p className="font-semibold">
             Thank you. Your sample report is now unlocked. Our team will contact
             you shortly.
           </p>
           <a
             href={SAMPLE_REPORT_URL}
-            className="mt-3 inline-flex w-full items-center justify-center rounded-md bg-blue-700 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-800 sm:w-auto"
+            className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 sm:w-auto"
           >
             Download Sample Report
           </a>
@@ -199,15 +197,10 @@ export default function LeadCaptureForm() {
 
       <button
         type="submit"
-        className="mt-5 inline-flex w-full items-center justify-center rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:w-auto"
+        className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
       >
         Submit & Unlock Sample Report
       </button>
-
-      <p id="lead-form-note" className="mt-3 text-xs leading-5 text-slate-500">
-        This form is frontend-only for now and can be connected to CRM, email,
-        or database workflows later.
-      </p>
     </form>
   );
 }
@@ -227,7 +220,10 @@ function TextField({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">
+      <label
+        htmlFor={id}
+        className="block text-xs font-semibold uppercase tracking-[0.12em] text-white/60"
+      >
         {label}
       </label>
       <input
@@ -237,7 +233,7 @@ function TextField({
         required
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+        className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
       />
     </div>
   );
@@ -258,7 +254,10 @@ function SelectField({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">
+      <label
+        htmlFor={id}
+        className="block text-xs font-semibold uppercase tracking-[0.12em] text-white/60"
+      >
         {label}
       </label>
       <select
@@ -267,7 +266,7 @@ function SelectField({
         required
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+        className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
       >
         <option value="">Select {label}</option>
         {options.map((option) => (
