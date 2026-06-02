@@ -317,7 +317,12 @@ function FlipInfoCard({
   backSubtitle?: string;
 }) {
   const [flipped, setFlipped] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
   const embedUrl = getYouTubeEmbedUrl(videoUrl || "");
+
+  useEffect(() => {
+    if (!flipped) setVideoLoaded(false);
+  }, [flipped]);
 
   return (
     <div className="group relative h-full">
@@ -430,15 +435,24 @@ function FlipInfoCard({
                       </div>
 
                       {embedUrl ? (
-                        <a
-                          href={videoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
-                        >
-                          <PlayCircle className="h-4 w-4" />
-                          Watch on YouTube
-                        </a>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setVideoLoaded(true)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                          >
+                            <PlayCircle className="h-4 w-4" />
+                            Play video
+                          </button>
+                          <a
+                            href={videoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                          >
+                            Watch on YouTube
+                          </a>
+                        </div>
                       ) : (
                         <button
                           type="button"
@@ -451,7 +465,7 @@ function FlipInfoCard({
                     </div>
 
                     <div className="mt-3 flex-1 min-h-0">
-                      {embedUrl ? (
+                      {embedUrl && videoLoaded ? (
                         <div className="h-full overflow-hidden rounded-xl border border-white/10 bg-black">
                           <iframe
                             className="h-full w-full"
@@ -460,6 +474,14 @@ function FlipInfoCard({
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                             allowFullScreen
                           />
+                        </div>
+                      ) : embedUrl ? (
+                        <div className="flex h-full min-h-[150px] flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 px-4 text-center text-xs text-white/55">
+                          <PlayCircle className="mb-2 h-6 w-6 text-white/60" />
+                          <span>
+                            Video preview loads only when played to keep the
+                            homepage fast.
+                          </span>
                         </div>
                       ) : (
                         <div className="flex h-full min-h-[150px] items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 text-xs text-white/50">

@@ -137,20 +137,18 @@ const TractorTrailerSalesChart = () => {
         const date = new Date(
           baseDate.getFullYear(),
           baseDate.getMonth() + i,
-          1
+          1,
         );
         return `${date.toLocaleString("default", {
           month: "short",
         })} ${date.getFullYear()}`;
       }),
-    []
+    [],
   );
 
   // Apr 2025 → Mar 2026 (12 values)
   const values = [
-    4185, 4256, 3988, 4362,
-    4122, 4236, 4352, 4462,
-    4125, 4332, 4066, 4458,
+    4185, 4256, 3988, 4362, 4122, 4236, 4352, 4462, 4125, 4332, 4066, 4458,
   ];
 
   const data = months.map((label, idx) => ({

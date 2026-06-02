@@ -33,6 +33,55 @@ declare global {
 }
 
 const USD_RATE = 90.2;
+let razorpayScriptPromise: Promise<void> | null = null;
+
+function loadRazorpaySdk() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Razorpay checkout is not available."));
+  }
+
+  if (window.Razorpay) {
+    return Promise.resolve();
+  }
+
+  if (razorpayScriptPromise) {
+    return razorpayScriptPromise;
+  }
+
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById("razorpay-checkout-js");
+
+    if (existing) {
+      existing.addEventListener(
+        "load",
+        () => (window.Razorpay ? resolve() : reject(new Error("Razorpay SDK failed to initialize."))),
+        { once: true },
+      );
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Unable to load Razorpay SDK.")),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "razorpay-checkout-js";
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.Razorpay) {
+        resolve();
+      } else {
+        reject(new Error("Razorpay SDK failed to initialize."));
+      }
+    };
+    script.onerror = () => reject(new Error("Unable to load Razorpay SDK."));
+    document.body.appendChild(script);
+  });
+
+  return razorpayScriptPromise;
+}
 
 const VISUAL_DISCOUNT_PERCENT: Partial<Record<PlanKey, number>> = {
   gold: 50,
@@ -578,17 +627,14 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
       return;
     }
 
-    if (!window.Razorpay) {
-      setError("Razorpay SDK not loaded.");
-      return;
-    }
-
     setCheckoutIntent(null);
     setAgreedToTerms(false);
     setPayingPlan(planToPay);
     setError(null);
 
     try {
+      await loadRazorpaySdk();
+
       const createRes = await fetch(
         "/api/subscription/create-payment",
         {

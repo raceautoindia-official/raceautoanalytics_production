@@ -10,7 +10,6 @@ import { Suspense } from "react";
 import Script from "next/script";
 import RouteAuthGate from "@/components/auth/RouteAuthGate";
 import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
-import SubscriptionModal from "@/components/subscription/SubscriptionModal";
 import dynamic from "next/dynamic";
 const ScrollToTopButton = dynamic(
   () => import("@/components/ui/ScrollToTopButton"),
@@ -105,15 +104,14 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://flagcdn.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://flagcdn.com" />
+      </head>
       <body
         className={`${inter.className} ${inter.variable} antialiased`}
         suppressHydrationWarning
       >
-        <Script
-          src="https://checkout.razorpay.com/v1/checkout.js"
-          strategy="lazyOnload"
-        />
-
         {GA_ID ? (
           <>
             <Script
@@ -139,8 +137,6 @@ export default function RootLayout({ children }) {
               <SubscriptionModalProvider>
                 <RouteAuthGate />
                 {children}
-
-                <SubscriptionModal />
               </SubscriptionModalProvider>
             </AuthModalProvider>
           </Providers>

@@ -1,13 +1,11 @@
 // app/flash-reports/overview/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
-import VehicleCategorySalesCard from "@/app/components/VehicleCategorySalesCard";
 import IndustryCategories from "@/app/components/IndustryCategories";
-import KeyMarketInsights from "@/app/components/KeyMarketInsights";
 import Footer from "@/app/components/Footer";
 import MarketHeroSection from "@/app/components/MarketHeroSection";
 import ExploreVehicleCategories from "@/app/components/ExploreVehicleCategories";
-import BYFSubmitCards from "./components/BYFSubmitCards";
+import DeferredOverviewSections from "./components/DeferredOverviewSections";
 import { FLASH_REPORT_COUNTRY_DATASETS } from "@/lib/flashReportCountryDataset";
 import { SITE_URL } from "@/lib/seoRoutes";
 
@@ -90,10 +88,8 @@ export default function Page() {
       />
       <MarketHeroSection />
       <FlashReportSeoContent countries={countries} faqItems={faqItems} />
-      <BYFSubmitCards />
-      <VehicleCategorySalesCard />
       <IndustryCategories />
-      <KeyMarketInsights />
+      <DeferredOverviewSections />
       <ExploreVehicleCategories />
       <Footer />
     </>
@@ -162,12 +158,14 @@ function FlashReportSeoContent({
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/forecast/overview"
+              prefetch={false}
               className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
               6-month automotive sales forecast
             </Link>
             <Link
               href="/subscription"
+              prefetch={false}
               className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
             >
               Subscribe for full data
@@ -190,6 +188,7 @@ function FlashReportSeoContent({
                 <Link
                   key={country.slug}
                   href={`/flash-reports/country-data/${country.slug}`}
+                  prefetch={false}
                   className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white/85 transition hover:bg-white/10"
                 >
                   {country.name} automotive flash report

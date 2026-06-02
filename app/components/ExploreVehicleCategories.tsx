@@ -1,6 +1,3 @@
-"use client";
-
-import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -12,7 +9,7 @@ const CATEGORIES = [
   {
     title: "Passenger Vehicles",
     img: "/images/cars-flash-report.jpeg",
-    href: "flash-reports/passenger-vehicles", // ← change as needed
+    href: "/flash-reports/passenger-vehicles",
   },
   {
     title: "Commercial Vehicles",
@@ -71,7 +68,7 @@ export default function ExploreVehicleCategories() {
               src={c.img}
               alt={c.title}
               fill
-              priority
+              sizes="(min-width: 1280px) 16vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
               className="object-cover transition duration-500 group-hover:scale-[1.03] group-hover:brightness-[.9]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />

@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import Footer from "@/app/components/Footer";
-import AIPoweredForecastTools from "@/app/components/AIPoweredForecastTools";
 import NavBar from "@/app/components/Navbar";
 import { SITE_URL } from "@/lib/seoRoutes";
+import DeferredForecastTools from "./components/DeferredForecastTools";
 
 export const metadata: Metadata = {
   title: "Automotive Sales Forecast Tools | AI, Survey & BYF Forecast Platform",
@@ -114,6 +114,7 @@ export default function Page() {
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               href="/forecast"
+              prefetch={false}
               className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:brightness-110"
             >
               Open Forecast Tool
@@ -121,18 +122,21 @@ export default function Page() {
             </Link>
             <Link
               href="/flash-reports/overview"
+              prefetch={false}
               className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
               Browse Flash Reports
             </Link>
             <Link
               href="/flash-reports/overview#byf"
+              prefetch={false}
               className="inline-flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 px-5 py-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20"
             >
               Submit a BYF Score
             </Link>
             <Link
               href="/subscription"
+              prefetch={false}
               className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
               View Pricing
@@ -143,7 +147,7 @@ export default function Page() {
 
       <main className="bg-slate-950 py-5 text-white">
         <ForecastSeoContent faqItems={faqItems} />
-        <AIPoweredForecastTools />
+        <DeferredForecastTools />
       </main>
 
       <Footer />
@@ -275,12 +279,14 @@ function ForecastSeoContent({
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               href="/flash-reports/overview"
+              prefetch={false}
               className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
               Monthly automotive flash reports
             </Link>
             <Link
               href="/flash-reports/country-data/india"
+              prefetch={false}
               className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
             >
               India vehicle sales forecast context

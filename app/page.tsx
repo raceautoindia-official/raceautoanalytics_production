@@ -7,9 +7,9 @@ import NavBar from "./components/Navbar";
 import PricingTeaser from "@/app/components/PricingTeaser";
 
 export const metadata: Metadata = {
-  title: "Race Auto Analytics | Automotive Sales Forecast & Flash Reports",
+  title: "Automotive Sales Forecast | Race Auto Analytics",
   description:
-    "Race Auto Analytics provides automotive sales forecasting, country-wise flash reports, OEM market share tracking, EV sales insights, and segment-wise market intelligence for mobility teams.",
+    "Automotive sales forecast and flash report platform for country-wise vehicle data, OEM share, EV trends and segment market intelligence.",
   alternates: {
     canonical: "/",
   },
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     "automotive market intelligence platform",
   ],
   openGraph: {
-    title: "Race Auto Analytics | Automotive Sales Forecast & Flash Reports",
+    title: "Automotive Sales Forecast | Race Auto Analytics",
     description:
       "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise automotive flash reports.",
     url: "https://raceautoanalytics.com/",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Race Auto Analytics | Automotive Sales Forecast & Flash Reports",
+    title: "Automotive Sales Forecast | Race Auto Analytics",
     description:
       "Forecast vehicle sales, track OEM market share, and monitor EV adoption with country-wise automotive flash reports.",
     images: ["/images/logo.webp"],
@@ -160,6 +160,28 @@ export default function Page() {
       "AI-powered automotive sales forecast and flash report platform covering country markets, OEM share, EV penetration, vehicle segments, and six-month demand outlooks.",
   };
 
+  const localBusinessJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: "Race Auto Analytics",
+    image: "https://raceautoanalytics.com/images/logo.webp",
+    url: "https://raceautoanalytics.com/",
+    telephone: "+91 8072098352",
+    email: "info@raceautoindia.com",
+    address: {
+      "@type": "PostalAddress",
+      addressCountry: "IN",
+      addressRegion: "Tamil Nadu",
+    },
+    parentOrganization: {
+      "@type": "Organization",
+      name: "Race Innovations Pvt Ltd Co.",
+      url: "https://raceinnovations.in/",
+    },
+    description:
+      "Automotive market intelligence and vehicle sales forecast platform for OEM, dealer, EV, and mobility planning teams.",
+  };
+
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -207,6 +229,10 @@ export default function Page() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
       />
       <script
         type="application/ld+json"
