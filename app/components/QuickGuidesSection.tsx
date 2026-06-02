@@ -221,7 +221,7 @@ function CountryModal({
             disabled={openingCountryData}
             className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {openingCountryData ? "Opening..." : "What's inside"}
+            {openingCountryData ? "Opening..." : "What’s Inside"}
           </button>
         </div>
 
@@ -317,12 +317,7 @@ function FlipInfoCard({
   backSubtitle?: string;
 }) {
   const [flipped, setFlipped] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
   const embedUrl = getYouTubeEmbedUrl(videoUrl || "");
-
-  useEffect(() => {
-    if (!flipped) setVideoLoaded(false);
-  }, [flipped]);
 
   return (
     <div className="group relative h-full">
@@ -435,24 +430,15 @@ function FlipInfoCard({
                       </div>
 
                       {embedUrl ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setVideoLoaded(true)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
-                          >
-                            <PlayCircle className="h-4 w-4" />
-                            Play video
-                          </button>
-                          <a
-                            href={videoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
-                          >
-                            Watch on YouTube
-                          </a>
-                        </div>
+                        <a
+                          href={videoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          Watch on YouTube
+                        </a>
                       ) : (
                         <button
                           type="button"
@@ -465,7 +451,7 @@ function FlipInfoCard({
                     </div>
 
                     <div className="mt-3 flex-1 min-h-0">
-                      {embedUrl && videoLoaded ? (
+                      {embedUrl ? (
                         <div className="h-full overflow-hidden rounded-xl border border-white/10 bg-black">
                           <iframe
                             className="h-full w-full"
@@ -474,14 +460,6 @@ function FlipInfoCard({
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                             allowFullScreen
                           />
-                        </div>
-                      ) : embedUrl ? (
-                        <div className="flex h-full min-h-[150px] flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 px-4 text-center text-xs text-white/55">
-                          <PlayCircle className="mb-2 h-6 w-6 text-white/60" />
-                          <span>
-                            Video preview loads only when played to keep the
-                            homepage fast.
-                          </span>
                         </div>
                       ) : (
                         <div className="flex h-full min-h-[150px] items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/5 text-xs text-white/50">
@@ -534,9 +512,7 @@ function RegionBadge({ region }: { region: RegionItem }) {
       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-xs">
         {region.icon}
       </span>
-      <span className="ml-2 hidden text-xs sm:inline">
-        {region.name}
-      </span>
+      <span className="ml-2 hidden text-xs sm:inline">{region.name}</span>
     </div>
   );
 }
@@ -592,109 +568,109 @@ export default function QuickGuidesSection({
   const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
-const countries: CountryItem[] = useMemo(
-  () => [
-    {
-      name: "India",
-      code: "in",
-      slug: "india",
-      description:
-        "India flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Brazil",
-      code: "br",
-      slug: "brazil",
-      description:
-        "Brazil flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "South Africa",
-      code: "za",
-      slug: "south-africa",
-      description:
-        "South Africa flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Japan",
-      code: "jp",
-      slug: "japan",
-      description:
-        "Japan flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Pakistan",
-      code: "pk",
-      slug: "pakistan",
-      description:
-        "Pakistan flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Vietnam",
-      code: "vn",
-      slug: "vietnam",
-      description:
-        "Vietnam flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Germany",
-      code: "de",
-      slug: "germany",
-      description:
-        "Germany flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Australia",
-      code: "au",
-      slug: "australia",
-      description:
-        "Australia flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Chile",
-      code: "cl",
-      slug: "chile",
-      description:
-        "Chile flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Sweden",
-      code: "se",
-      slug: "sweden",
-      description:
-        "Sweden flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Peru",
-      code: "pe",
-      slug: "peru",
-      description:
-        "Peru flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Colombia",
-      code: "co",
-      slug: "colombia",
-      description:
-        "Colombia flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Russia",
-      code: "ru",
-      slug: "russia",
-      description:
-        "Russia flash report will include total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Belgium",
-      code: "be",
-      slug: "belgium",
-      description:
-        "Belgium flash report will include total market sales, EV sales, and application split.",
-    },
-  ],
-  [],
-);
+  const countries: CountryItem[] = useMemo(
+    () => [
+      {
+        name: "India",
+        code: "in",
+        slug: "india",
+        description:
+          "India flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Brazil",
+        code: "br",
+        slug: "brazil",
+        description:
+          "Brazil flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "South Africa",
+        code: "za",
+        slug: "south-africa",
+        description:
+          "South Africa flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Japan",
+        code: "jp",
+        slug: "japan",
+        description:
+          "Japan flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Pakistan",
+        code: "pk",
+        slug: "pakistan",
+        description:
+          "Pakistan flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Vietnam",
+        code: "vn",
+        slug: "vietnam",
+        description:
+          "Vietnam flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Germany",
+        code: "de",
+        slug: "germany",
+        description:
+          "Germany flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Australia",
+        code: "au",
+        slug: "australia",
+        description:
+          "Australia flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Chile",
+        code: "cl",
+        slug: "chile",
+        description:
+          "Chile flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Sweden",
+        code: "se",
+        slug: "sweden",
+        description:
+          "Sweden flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Peru",
+        code: "pe",
+        slug: "peru",
+        description:
+          "Peru flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Colombia",
+        code: "co",
+        slug: "colombia",
+        description:
+          "Colombia flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Russia",
+        code: "ru",
+        slug: "russia",
+        description:
+          "Russia flash report will include total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Belgium",
+        code: "be",
+        slug: "belgium",
+        description:
+          "Belgium flash report will include total market sales, EV sales, and application split.",
+      },
+    ],
+    [],
+  );
 
   const regions: RegionItem[] = useMemo(
     () => [
@@ -887,7 +863,7 @@ const countries: CountryItem[] = useMemo(
               />
             </div>
           </div>
-<QuickReferenceSection />
+          <QuickReferenceSection />
           <div className="mt-4">
             <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">
               What you get in one place
@@ -955,7 +931,7 @@ const countries: CountryItem[] = useMemo(
             </div>
           </div>
 
-          <div className="mt-10 pb-6">
+          <div className="mt-14 pb-16">
             <div className="rounded-3xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_18px_60px_rgba(0,0,0,.55)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>

@@ -217,7 +217,7 @@ function CountryModal({
                 disabled={openingCountryData}
                 className="text-sm font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {openingCountryData ? "Opening..." : "What's inside"}
+                {openingCountryData ? "Opening..." : "What’s Inside"}
               </button>
             </div>
           </div>
@@ -323,123 +323,123 @@ export default function MarketHeroSection() {
   const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
-const countries = useMemo<CountryItem[]>(
-  () => [
-    {
-      name: "India",
-      code: "in",
-      slug: "india",
-      scheduleLabel: "Every month on 3rd",
-      description:
-        "India flash report includes total market sales, EV sales, and application split. This will be launched every month on the 3rd.",
-    },
-    {
-      name: "Brazil",
-      code: "br",
-      slug: "brazil",
-      scheduleLabel: "Every month on 5th",
-      description:
-        "Brazil flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "South Africa",
-      code: "za",
-      slug: "south-africa",
-      scheduleLabel: "Every month on 6th",
-      description:
-        "South Africa flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Japan",
-      code: "jp",
-      slug: "japan",
-      scheduleLabel: "Every month on 7th",
-      description:
-        "Japan flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Sweden",
-      code: "se",
-      slug: "sweden",
-      scheduleLabel: "Every month on 8th",
-      description:
-        "Sweden flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Vietnam",
-      code: "vn",
-      slug: "vietnam",
-      scheduleLabel: "Every month on 9th",
-      description:
-        "Vietnam flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Chile",
-      code: "cl",
-      slug: "chile",
-      scheduleLabel: "Every month on 10th",
-      description:
-        "Chile flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Pakistan",
-      code: "pk",
-      slug: "pakistan",
-      scheduleLabel: "Every month on 11th",
-      description:
-        "Pakistan flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Colombia",
-      code: "co",
-      slug: "colombia",
-      scheduleLabel: "Every month on 12th",
-      description:
-        "Colombia flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Australia",
-      code: "au",
-      slug: "australia",
-      scheduleLabel: "Every month on 13th",
-      description:
-        "Australia flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Germany",
-      code: "de",
-      slug: "germany",
-      scheduleLabel: "Every month on 14th",
-      description:
-        "Germany flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Peru",
-      code: "pe",
-      slug: "peru",
-      scheduleLabel: "Every month on 15th",
-      description:
-        "Peru flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Russia",
-      code: "ru",
-      slug: "russia",
-      scheduleLabel: "Every month on 16th",
-      description:
-        "Russia flash report includes total market sales, EV sales, and application split.",
-    },
-    {
-      name: "Belgium",
-      code: "be",
-      slug: "belgium",
-      scheduleLabel: "Every month on 17th",
-      description:
-        "Belgium flash report includes total market sales, EV sales, and application split.",
-    },
-  ],
-  []
-);
+  const countries = useMemo<CountryItem[]>(
+    () => [
+      {
+        name: "India",
+        code: "in",
+        slug: "india",
+        scheduleLabel: "Every month on 3rd",
+        description:
+          "India flash report includes total market sales, EV sales, and application split. This will be launched every month on the 3rd.",
+      },
+      {
+        name: "Brazil",
+        code: "br",
+        slug: "brazil",
+        scheduleLabel: "Every month on 5th",
+        description:
+          "Brazil flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "South Africa",
+        code: "za",
+        slug: "south-africa",
+        scheduleLabel: "Every month on 6th",
+        description:
+          "South Africa flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Japan",
+        code: "jp",
+        slug: "japan",
+        scheduleLabel: "Every month on 7th",
+        description:
+          "Japan flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Sweden",
+        code: "se",
+        slug: "sweden",
+        scheduleLabel: "Every month on 8th",
+        description:
+          "Sweden flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Vietnam",
+        code: "vn",
+        slug: "vietnam",
+        scheduleLabel: "Every month on 9th",
+        description:
+          "Vietnam flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Chile",
+        code: "cl",
+        slug: "chile",
+        scheduleLabel: "Every month on 10th",
+        description:
+          "Chile flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Pakistan",
+        code: "pk",
+        slug: "pakistan",
+        scheduleLabel: "Every month on 11th",
+        description:
+          "Pakistan flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Colombia",
+        code: "co",
+        slug: "colombia",
+        scheduleLabel: "Every month on 12th",
+        description:
+          "Colombia flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Australia",
+        code: "au",
+        slug: "australia",
+        scheduleLabel: "Every month on 13th",
+        description:
+          "Australia flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Germany",
+        code: "de",
+        slug: "germany",
+        scheduleLabel: "Every month on 14th",
+        description:
+          "Germany flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Peru",
+        code: "pe",
+        slug: "peru",
+        scheduleLabel: "Every month on 15th",
+        description:
+          "Peru flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Russia",
+        code: "ru",
+        slug: "russia",
+        scheduleLabel: "Every month on 16th",
+        description:
+          "Russia flash report includes total market sales, EV sales, and application split.",
+      },
+      {
+        name: "Belgium",
+        code: "be",
+        slug: "belgium",
+        scheduleLabel: "Every month on 17th",
+        description:
+          "Belgium flash report includes total market sales, EV sales, and application split.",
+      },
+    ],
+    [],
+  );
 
   async function handleOpenDataset(country: CountryItem) {
     const targetMonth = getPreviousMonthYyyyMm();
@@ -500,7 +500,7 @@ const countries = useMemo<CountryItem[]>(
 
   return (
     <>
-      <main className="relative overflow-hidden bg-slate-950 text-white">
+      <main className="relative min-h-[60svh] overflow-hidden bg-slate-950 text-white mb-6">
         {/* background */}
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950" />
@@ -516,7 +516,7 @@ const countries = useMemo<CountryItem[]>(
 
         {/* hero */}
         <section className="relative">
-          <div className="mx-auto grid w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none grid-cols-1 items-start gap-8 px-2 py-10 sm:px-3 md:grid-cols-2 md:py-12 lg:gap-12 lg:px-4 lg:py-14">
+          <div className="mx-auto grid w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none grid-cols-1 items-start gap-10 px-2 sm:px-3 lg:px-4 py-12 md:grid-cols-2 md:py-16 lg:gap-14 lg:py-20">
             {/* left copy */}
             <div className="relative z-10">
               <Badge>
@@ -554,7 +554,6 @@ const countries = useMemo<CountryItem[]>(
                   <span>Explore full dataset</span>
                 </PillButton>
               </div>
-
             </div>
 
             {/* right: countries (3 per row) */}
@@ -566,7 +565,8 @@ const countries = useMemo<CountryItem[]>(
                       Countries
                     </h2>
                     <p className="mt-1 text-sm text-white/60">
-                      Tap a country to view flash report scope and release schedule.
+                      Tap a country to view flash report scope and release
+                      schedule.
                     </p>
                   </div>
                 </div>
@@ -574,7 +574,11 @@ const countries = useMemo<CountryItem[]>(
                 {/* ✅ 3 per row on md+ */}
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                   {countries.map((c) => (
-                    <CountryChip key={c.name} c={c} onClick={setActiveCountry} />
+                    <CountryChip
+                      key={c.name}
+                      c={c}
+                      onClick={setActiveCountry}
+                    />
                   ))}
                 </div>
               </GlassCard>
@@ -583,7 +587,6 @@ const countries = useMemo<CountryItem[]>(
             </div>
           </div>
         </section>
-
       </main>
 
       <CountryModal
@@ -615,5 +618,3 @@ function getPreviousMonthYyyyMm() {
 const COUNTRY_NOT_INCLUDED_TITLE = "Country Not Included";
 const COUNTRY_NOT_INCLUDED_MESSAGE =
   "This country is not included in your selected plan slots. Contact sales to add more countries.";
-
-
