@@ -156,6 +156,20 @@ const AdminPage = () => {
           >
             Trial Leads
           </Link>
+          <Link
+            href="/admin/automotive-market-intelligence-leads"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              color: '#EAF0FF',
+              padding: '6px 14px',
+              borderRadius: 8,
+              fontSize: 13,
+              textDecoration: 'none',
+              border: '1px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            Market Intel Leads
+          </Link>
         </div>
         <button
           type="button"

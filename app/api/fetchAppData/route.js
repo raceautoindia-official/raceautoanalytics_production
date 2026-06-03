@@ -51,9 +51,9 @@ function getOrigin(req) {
 
 // previous calendar month in Asia/Kolkata -> "YYYY-MM"
 function prevMonthRefIST() {
-  // Flash reporting month rolls over on the 5th (IST):
-  // - 1st–4th: treat "latest available" as two months ago
-  // - 5th onwards: treat "latest available" as previous calendar month
+  // Flash reporting month rolls over on the 3rd (IST):
+  // - 1st–2nd: treat "latest available" as two months ago
+  // - 3rd onwards: treat "latest available" as previous calendar month
   const now = new Date();
   const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 
@@ -61,7 +61,7 @@ function prevMonthRefIST() {
   let m = ist.getMonth() + 1; // 1..12 (current month)
   const d = ist.getDate(); // 1..31
 
-  const cutoffDay = 5;
+  const cutoffDay = 3;
   const back = d >= cutoffDay ? 1 : 2;
 
   m -= back;

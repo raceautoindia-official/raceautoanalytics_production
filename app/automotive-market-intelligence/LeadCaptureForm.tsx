@@ -51,6 +51,7 @@ const interests = [
 export default function LeadCaptureForm() {
   const [form, setForm] = useState<FormState>(initialFormState);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   const isComplete = useMemo(
@@ -74,7 +75,7 @@ export default function LeadCaptureForm() {
     if (error) setError("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!isComplete) {
@@ -85,13 +86,47 @@ export default function LeadCaptureForm() {
       return;
     }
 
+    setSubmitting(true);
     setError("");
-    setSubmitted(true);
+
+    try {
+      const res = await fetch("/api/automotive-market-intelligence/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          businessEmail: form.email,
+          companyName: form.company,
+          phoneNumber: form.phone,
+          country: form.country,
+          userType: form.userType,
+          interest: form.interest,
+          message: form.message,
+          consent: form.consent,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || "Unable to submit enquiry");
+      }
+
+      setSubmitted(true);
+    } catch (submitError) {
+      setSubmitted(false);
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to submit enquiry",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
         <TextField
           id="fullName"
           label="Full Name"
@@ -143,7 +178,7 @@ export default function LeadCaptureForm() {
         <div className="md:col-span-2">
           <label
             htmlFor="message"
-            className="block text-xs font-semibold uppercase tracking-[0.12em] text-white/60"
+            className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60"
           >
             Message
           </label>
@@ -151,22 +186,22 @@ export default function LeadCaptureForm() {
             id="message"
             name="message"
             required
-            rows={4}
+            rows={2}
             value={form.message}
             onChange={(event) => updateField("message", event.target.value)}
-            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
+            className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
             placeholder="Tell us about your market intelligence requirement"
           />
         </div>
       </div>
 
-      <label className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-white/70">
+      <label className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-2.5 text-xs leading-5 text-white/70">
         <input
           type="checkbox"
           checked={form.consent}
           required
           onChange={(event) => updateField("consent", event.target.checked)}
-          className="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950 text-blue-600 focus:ring-blue-400"
+          className="mt-0.5 h-4 w-4 rounded border-white/20 bg-slate-950 text-blue-600 focus:ring-blue-400"
         />
         <span>
           I agree to be contacted by Race Auto Analytics regarding reports,
@@ -197,9 +232,10 @@ export default function LeadCaptureForm() {
 
       <button
         type="submit"
-        className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+        disabled={submitting}
+        className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:cursor-not-allowed disabled:opacity-70"
       >
-        Submit & Unlock Sample Report
+        {submitting ? "Submitting..." : "Submit & Unlock Sample Report"}
       </button>
     </form>
   );
@@ -222,7 +258,7 @@ function TextField({
     <div>
       <label
         htmlFor={id}
-        className="block text-xs font-semibold uppercase tracking-[0.12em] text-white/60"
+        className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60"
       >
         {label}
       </label>
@@ -233,7 +269,7 @@ function TextField({
         required
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
+        className="mt-1.5 h-9 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
       />
     </div>
   );
@@ -256,7 +292,7 @@ function SelectField({
     <div>
       <label
         htmlFor={id}
-        className="block text-xs font-semibold uppercase tracking-[0.12em] text-white/60"
+        className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60"
       >
         {label}
       </label>
@@ -266,7 +302,7 @@ function SelectField({
         required
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
+        className="mt-1.5 h-9 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none transition focus:border-blue-300/50 focus:ring-2 focus:ring-blue-500/20"
       >
         <option value="">Select {label}</option>
         {options.map((option) => (

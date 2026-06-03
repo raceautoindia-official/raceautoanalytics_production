@@ -55,7 +55,7 @@ const getPrevMonthIST = () => {
   const m = Number(parts.find((p) => p.type === "month")?.value ?? "01");
   const d = Number(parts.find((p) => p.type === "day")?.value ?? "01");
 
-  const cutoffDay = 5;
+  const cutoffDay = 3;
   const back = d >= cutoffDay ? 1 : 2;
 
   let year = y;
@@ -1184,7 +1184,7 @@ export default function ScoreCard() {
                       {prettyYYYYMM(basePeriod)}
                     </span>
                     . Data updates on the{" "}
-                    <span className="font-semibold text-slate-200">5th</span>{" "}
+                    <span className="font-semibold text-slate-200">3rd</span>{" "}
                     (IST).
                   </p>
                 ) : null}
@@ -1226,7 +1226,7 @@ export default function ScoreCard() {
                     {prettyYYYYMM(basePeriod)}
                   </span>{" "}
                   ({basePeriod}). Data updates on the{" "}
-                  <span className="font-semibold text-slate-200">5th</span>{" "}
+                  <span className="font-semibold text-slate-200">3rd</span>{" "}
                   (IST).
                 </p>
               ) : null}

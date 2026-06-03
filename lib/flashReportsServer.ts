@@ -24,7 +24,7 @@ export type OverallChartPoint = {
 
 export type OverallChartMeta = {
   baseMonth: string; // YYYY-MM
-  allowForecast: boolean; // true only when baseMonth is latest available month (5th cutoff)
+  allowForecast: boolean; // true only when baseMonth is latest available month (3rd cutoff)
   horizon: number; // months ahead (used only if allowForecast)
   windowMonths: string[]; // final months used in chart
   prevYearBaseMonth?: string; // YYYY-MM for same month last year
@@ -86,7 +86,7 @@ function getPrevMonthIST(): string {
   const m = Number(parts.find((p) => p.type === "month")?.value ?? "01");
   const d = Number(parts.find((p) => p.type === "day")?.value ?? "01");
 
-  const cutoffDay = 5;
+  const cutoffDay = 3;
   const back = d >= cutoffDay ? 1 : 2;
 
   let year = y;

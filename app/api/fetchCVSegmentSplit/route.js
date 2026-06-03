@@ -68,7 +68,7 @@ function prevMonthRefIST() {
   let m = ist.getMonth() + 1;
   const d = ist.getDate();
 
-  const cutoffDay = 5;
+  const cutoffDay = 3;
   const back = d >= cutoffDay ? 1 : 2;
 
   m -= back;
