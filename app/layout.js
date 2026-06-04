@@ -8,6 +8,7 @@ import { AuthModalProvider } from "@/utils/AuthModalcontext";
 import { Providers } from "@/components/providers/Providers";
 import { Suspense } from "react";
 import Script from "next/script";
+import GoogleTagManager from "@/components/GoogleTagManager";
 import RouteAuthGate from "@/components/auth/RouteAuthGate";
 import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
 import dynamic from "next/dynamic";
@@ -112,6 +113,8 @@ export default function RootLayout({ children }) {
         className={`${inter.className} ${inter.variable} antialiased`}
         suppressHydrationWarning
       >
+        <GoogleTagManager />
+
         {GA_ID ? (
           <>
             <Script
