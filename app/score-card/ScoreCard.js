@@ -1065,7 +1065,11 @@ export default function ScoreCard() {
                           (pendingPayloadInfo && pendingPayloadInfo.returnTo) ||
                           returnToParam ||
                           "/flash-reports/overview";
-                        router.push(target);
+                        // Hard reload (not router.push) so the chart page
+                        // re-fetches and reflects the BYF score just submitted.
+                        // A soft client navigation would serve the cached,
+                        // pre-submit chart from the App Router cache.
+                        window.location.assign(target);
                       }}
                       className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
                     >

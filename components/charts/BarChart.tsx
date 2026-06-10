@@ -50,6 +50,15 @@ interface BarChartProps {
    * otherwise 0.
    */
   valueDecimals?: number;
+
+  /**
+   * Audit F-11: optional override for how many characters a horizontal
+   * (category) X-axis label shows before being truncated with an ellipsis.
+   * When omitted, the responsive default is used (existing behavior). Used to
+   * let long OEM names render more fully. The full label is always available
+   * in the tooltip regardless of this value.
+   */
+  xTickMaxChars?: number;
 }
 
 export function BarChart({
@@ -63,6 +72,7 @@ export function BarChart({
   tooltipRenderer,
   valueSuffix,
   valueDecimals,
+  xTickMaxChars,
 }: BarChartProps) {
   const isReducedMotion = useReducedMotion();
   const animationConfig = getAnimationConfig(isReducedMotion);
@@ -292,7 +302,20 @@ export function BarChart({
                       ? 16
                       : 12;
 
-              return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
+              // Audit F-11: allow callers to widen the label budget for
+              // horizontal text labels (e.g. long OEM names) without changing
+              // the responsive default for every other chart. Numeric ticks
+              // and the vertical axis keep their existing behavior.
+              const resolvedMaxChars =
+                isHorizontal &&
+                !hasNumericHorizontalLabels &&
+                xTickMaxChars != null
+                  ? xTickMaxChars
+                  : maxChars;
+
+              return str.length > resolvedMaxChars
+                ? `${str.slice(0, resolvedMaxChars)}…`
+                : str;
             }}
           />
 

@@ -976,6 +976,7 @@ const showApplicationChartSection =
           height={350}
           layout="horizontal"
           tooltipRenderer={renderOemTooltip}
+          xTickMaxChars={22}
         />
       ) : (
         <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">

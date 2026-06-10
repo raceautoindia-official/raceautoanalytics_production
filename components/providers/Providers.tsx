@@ -17,6 +17,11 @@ interface AppContextType {
   month: string; // YYYY-MM (current selection)
   maxMonth: string; // ✅ stable upper bound (default/latest allowed)
   minMonth: string; // ✅ stable lower bound
+  // Audit F-12: when a deep-linked month has no data for the country and we
+  // silently fall back to the latest available month, record what was
+  // requested vs. applied so the UI can show a notice. null = no fallback.
+  monthFallback: { requested: string; applied: string } | null;
+  clearMonthFallback: () => void;
   setRegion: (region: string) => void;
   setMonth: (month: string) => void;
   updateUrl: (params: Record<string, string>) => void;
@@ -126,6 +131,13 @@ export function Providers({ children }: { children: ReactNode }) {
     clampYYYYMM(maxMonth, minMonth, maxMonth),
   );
 
+  // Audit F-12: set when a deep-linked month is unavailable and clamped to the
+  // latest available month. Cleared on dismiss or any explicit month/region change.
+  const [monthFallback, setMonthFallback] = useState<
+    { requested: string; applied: string } | null
+  >(null);
+  const clearMonthFallback = () => setMonthFallback(null);
+
   useEffect(() => {
     const urlCountry = searchParams.get("country") ?? searchParams.get("region");
     if (urlCountry) setPendingRegion(sanitizeCountry(urlCountry));
@@ -166,6 +178,15 @@ export function Providers({ children }: { children: ReactNode }) {
         const nextMonth = shouldRespectUrlMonth
           ? clampYYYYMM(String(urlMonth), minMonth, nextMax)
           : nextMax;
+
+        // Audit F-12: if the user deep-linked a specific month that we had to
+        // clamp (no data for that month → fell back to latest), record it so
+        // the UI can tell them instead of silently showing a different month.
+        if (shouldRespectUrlMonth && nextMonth !== String(urlMonth)) {
+          setMonthFallback({ requested: String(urlMonth), applied: nextMonth });
+        } else {
+          setMonthFallback(null);
+        }
 
         // Atomic commit: region + maxMonth + month all flip together so
         // segment pages re-render exactly once with a consistent pair.
@@ -252,6 +273,8 @@ export function Providers({ children }: { children: ReactNode }) {
   const setRegion = (newRegion: string) => {
     const clean = sanitizeCountry(newRegion);
     if (clean === pendingRegion) return;
+    // Audit F-12: clear any stale fallback notice on an explicit region change.
+    setMonthFallback(null);
     // Defer the committed `region` update — it flips together with `month`/
     // `maxMonth` once loadLatestMonthForRegion resolves the new country's
     // latest data month. Only push the country into the URL here (and drop
@@ -270,6 +293,8 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const setMonth = (newMonth: string) => {
     const clamped = clampYYYYMM(newMonth, minMonth, maxMonth);
+    // Audit F-12: an explicit month pick supersedes the fallback notice.
+    setMonthFallback(null);
     setMonthState(clamped);
     updateUrl({ country: region, month: clamped });
   };
@@ -281,11 +306,13 @@ export function Providers({ children }: { children: ReactNode }) {
       month,
       maxMonth,
       minMonth,
+      monthFallback,
+      clearMonthFallback,
       setRegion,
       setMonth,
       updateUrl,
     }),
-    [region, pendingRegion, month, maxMonth, minMonth],
+    [region, pendingRegion, month, maxMonth, minMonth, monthFallback],
   );
 
   return <AppContext.Provider value={ctxValue}>{children}</AppContext.Provider>;

@@ -11,6 +11,8 @@ import {
   Bike,
   Award,
   ChartBar as BarChart3,
+  Info,
+  X,
 } from "lucide-react";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
@@ -228,6 +230,18 @@ function getShortMonthFromYyyyMm(yyyymm: string): string {
   return MONTHS_SHORT[idx] ?? MONTHS_SHORT[0];
 }
 
+// Audit F-12: "2026-05" -> "May 2026" for the fallback notice.
+const MONTHS_LONG = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+function formatYyyyMmLong(yyyymm: string): string {
+  const [year, mm] = String(yyyymm || "").split("-");
+  const idx = parseInt(mm, 10) - 1;
+  if (!year || Number.isNaN(idx) || !MONTHS_LONG[idx]) return yyyymm;
+  return `${MONTHS_LONG[idx]} ${year}`;
+}
+
 function getTopOemNameFromRows(rows: any[], monthKey: string) {
   if (!Array.isArray(rows) || !rows.length) return "";
 
@@ -265,7 +279,7 @@ const SEGMENT_OEM_QUERY_MAP: Record<string, string> = {
 };
 
 export default function FlashReportsPage() {
-  const { region, month, maxMonth } = useAppContext();
+  const { region, month, maxMonth, monthFallback, clearMonthFallback } = useAppContext();
   // Free-user detection — collapse the Automotive-Category line chart's
   // forecast window so the historical line fills the chart width instead of
   // leaving an empty forecast region. Subscribers/trial users see the full
@@ -757,8 +771,6 @@ export default function FlashReportsPage() {
     };
   }, [overallData, month, region]);
 
-  console.log("recentTotalSeries", recentTotalSeries);
-
   // Build category tiles from overallData
   const categoryMetricsMap: Record<string, TileMetrics> = useMemo(() => {
     if (!overallData.length || !selectedRow) return {};
@@ -1104,6 +1116,37 @@ export default function FlashReportsPage() {
             </div>
           </div>
         </div>
+
+        {/* Audit F-12: notify the user when the month they requested had no data
+            and we fell back to the latest available month, instead of silently
+            swapping it. */}
+        {monthFallback && (
+          <div
+            role="status"
+            className="mb-6 flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200"
+          >
+            <Info className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden />
+            <p className="flex-1">
+              No data is available for{" "}
+              <span className="font-semibold">
+                {formatYyyyMmLong(monthFallback.requested)}
+              </span>{" "}
+              in this country yet. Showing the latest available month,{" "}
+              <span className="font-semibold">
+                {formatYyyyMmLong(monthFallback.applied)}
+              </span>
+              .
+            </p>
+            <button
+              type="button"
+              onClick={clearMonthFallback}
+              aria-label="Dismiss notice"
+              className="flex-shrink-0 rounded p-0.5 text-amber-200/70 transition hover:text-amber-100"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        )}
 
         {/* Summary Section */}
         <div className="mb-12">

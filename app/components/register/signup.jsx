@@ -45,7 +45,18 @@ const validationSchema = Yup.object().shape({
       schema
         .required("Mobile number is required")
         .test("safe-mobile", "Enter a valid mobile number", (value) => Boolean(normalizeMobile(value || ""))),
-    otherwise: (schema) => schema.notRequired(),
+    // Audit F-06: mobile is optional in email-only mode, but if the user does
+    // type something it must be a valid number — this rejects clearly invalid
+    // input like "123" while still allowing the field to be left blank. Empty
+    // (the common email-only case) and any valid number are unaffected.
+    otherwise: (schema) =>
+      schema
+        .notRequired()
+        .test(
+          "optional-mobile",
+          "Enter a valid mobile number or leave it blank",
+          (value) => !value || !String(value).trim() || Boolean(normalizeMobile(value)),
+        ),
   }),
 });
 
@@ -687,6 +698,7 @@ const SignupForm = ({ onSuccess, onSwitchToLogin }) => {
                   value={values.username}
                   onChange={handleInputChange}
                   placeholder="Enter username"
+                  autoComplete="username"
                   className={`${inputBase} ${touched.username && errors.username ? inputErr : inputOk}`}
                 />
                 {touched.username && errors.username && (
@@ -702,6 +714,7 @@ const SignupForm = ({ onSuccess, onSwitchToLogin }) => {
                   value={values.email}
                   onChange={handleInputChange}
                   placeholder="Enter email"
+                  autoComplete="email"
                   className={`${inputBase} ${touched.email && errors.email ? inputErr : inputOk}`}
                 />
                 {touched.email && errors.email && (
@@ -765,6 +778,7 @@ const SignupForm = ({ onSuccess, onSwitchToLogin }) => {
                   value={values.mobile}
                   onChange={handleInputChange}
                   placeholder="Enter mobile number"
+                  autoComplete="tel"
                   className={`${inputBase} ${
                     values.verificationMode === "phone" || values.verificationMode === "both"
                       ? "border-[#4F67FF]/50"
@@ -784,6 +798,7 @@ const SignupForm = ({ onSuccess, onSwitchToLogin }) => {
                   value={values.password}
                   onChange={handleInputChange}
                   placeholder="Password"
+                  autoComplete="new-password"
                   className={`${inputBase} ${touched.password && errors.password ? inputErr : inputOk}`}
                 />
                 {touched.password && errors.password && (
