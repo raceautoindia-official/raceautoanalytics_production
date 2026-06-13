@@ -2,7 +2,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import IndustryCategories from "@/app/components/IndustryCategories";
-import Footer from "@/app/components/Footer";
 import MarketHeroSection from "@/app/components/MarketHeroSection";
 import ExploreVehicleCategories from "@/app/components/ExploreVehicleCategories";
 import DeferredOverviewSections from "./components/DeferredOverviewSections";
@@ -91,7 +90,6 @@ export default function Page() {
       <IndustryCategories />
       <DeferredOverviewSections />
       <ExploreVehicleCategories />
-      <Footer />
     </>
   );
 }

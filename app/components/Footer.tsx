@@ -181,10 +181,10 @@ export default function Footer() {
             <Link href="https://raceautoindia.com/page/contact" className="hover:text-white">
               Contact Us
             </Link>
-            {/* <span className="mx-2 select-none text-white/35">•</span>
-            <Link href="#" className="hover:text-white">
+            <span className="mx-2 select-none text-white/35">•</span>
+            <Link href="/disclaimer" className="hover:text-white">
               Disclaimer
-            </Link> */}
+            </Link>
           </nav>
         </div>
       </div>

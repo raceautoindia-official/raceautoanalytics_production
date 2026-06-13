@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import NavBar from "@/app/components/Navbar";
+import Footer from "@/app/components/Footer";
 import FlashSubscriptionManager from "@/app/flash-reports/components/FlashSubscriptionManager";
 import React, { Suspense } from "react";
 
@@ -29,6 +30,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </FlashSubscriptionManager>
       </Suspense>
 
+      <Footer />
     </div>
   );
 }

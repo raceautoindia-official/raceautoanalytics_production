@@ -1,6 +1,7 @@
 // lib/flashReportsServer.ts
 import "server-only";
 import { normalizeCountryKey } from "./flashReportCountry";
+import { getCachedFlashDatasets } from "./flashDatasetCache";
 
 const monthsList = [
   "jan",
@@ -262,17 +263,21 @@ export async function getOverallChartDataWithMeta(opts?: {
     };
   };
 
-  const loadBackendOrLocal = async () => {
-    try {
-      return await loadBackend();
-    } catch (error) {
-      console.warn(
-        "overall chart backend fetch failed; falling back to local APIs",
-        error,
-      );
-      return loadLocal();
-    }
-  };
+  // Cached so the multiple concurrent dashboard calls that need these global
+  // datasets (current-window chart, last-year chart, …) share one fetch+parse
+  // instead of each re-loading the full hierarchy/volume tables.
+  const loadBackendOrLocal = () =>
+    getCachedFlashDatasets(async () => {
+      try {
+        return await loadBackend();
+      } catch (error) {
+        console.warn(
+          "overall chart backend fetch failed; falling back to local APIs",
+          error,
+        );
+        return loadLocal();
+      }
+    });
 
   // ✅ compute using the SAME reliable path logic for India + all countries
   const computeFrom = (hierarchyData: any[], volumeData: any[]): OverallChartResponse => {
@@ -699,17 +704,21 @@ export async function getOverallAlternatePenetration(
     };
   };
 
-  const loadBackendOrLocal = async () => {
-    try {
-      return await loadBackend();
-    } catch (error) {
-      console.warn(
-        "alternate penetration backend fetch failed; falling back to local APIs",
-        error,
-      );
-      return loadLocal();
-    }
-  };
+  // Shares the same cached global datasets as the overall chart path, so the
+  // alternate-penetration tile doesn't trigger another full hierarchy/volume
+  // load on dashboard render.
+  const loadBackendOrLocal = () =>
+    getCachedFlashDatasets(async () => {
+      try {
+        return await loadBackend();
+      } catch (error) {
+        console.warn(
+          "alternate penetration backend fetch failed; falling back to local APIs",
+          error,
+        );
+        return loadLocal();
+      }
+    });
 
   const computeFrom = (
     hierarchyData: any[],

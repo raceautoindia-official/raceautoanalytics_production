@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Footer from "@/app/components/Footer";
 import { FLASH_REPORT_COUNTRY_DATASETS } from "@/lib/flashReportCountryDataset";
 
 export const metadata: Metadata = {
@@ -52,7 +51,6 @@ export default function CountryDataIndexPage() {
           </div>
         </div>
       </section>
-      <Footer />
     </>
   );
 }

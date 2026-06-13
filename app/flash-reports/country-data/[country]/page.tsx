@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import Footer from "@/app/components/Footer";
 import CountryPageActions from "./CountryPageActions";
 import {
   FLASH_REPORT_COUNTRY_DATASETS,
@@ -461,7 +460,6 @@ export default function CountryDataPage({ params }: PageProps) {
           </div>
         </div>
       </section>
-      <Footer />
     </>
   );
 }
