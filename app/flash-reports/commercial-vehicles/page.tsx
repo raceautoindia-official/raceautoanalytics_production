@@ -153,6 +153,12 @@ export default function CommercialVehiclesPage() {
   // ---- Forecast line chart data (overall timeseries; CV series) ----
   const [overallData, setOverallData] = useState<any[]>([]);
   const [overallLoading, setOverallLoading] = useState(false);
+
+  // Keep the loading UI until loading truly settles (before mount, while
+  // entitlement resolves — the fetch effect waits on it — and during the
+  // fetch). Prevents the chart's empty state from flashing while data loads.
+  const overallChartLoading =
+    !mounted || !!flashEntitlement?.loading || overallLoading;
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
   const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
@@ -771,7 +777,7 @@ const oemHasMeaningfulData = oemChartData.some((r) => r.current !== 0);
                 : "Forecast based on recent commercial vehicle volume trends across trucks and buses."
             }
           >
-            {overallLoading ? (
+            {overallChartLoading ? (
               <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
                 Loading commercial vehicle timeseries…
               </div>

@@ -338,6 +338,13 @@ export default function FlashReportsPage() {
 
   const isOverallChartValid = isChartMeaningful(overallChartPoints);
 
+  // Show the loading UI (not the "Data not available yet" empty state) until we
+  // have actually finished loading: before mount, while entitlement is still
+  // resolving (the fetch effect waits on this), and during the fetch itself.
+  // The genuine empty state only renders once all of these have settled.
+  const overallChartLoading =
+    !mounted || !!flashEntitlement?.loading || overallLoading;
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -1182,7 +1189,7 @@ export default function FlashReportsPage() {
                           )}% month-on-month based on total industry volumes.`
                 }
               >
-                {overallLoading ? (
+                {overallChartLoading ? (
                   <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
                     Loading industry volumes…
                   </div>
@@ -1260,69 +1267,81 @@ export default function FlashReportsPage() {
         </div>
 
         {/* Category Grid */}
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold mb-6">Vehicle Categories</h2>
+        {(() => {
+          const overallCategory = CATEGORIES.find(
+            (category) => category.id === "overall-automotive-industry",
+          );
+          const remainingCategories = CATEGORIES.filter(
+            (category) => category.id !== "overall-automotive-industry",
+          );
 
-          {(() => {
-            const overallCategory = CATEGORIES.find(
-              (category) => category.id === "overall-automotive-industry",
-            );
-            const remainingCategories = CATEGORIES.filter(
-              (category) => category.id !== "overall-automotive-industry",
-            );
+          const hasOverallCard = !!(
+            overallCategory && categoryMetricsMap[overallCategory.id]
+          );
 
-            return (
-              <>
-                {overallCategory && categoryMetricsMap[overallCategory.id] ? (
-                  <div className="mb-6">
+          // Render only segments that have metrics AND are available for the
+          // selected country/month — unavailable segments are skipped instead
+          // of showing a "segment not released" placeholder. While availability
+          // is still loading we keep the card visible (matches the existing
+          // non-disabled-while-loading behavior) so nothing flickers.
+          const visibleRemaining = remainingCategories.filter((category) => {
+            if (!categoryMetricsMap[category.id]) return false;
+            const availability = segmentAvailability[category.id];
+            return !(
+              !availabilityLoading && availability?.isAvailable === false
+            );
+          });
+
+          // Nothing to show for this country → hide the whole section
+          // (heading + grid) rather than leaving an empty "Vehicle Categories".
+          if (!hasOverallCard && visibleRemaining.length === 0) return null;
+
+          return (
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold mb-6">Vehicle Categories</h2>
+
+              {overallCategory && categoryMetricsMap[overallCategory.id] ? (
+                <div className="mb-6">
+                  <VehicleCategoryCard
+                    key={overallCategory.id}
+                    id={overallCategory.id}
+                    title={overallCategory.title}
+                    description={overallCategory.description}
+                    icon={overallCategory.icon}
+                    color={overallCategory.color}
+                    bgColor={overallCategory.bgColor}
+                    subCategories={overallCategory.subCategories}
+                    metrics={categoryMetricsMap[overallCategory.id]}
+                    index={0}
+                    disabled={false}
+                  />
+                </div>
+              ) : null}
+
+              <div className="grid md:grid-cols-2 gap-6">
+                {visibleRemaining.map((category, index) => {
+                  const metrics = categoryMetricsMap[category.id];
+
+                  return (
                     <VehicleCategoryCard
-                      key={overallCategory.id}
-                      id={overallCategory.id}
-                      title={overallCategory.title}
-                      description={overallCategory.description}
-                      icon={overallCategory.icon}
-                      color={overallCategory.color}
-                      bgColor={overallCategory.bgColor}
-                      subCategories={overallCategory.subCategories}
-                      metrics={categoryMetricsMap[overallCategory.id]}
-                      index={0}
+                      key={category.id}
+                      id={category.id}
+                      title={category.title}
+                      description={category.description}
+                      icon={category.icon}
+                      color={category.color}
+                      bgColor={category.bgColor}
+                      subCategories={category.subCategories}
+                      metrics={metrics}
+                      index={index + 1}
                       disabled={false}
                     />
-                  </div>
-                ) : null}
-
-                <div className="grid md:grid-cols-2 gap-6">
-                  {remainingCategories.map((category, index) => {
-                    const metrics = categoryMetricsMap[category.id];
-                    if (!metrics) return null;
-
-                    const availability = segmentAvailability[category.id];
-
-                    return (
-                      <VehicleCategoryCard
-                        key={category.id}
-                        id={category.id}
-                        title={category.title}
-                        description={category.description}
-                        icon={category.icon}
-                        color={category.color}
-                        bgColor={category.bgColor}
-                        subCategories={category.subCategories}
-                        metrics={metrics}
-                        index={index + 1}
-                        disabled={
-                          !availabilityLoading &&
-                          availability?.isAvailable === false
-                        }
-                        disabledMessage={availability?.message}
-                      />
-                    );
-                  })}
-                </div>
-              </>
-            );
-          })()}
-        </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Key Highlights (fully dynamic) */}
         <div className="bg-card/30 rounded-xl p-8">

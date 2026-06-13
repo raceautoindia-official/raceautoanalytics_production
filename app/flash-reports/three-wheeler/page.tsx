@@ -119,6 +119,12 @@ export default function ThreeWheelerPage() {
   // ---- Forecast line chart data (overall timeseries; we will use 3W series) ----
   const [overallData, setOverallData] = useState<any[]>([]);
   const [overallLoading, setOverallLoading] = useState(false);
+
+  // Keep the loading UI until loading truly settles (before mount, while
+  // entitlement resolves — the fetch effect waits on it — and during the
+  // fetch). Prevents the chart's empty state from flashing while data loads.
+  const overallChartLoading =
+    !mounted || !!flashEntitlement?.loading || overallLoading;
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
   const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
@@ -984,7 +990,7 @@ const showApplicationChartSection =
                 : "Forecast based on recent three-wheeler volume trends across passenger and goods segments."
             }
           >
-            {overallLoading ? (
+            {overallChartLoading ? (
               <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
                 Loading three-wheeler timeseries…
               </div>

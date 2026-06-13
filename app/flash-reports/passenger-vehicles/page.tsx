@@ -242,6 +242,12 @@ export default function PassengerVehiclesPage() {
   // ---- Overall timeseries (for PV forecast & summary) ----
   const [overallData, setOverallData] = useState<any[]>([]);
   const [overallLoading, setOverallLoading] = useState(false);
+
+  // Keep the loading UI until loading truly settles (before mount, while
+  // entitlement resolves — the fetch effect waits on it — and during the
+  // fetch). Prevents the chart's empty state from flashing while data loads.
+  const overallChartLoading =
+    !mounted || !!flashEntitlement?.loading || overallLoading;
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
   const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
@@ -967,7 +973,7 @@ const showApplicationChartSection =
                 : "Premium and electric segment growth drives positive forecast trajectory with SUV category leading market expansion."
             }
           >
-            {overallLoading ? (
+            {overallChartLoading ? (
               <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
                 Loading passenger vehicle timeseries…
               </div>

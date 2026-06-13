@@ -158,6 +158,12 @@ const suffix = useMemo(() => {
   // ---- Forecast line chart data (overall timeseries, then 2W series inside) ----
   const [overallData, setOverallData] = useState<any[]>([]);
   const [overallLoading, setOverallLoading] = useState(false);
+
+  // Keep the loading UI until loading truly settles (before mount, while
+  // entitlement resolves — the fetch effect waits on it — and during the
+  // fetch). Prevents the chart's empty state from flashing while data loads.
+  const overallChartLoading =
+    !mounted || !!flashEntitlement?.loading || overallLoading;
   const [overallError, setOverallError] = useState<string | null>(null);
   const [overallMeta, setOverallMeta] = useState<any>(null);
   const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
@@ -1052,7 +1058,7 @@ const showApplicationChartSection =
                 : "Forecast based on recent two-wheeler volume trends across all segments."
             }
           >
-            {overallLoading ? (
+            {overallChartLoading ? (
               <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
                 Loading two-wheeler timeseries…
               </div>
