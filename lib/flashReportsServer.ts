@@ -70,6 +70,17 @@ function mapBackendKeyToCategory(normalizedKey: string): string | null {
     normalizedKey === "construction-equipment"
   )
     return "CE";
+  // Truck sub-segments (CMS "overall" columns) — surfaced for the Tipper /
+  // Tractor-Trailer sales-performance charts. Additive: extra keys on each
+  // month's data object; existing consumers read fixed keys and ignore these.
+  if (normalizedKey === "tipper") return "Tipper";
+  if (
+    normalizedKey === "trailer" ||
+    normalizedKey === "tractor trailer" ||
+    normalizedKey === "tractor-trailer" ||
+    normalizedKey === "tractortrailer"
+  )
+    return "Trailer";
   // ✅ IMPORTANT: keep and trust stored Total if present in DB
   if (normalizedKey === "total") return "Total";
   return null;

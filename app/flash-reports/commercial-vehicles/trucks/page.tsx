@@ -467,6 +467,25 @@ useEffect(() => {
     // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
   }, [month, region, flashEntitlement?.loading, isFreeUser]);
 
+  // Tipper & Tractor-Trailer sales series — sub-segment columns ("Tipper" /
+  // "Trailer") that live in the same overall-chart-data payload. Months without
+  // these columns (e.g. forecast months) are dropped by the null filter.
+  const tipperSeries = useMemo(
+    () =>
+      (overallData || [])
+        .filter((p: any) => p?.data && p.data.Tipper != null)
+        .map((p: any) => ({ month: p.month, sales: Number(p.data.Tipper) })),
+    [overallData],
+  );
+
+  const trailerSeries = useMemo(
+    () =>
+      (overallData || [])
+        .filter((p: any) => p?.data && p.data.Trailer != null)
+        .map((p: any) => ({ month: p.month, sales: Number(p.data.Trailer) })),
+    [overallData],
+  );
+
   // ---------- FETCH SEGMENT SPLIT (LCV/MCV/HCV for trucks) ----------
   useEffect(() => {
     let cancelled = false;
@@ -928,10 +947,19 @@ const showApplicationChartSection =
             )}
           </ChartWrapper>
 
-          {/* 5) Tipper & Tractor Trailer (passcode-gated line charts) */}
+          {/* 5) Tipper & Tractor Trailer (backend-driven; passcode-gated for
+              non-admins, admins see the charts directly) */}
           <div className="mt-8 space-y-8">
-            <TipperTable />
-            <TractorTrailerForecast />
+            <TipperTable
+              data={tipperSeries}
+              isAdmin={!!flashEntitlement?.isAdmin}
+              loading={overallChartLoading}
+            />
+            <TractorTrailerForecast
+              data={trailerSeries}
+              isAdmin={!!flashEntitlement?.isAdmin}
+              loading={overallChartLoading}
+            />
           </div>
         </div>
       </div>

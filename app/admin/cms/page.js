@@ -19,6 +19,10 @@ import AIForecast from "./AIForecast";
 import MLScoreRange from "./MLScoreRange";
 import FlashReportsTab from "./FlashReportsTab";
 import HomePageContentManager from "./HomePageContentManager";
+import UserManagement from "./UserManagement";
+import SubscriptionReferencePanel from "./SubscriptionReferencePanel";
+import TrialLeadsPanel from "./TrialLeadsPanel";
+import MarketIntelligenceLeadsPanel from "./MarketIntelligenceLeadsPanel";
 
 export default function Home() {
   const historicalItems = [
@@ -99,6 +103,26 @@ export default function Home() {
       key: "home",
       label: "Home Page",
       children: <HomePageContentManager />,
+    },
+    {
+      key: "users",
+      label: "User Management",
+      children: <UserManagement />,
+    },
+    {
+      key: "subscriptions",
+      label: "Subscription Reference",
+      children: <SubscriptionReferencePanel />,
+    },
+    {
+      key: "trialLeads",
+      label: "Trial Leads",
+      children: <TrialLeadsPanel />,
+    },
+    {
+      key: "miLeads",
+      label: "Market Intelligence Leads",
+      children: <MarketIntelligenceLeadsPanel />,
     },
   ];
 

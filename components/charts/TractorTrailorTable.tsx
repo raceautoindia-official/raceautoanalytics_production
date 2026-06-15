@@ -14,11 +14,41 @@ import {
 
 const PASSCODE = "Tractor-trailer-Flash@2025";
 
-const TractorTrailerForecast = () => {
+export type SalesPoint = { month: string; sales: number | null };
+
+interface TractorTrailerProps {
+  /** Monthly Trailer series from the backend ({ month: "YYYY-MM", sales }). */
+  data?: SalesPoint[];
+  /** Admins skip the passcode and see the chart directly. */
+  isAdmin?: boolean;
+  /** True while the upstream overall-chart-data fetch is in flight. */
+  loading?: boolean;
+}
+
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function formatMonthLabel(yyyymm: string): string {
+  const [y, m] = String(yyyymm || "").split("-");
+  const idx = Number(m) - 1;
+  if (!y || Number.isNaN(idx) || idx < 0 || idx > 11) return String(yyyymm || "");
+  return `${MONTHS_SHORT[idx]} ${y}`;
+}
+
+const TractorTrailerForecast = ({
+  data = [],
+  isAdmin = false,
+  loading = false,
+}: TractorTrailerProps) => {
   const [entered, setEntered] = useState("");
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Admins bypass the passcode entirely; everyone else must unlock.
+  const unlocked = isAdmin || authed;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +76,7 @@ const TractorTrailerForecast = () => {
         Tractor Trailer Sales Performance
       </h2>
 
-      {!authed ? (
+      {!unlocked ? (
         <div className="mt-2 flex justify-center">
           <form
             onSubmit={handleSubmit}
@@ -110,17 +140,19 @@ const TractorTrailerForecast = () => {
           </form>
         </div>
       ) : (
-        <TractorTrailerSalesChart />
+        <TractorTrailerSalesChart data={data} loading={loading} />
       )}
     </div>
   );
 };
 
-const TractorTrailerSalesChart = () => {
-  // Apr 2025 → Mar 2026
-  const startMonthIndex = 3; // April (0-based)
-  const baseDate = new Date(2025, startMonthIndex, 1);
-
+const TractorTrailerSalesChart = ({
+  data,
+  loading,
+}: {
+  data: SalesPoint[];
+  loading: boolean;
+}) => {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -131,30 +163,36 @@ const TractorTrailerSalesChart = () => {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  const months = useMemo(
+  const chartData = useMemo(
     () =>
-      Array.from({ length: 12 }, (_, i) => {
-        const date = new Date(
-          baseDate.getFullYear(),
-          baseDate.getMonth() + i,
-          1,
-        );
-        return `${date.toLocaleString("default", {
-          month: "short",
-        })} ${date.getFullYear()}`;
-      }),
-    [],
+      (data || [])
+        .filter((p) => p && p.sales != null && Number.isFinite(Number(p.sales)))
+        .map((p) => ({ month: formatMonthLabel(p.month), sales: Number(p.sales) })),
+    [data],
   );
 
-  // Apr 2025 → Mar 2026 (12 values)
-  const values = [
-    4185, 4256, 3988, 4362, 4122, 4236, 4352, 4462, 4125, 4332, 4066, 4458,
-  ];
+  if (loading) {
+    return (
+      <div
+        style={{ height: isMobile ? 220 : 320, marginTop: 16 }}
+        className="flex items-center justify-center text-sm text-zinc-400"
+      >
+        Loading tractor trailer sales…
+      </div>
+    );
+  }
 
-  const data = months.map((label, idx) => ({
-    month: label,
-    sales: values[idx],
-  }));
+  if (!chartData.length) {
+    return (
+      <div
+        style={{ height: isMobile ? 220 : 320, marginTop: 16 }}
+        className="flex items-center justify-center rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/40 text-center text-sm text-zinc-400"
+      >
+        Tractor trailer sales data is not yet available for the selected market
+        and month.
+      </div>
+    );
+  }
 
   return (
     <div
@@ -166,7 +204,7 @@ const TractorTrailerSalesChart = () => {
     >
       <ResponsiveContainer width="100%" height="100%">
         <RechartsLineChart
-          data={data}
+          data={chartData}
           margin={
             isMobile
               ? { top: 6, right: 12, left: 2, bottom: 6 }

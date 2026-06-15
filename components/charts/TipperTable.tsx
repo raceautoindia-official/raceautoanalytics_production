@@ -13,11 +13,37 @@ import {
 
 const PASSCODE = "TipperFlash@2025";
 
-const TipperTable = () => {
+export type SalesPoint = { month: string; sales: number | null };
+
+interface TipperTableProps {
+  /** Monthly Tipper series from the backend ({ month: "YYYY-MM", sales }). */
+  data?: SalesPoint[];
+  /** Admins skip the passcode and see the chart directly. */
+  isAdmin?: boolean;
+  /** True while the upstream overall-chart-data fetch is in flight. */
+  loading?: boolean;
+}
+
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function formatMonthLabel(yyyymm: string): string {
+  const [y, m] = String(yyyymm || "").split("-");
+  const idx = Number(m) - 1;
+  if (!y || Number.isNaN(idx) || idx < 0 || idx > 11) return String(yyyymm || "");
+  return `${MONTHS_SHORT[idx]} ${y}`;
+}
+
+const TipperTable = ({ data = [], isAdmin = false, loading = false }: TipperTableProps) => {
   const [entered, setEntered] = useState("");
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Admins bypass the passcode entirely; everyone else must unlock.
+  const unlocked = isAdmin || authed;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +71,7 @@ const TipperTable = () => {
         Tipper Sales Performance
       </h2>
 
-      {!authed ? (
+      {!unlocked ? (
         <div className="mt-2 flex justify-center">
           <form
             onSubmit={handleSubmit}
@@ -108,32 +134,19 @@ const TipperTable = () => {
           </form>
         </div>
       ) : (
-        <TipperSalesChart />
+        <TipperSalesChart data={data} loading={loading} />
       )}
     </div>
   );
 };
 
-const TipperSalesChart = () => {
-  // Jan 2025 → Apr 2026
-  const startMonthIndex = 0; // January (0-based)
-  const baseDate = new Date(2025, startMonthIndex, 1);
-
-  const months = useMemo(
-    () =>
-      Array.from({ length: 16 }, (_, i) => {
-        const date = new Date(
-          baseDate.getFullYear(),
-          baseDate.getMonth() + i,
-          1
-        );
-        return `${date.toLocaleString("default", {
-          month: "short",
-        })} ${date.getFullYear()}`;
-      }),
-    []
-  );
-
+const TipperSalesChart = ({
+  data,
+  loading,
+}: {
+  data: SalesPoint[];
+  loading: boolean;
+}) => {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -144,18 +157,35 @@ const TipperSalesChart = () => {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Jan 2025 → Apr 2026 (16 values)
-  const values = [
-    5971, 4744, 5615, 6006,
-    4898, 4381, 4275, 4183,
-    4297, 6039, 5963, 5866,
-    5607, 5034, 6323, 4070,
-  ];
+  const chartData = useMemo(
+    () =>
+      (data || [])
+        .filter((p) => p && p.sales != null && Number.isFinite(Number(p.sales)))
+        .map((p) => ({ month: formatMonthLabel(p.month), sales: Number(p.sales) })),
+    [data],
+  );
 
-  const data = months.map((label, idx) => ({
-    month: label,
-    sales: values[idx],
-  }));
+  if (loading) {
+    return (
+      <div
+        style={{ height: isMobile ? 220 : 320, marginTop: 16 }}
+        className="flex items-center justify-center text-sm text-zinc-400"
+      >
+        Loading tipper sales…
+      </div>
+    );
+  }
+
+  if (!chartData.length) {
+    return (
+      <div
+        style={{ height: isMobile ? 220 : 320, marginTop: 16 }}
+        className="flex items-center justify-center rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/40 text-center text-sm text-zinc-400"
+      >
+        Tipper sales data is not yet available for the selected market and month.
+      </div>
+    );
+  }
 
   return (
     <div
@@ -167,7 +197,7 @@ const TipperSalesChart = () => {
     >
       <ResponsiveContainer width="100%" height="100%">
         <RechartsLineChart
-          data={data}
+          data={chartData}
           margin={
             isMobile
               ? { top: 6, right: 12, left: 2, bottom: 6 }
