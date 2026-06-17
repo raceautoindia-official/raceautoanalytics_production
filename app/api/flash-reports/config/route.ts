@@ -4,7 +4,8 @@ import { normalizeCountryKey } from "@/lib/flashReportCountry";
 
 export const dynamic = "force-dynamic";
 
-const COLUMNS = [
+// Columns that have always existed on flash_reports_text.
+const CORE_COLUMNS = [
   "overall_graph_id",
   "pv_graph_id",
   "cv_graph_id",
@@ -14,9 +15,14 @@ const COLUMNS = [
   "truck_graph_id",
   "bus_graph_id",
   "ce_graph_id",
-  "tipper_graph_id",
-  "trailer_graph_id",
 ] as const;
+
+// Added later by db/migrations/add_tipper_trailer_graph_ids.sql. Queried
+// DEFENSIVELY: if the migration hasn't run yet, selecting them throws "Unknown
+// column", which previously killed the ENTIRE config response (including
+// overall_graph_id → the dashboard forecast lines). We fall back to core
+// columns so the rest of the config keeps working regardless of migration state.
+const OPTIONAL_COLUMNS = ["tipper_graph_id", "trailer_graph_id"] as const;
 
 type MappingRow = {
   overall_graph_id?: number | null;
@@ -32,19 +38,29 @@ type MappingRow = {
   trailer_graph_id?: number | null;
 };
 
-async function getCountryRow(countryKey: string): Promise<MappingRow | null> {
-  const [rows] = await db.query(
-    `
-    SELECT
-      ${COLUMNS.join(", ")}
-    FROM flash_reports_text
-    WHERE country_key = ?
-    LIMIT 1
-    `,
-    [countryKey],
-  );
+function isUnknownColumnError(e: any): boolean {
+  return e?.errno === 1054 || /unknown column/i.test(String(e?.message || ""));
+}
 
-  return Array.isArray(rows) && rows.length ? ((rows as any)[0] as MappingRow) : null;
+async function getCountryRow(countryKey: string): Promise<MappingRow | null> {
+  const run = async (cols: readonly string[]) => {
+    const [rows] = await db.query(
+      `SELECT ${cols.join(", ")} FROM flash_reports_text WHERE country_key = ? LIMIT 1`,
+      [countryKey],
+    );
+    return Array.isArray(rows) && rows.length
+      ? ((rows as any)[0] as MappingRow)
+      : null;
+  };
+
+  try {
+    return await run([...CORE_COLUMNS, ...OPTIONAL_COLUMNS]);
+  } catch (e) {
+    if (!isUnknownColumnError(e)) throw e;
+    // tipper/trailer columns not present yet (migration not run) — return the
+    // core mapping so overall/segment graph ids (and the forecast) still load.
+    return await run(CORE_COLUMNS);
+  }
 }
 
 export async function GET(req: Request) {
