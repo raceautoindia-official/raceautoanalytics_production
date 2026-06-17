@@ -241,30 +241,124 @@ async function readLocalValidPaidSubscription(email: string): Promise<boolean> {
   }
 }
 
+// Cross-check the authoritative consumer subscription source. The internal
+// entitlement endpoints (access-summary / flash-entitlement) have been observed
+// to under-report genuinely-subscribed users (they return the plan but a
+// non-active status), while /api/subscription/analytics — the SAME source the
+// billing / "my plan" view uses — reports the real state for ALL subscribers
+// (app-paid and admin-promoted offline). We consult it to decide active vs not,
+// and cache briefly so the two entitlement readers + the client's 90s poll
+// don't hammer it. Returns "unknown" on any error so callers fall back to the
+// local mirror (an analytics outage must never lock out a paying user).
+type AnalyticsStatus = "active" | "inactive" | "unknown";
+const analyticsStatusCache = new Map<
+  string,
+  { value: AnalyticsStatus; expiresAt: number }
+>();
+const ANALYTICS_STATUS_TTL_MS = 60_000;
+
+async function fetchUpstreamAnalyticsStatus(
+  email: string,
+): Promise<AnalyticsStatus> {
+  const key = String(email || "").trim().toLowerCase();
+  if (!key) return "unknown";
+
+  const now = Date.now();
+  const cached = analyticsStatusCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.value;
+
+  try {
+    const res = await fetch(
+      `${INTERNAL_BASE}/api/subscription/analytics/${encodeURIComponent(key)}`,
+      { cache: "no-store" },
+    );
+
+    // 404 = no subscription record for this email → definitively not active.
+    if (res.status === 404) {
+      analyticsStatusCache.set(key, {
+        value: "inactive",
+        expiresAt: now + ANALYTICS_STATUS_TTL_MS,
+      });
+      return "inactive";
+    }
+    if (!res.ok) return "unknown"; // transient/server error → caller falls back
+
+    const data = await res.json().catch(() => null);
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray((data as any)?.subscriptions)
+        ? (data as any).subscriptions
+        : [];
+
+    const hasActive = list.some((s: any) => {
+      if (String(s?.status || "").trim().toLowerCase() !== "active") return false;
+      const endMs = parseExpiryMs(String(s?.end_date ?? s?.endDate ?? "").trim());
+      return endMs != null && endMs >= Date.now();
+    });
+
+    const value: AnalyticsStatus = hasActive ? "active" : "inactive";
+    analyticsStatusCache.set(key, {
+      value,
+      expiresAt: now + ANALYTICS_STATUS_TTL_MS,
+    });
+    return value;
+  } catch {
+    return "unknown";
+  }
+}
+
 async function enforceEffectiveStatusWithFallbackExpiry(
   email: string,
   status: string,
   data: any,
 ): Promise<string> {
-  // Race Auto India (upstream) is the source of truth. We accept the status it
-  // reports and only enforce upstream's own expiry. We deliberately no longer
-  // override an upstream "inactive" with a (possibly stale) local
-  // subscription_reference row, nor substitute a local end_date for the
-  // upstream window — that masking is exactly why admin-side plan/window edits
-  // in RAI (downgrade, cancel, shortened cycle) failed to reflect here.
-  //
-  // The local table is only ever written by this app's own payment flow
-  // (sync-current-plan), so it can't know about edits made directly in RAI.
-  // (`email` retained for signature compatibility; local table no longer read
-  // here. readLocalValidPaidSubscription/readLocalSubscriptionExpiry are kept
-  // available for a future "upstream unreachable" fallback if needed.)
-  void email;
   const normalized = normalizeStatus(status);
-  if (normalized !== "active") return normalized;
+  if (normalized !== "active") {
+    // The internal entitlement endpoint can under-report a genuinely subscribed
+    // user — app-paid (recorded locally) OR admin-promoted offline (no local
+    // record). When there's any plan signal, cross-check the authoritative
+    // analytics source (the same data the user sees in billing):
+    //   - analytics "active"   → active   (covers app-paid AND offline/admin)
+    //   - analytics "inactive" → honor it (reflects a real RAI cancel/expiry —
+    //                            fixes the old local-override staleness)
+    //   - analytics "unknown"  → fall back to the local paid-plan mirror so an
+    //                            analytics outage never locks out a paid user.
+    const hasPlanSignal = Boolean(
+      data?.hasDirectPlan ||
+        data?.hasSharedPlan ||
+        data?.isSubscribed ||
+        data?.effectivePlan,
+    );
+    const localActivePaid = await readLocalValidPaidSubscription(email);
 
-  // Upstream says active → honor any expiry it provides; if it omits one,
-  // trust upstream's "active".
-  return enforceNonExpiredActiveStatus(normalized, data);
+    // Consult analytics when EITHER side hints at a subscription (internal plan
+    // signal OR a local paid record). Truly-free users (neither) skip the call.
+    // This way a real RAI cancel reflects even for an app-paid user whose
+    // internal payload no longer carries a plan signal.
+    if (hasPlanSignal || localActivePaid) {
+      const analytics = await fetchUpstreamAnalyticsStatus(email);
+      if (analytics === "active") return "active";
+      if (analytics === "inactive") return normalized; // reflects real cancel/expiry
+      // analytics "unknown" (outage) → fall back to the local paid-plan mirror.
+      if (localActivePaid) return "active";
+    }
+    return normalized;
+  }
+
+  const directStatus = enforceNonExpiredActiveStatus(normalized, data);
+  if (directStatus !== "active") return directStatus;
+
+  // If upstream payload has no expiry field, fall back to local subscription_reference.
+  const hasUpstreamExpiry = Boolean(readExpiryCandidate(data));
+  if (hasUpstreamExpiry) return directStatus;
+
+  const localExpiry = await readLocalSubscriptionExpiry(email);
+  if (!localExpiry) return directStatus;
+
+  const localStatus = enforceNonExpiredActiveStatus("active", {
+    end_date: localExpiry,
+  });
+  return localStatus;
 }
 
 function asBoolean(value: any): boolean | null {
@@ -424,10 +518,15 @@ export async function fetchRaiAccessSummary(
   );
   if (membership.pending) effectiveStatus = "pending";
 
-  const limit =
+  let limit =
     data.flashReportCountryLimit != null
       ? Number(data.flashReportCountryLimit)
       : derivedCountryLimit(effectivePlan);
+  // Same non-lockout safety net as flash-entitlement: an active subscriber on a
+  // custom/unknown plan with no explicit upstream limit gets at least one country.
+  if (effectiveStatus === "active" && (!Number.isFinite(limit) || limit <= 0)) {
+    limit = 1;
+  }
 
   return {
     email: data.email ?? email,
@@ -476,25 +575,38 @@ export async function fetchRaiFlashEntitlement(
   const role = normalizeRole(data);
   const hasFullAccess = !!role && FULL_ACCESS_ROLES.has(role);
   const membership = normalizeMembershipApproval(data, accessType);
-  const upstreamNormalizedStatus = normalizeStatus(data.effectiveStatus);
-  let effectiveStatus = upstreamNormalizedStatus;
-  effectiveStatus = await enforceEffectiveStatusWithFallbackExpiry(
+  const hasStatusField = normalizeText(data.effectiveStatus) !== "";
+  const hasAnyPlan = Boolean(
+    data.hasDirectPlan || data.hasSharedPlan || data.isSubscribed || effectivePlan,
+  );
+  // Resolve the pre-enforcement status the SAME way fetchRaiAccessSummary does:
+  // honor an explicit upstream status, else infer "active" from the presence of
+  // a plan. This is what lets an OFFLINE user whom the admin promoted to a
+  // (possibly custom) plan in Race Auto India be recognized as subscribed even
+  // when upstream doesn't emit a standard status field — and keeps the client
+  // UI consistent with the server-side API access gate (requireProtectedDataAccess).
+  const preEnforceStatus = hasStatusField
+    ? normalizeStatus(data.effectiveStatus)
+    : hasAnyPlan
+      ? "active"
+      : "inactive";
+  let effectiveStatus = await enforceEffectiveStatusWithFallbackExpiry(
     email,
-    effectiveStatus,
+    preEnforceStatus,
     data,
   );
-  // True when upstream said non-active but local DB override corrected it to active.
+  // True when the pre-enforce status was non-active but the local paid-plan
+  // override corrected it to active — then trust local over an upstream
+  // isSubscribed=false (protects users who paid through THIS app).
   const wasLocallyActivated =
-    upstreamNormalizedStatus !== "active" && effectiveStatus === "active";
-  const hasStatusField = normalizeText(data.effectiveStatus) !== "";
+    preEnforceStatus !== "active" && effectiveStatus === "active";
   const activeStatus = effectiveStatus === "active";
-  // When locally activated, trust the local DB over any upstream isSubscribed=false.
   let isSubscribed = wasLocallyActivated
     ? true
     : data.isSubscribed != null
       ? Boolean(data.isSubscribed)
-      : Boolean(data.hasDirectPlan || data.hasSharedPlan || effectivePlan);
-  if (hasStatusField && !wasLocallyActivated) {
+      : hasAnyPlan;
+  if (!wasLocallyActivated) {
     isSubscribed = isSubscribed && activeStatus;
   }
   if (membership.pending) {
@@ -502,10 +614,17 @@ export async function fetchRaiFlashEntitlement(
     effectiveStatus = "pending";
   }
 
-  const limit =
+  let limit =
     data.flashReportCountryLimit != null
       ? Number(data.flashReportCountryLimit)
       : derivedCountryLimit(effectivePlan);
+  // Safety net for offline/admin-promoted custom plans: an active subscriber
+  // whose country limit couldn't be resolved (unknown plan name AND upstream
+  // sent no explicit limit) still gets at least one country instead of being
+  // locked out of every market. Upstream's explicit limit is always honored.
+  if (isSubscribed && (!Number.isFinite(limit) || limit <= 0)) {
+    limit = 1;
+  }
 
   return {
     effectivePlan,
@@ -553,13 +672,21 @@ export async function fetchRaiForecastEntitlement(
   email: string,
 ): Promise<RaiForecastEntitlement> {
   const base = await fetchRaiFlashEntitlement(email);
+  // Mirror the flash country-limit safety net: an active subscriber on a
+  // custom/unknown plan whose region limit can't be derived still gets at
+  // least one forecast region rather than being locked out.
+  const derivedRegions = derivedRegionLimit(base.effectivePlan);
+  const forecastRegionLimit =
+    base.isSubscribed && (!Number.isFinite(derivedRegions) || derivedRegions <= 0)
+      ? 1
+      : derivedRegions;
   return {
     effectivePlan: base.effectivePlan,
     accessType: base.accessType,
     isSubscribed: base.isSubscribed,
     effectiveStatus: base.effectiveStatus,
     parentEmail: base.parentEmail,
-    forecastRegionLimit: derivedRegionLimit(base.effectivePlan),
+    forecastRegionLimit,
     hasDirectPlan: base.hasDirectPlan,
     hasSharedPlan: base.hasSharedPlan,
     role: base.role,

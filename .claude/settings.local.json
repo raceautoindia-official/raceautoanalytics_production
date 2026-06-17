@@ -3,7 +3,9 @@
     "allow": [
       "Bash(node -e ':*)",
       "Bash(echo \"---exit: $?---\")",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(cd \"C:\\\\Users\\\\2182\\\\.claude\\\\projects\\\\e--arun-race-auto-india-production-version-master-login-auth-raceautoanalytics-production\\\\memory\" && ls && echo \"--- MEMORY.md exists? ---\" && test -f MEMORY.md && echo yes || echo no)",
+      "Read(//c/Users/2182/.claude/projects/e--arun-race-auto-india-production-version-master-login-auth-raceautoanalytics-production/memory/**)"
     ]
   }
 }
