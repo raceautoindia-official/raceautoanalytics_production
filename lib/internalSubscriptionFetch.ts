@@ -246,31 +246,25 @@ async function enforceEffectiveStatusWithFallbackExpiry(
   status: string,
   data: any,
 ): Promise<string> {
+  // Race Auto India (upstream) is the source of truth. We accept the status it
+  // reports and only enforce upstream's own expiry. We deliberately no longer
+  // override an upstream "inactive" with a (possibly stale) local
+  // subscription_reference row, nor substitute a local end_date for the
+  // upstream window — that masking is exactly why admin-side plan/window edits
+  // in RAI (downgrade, cancel, shortened cycle) failed to reflect here.
+  //
+  // The local table is only ever written by this app's own payment flow
+  // (sync-current-plan), so it can't know about edits made directly in RAI.
+  // (`email` retained for signature compatibility; local table no longer read
+  // here. readLocalValidPaidSubscription/readLocalSubscriptionExpiry are kept
+  // available for a future "upstream unreachable" fallback if needed.)
+  void email;
   const normalized = normalizeStatus(status);
-  if (normalized !== "active") {
-    // Upstream returned a non-active status. Before accepting it, check the
-    // local subscription_reference table: if the user has a paid plan whose
-    // end_date is still in the future, the upstream is misreporting and we
-    // override to "active". Expired or truly free users return unchanged.
-    const hasLocalActivePaid = await readLocalValidPaidSubscription(email);
-    if (hasLocalActivePaid) return "active";
-    return normalized;
-  }
+  if (normalized !== "active") return normalized;
 
-  const directStatus = enforceNonExpiredActiveStatus(normalized, data);
-  if (directStatus !== "active") return directStatus;
-
-  // If upstream payload has no expiry field, fall back to local subscription_reference.
-  const hasUpstreamExpiry = Boolean(readExpiryCandidate(data));
-  if (hasUpstreamExpiry) return directStatus;
-
-  const localExpiry = await readLocalSubscriptionExpiry(email);
-  if (!localExpiry) return directStatus;
-
-  const localStatus = enforceNonExpiredActiveStatus("active", {
-    end_date: localExpiry,
-  });
-  return localStatus;
+  // Upstream says active → honor any expiry it provides; if it omits one,
+  // trust upstream's "active".
+  return enforceNonExpiredActiveStatus(normalized, data);
 }
 
 function asBoolean(value: any): boolean | null {

@@ -14,6 +14,8 @@ const COLUMNS = [
   "truck_graph_id",
   "bus_graph_id",
   "ce_graph_id",
+  "tipper_graph_id",
+  "trailer_graph_id",
 ] as const;
 
 type MappingRow = {
@@ -26,6 +28,8 @@ type MappingRow = {
   truck_graph_id?: number | null;
   bus_graph_id?: number | null;
   ce_graph_id?: number | null;
+  tipper_graph_id?: number | null;
+  trailer_graph_id?: number | null;
 };
 
 async function getCountryRow(countryKey: string): Promise<MappingRow | null> {
@@ -65,6 +69,8 @@ export async function GET(req: Request) {
       safeRow.truck_graph_id,
       safeRow.bus_graph_id,
       safeRow.ce_graph_id,
+      safeRow.tipper_graph_id,
+      safeRow.trailer_graph_id,
     ]
       .map((v: any) => (v == null ? null : Number(v)))
       .filter((v: any) => Number.isFinite(v)) as number[];
@@ -101,6 +107,8 @@ export async function GET(req: Request) {
       truck: pick(safeRow.truck_graph_id),
       bus: pick(safeRow.bus_graph_id),
       ce: pick(safeRow.ce_graph_id),
+      tipper: pick(safeRow.tipper_graph_id),
+      trailer: pick(safeRow.trailer_graph_id),
       horizonDefault: 6,
     });
   } catch (e: any) {

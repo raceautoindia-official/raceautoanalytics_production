@@ -24,6 +24,8 @@ const FIELDS = [
   { key: "truck_graph_id", label: "Truck" },
   { key: "bus_graph_id", label: "Bus" },
   { key: "ce_graph_id", label: "Construction Equipment" },
+  { key: "tipper_graph_id", label: "Tipper" },
+  { key: "trailer_graph_id", label: "Tractor Trailer" },
 ];
 
 export default function FlashGraphMappingEditor() {

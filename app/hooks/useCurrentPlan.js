@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getPublicPlanLabel } from '@/lib/planLabels';
 
 // Helper to read a named cookie
@@ -26,6 +26,9 @@ export function useCurrentPlan() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [email, setEmail] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+  // First load shows `loading`; focus/poll refetches update silently.
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     const token = getCookie('authToken');
@@ -42,12 +45,16 @@ export function useCurrentPlan() {
       return;
     }
 
-    const email = payload.email;
-    const url   = `/api/my-plan?email=${email}`;
-    setEmail(email);
+    const userEmail = payload.email;
+    const url   = `/api/my-plan?email=${userEmail}`;
+    setEmail(userEmail);
+
+    let cancelled = false;
+    if (!hasLoadedRef.current) setLoading(true);
 
     fetch(url, {
       credentials: 'include',    // send cookies along
+      cache: 'no-store',         // always read the current plan, never cached
     })
       .then((res) => {
         // 404 = upstream has no subscription row for this email (free user).
@@ -57,6 +64,7 @@ export function useCurrentPlan() {
         return res.json();
       })
       .then((data) => {
+        if (cancelled) return;
         // data is an array of subscriptions
         const parseDateMs = (value) => {
           const raw = String(value ?? "").trim();
@@ -65,7 +73,8 @@ export function useCurrentPlan() {
           return Number.isFinite(ms) ? ms : null;
         };
 
-        const active = data.find(
+        const list = Array.isArray(data) ? data : [];
+        const active = list.find(
           (s) => {
             const status = String(s?.status || "").trim().toLowerCase();
             if (status !== "active") return false;
@@ -77,10 +86,46 @@ export function useCurrentPlan() {
         if (active) {
           setPlanName(getPublicPlanLabel(active.plan_name) || active.plan_name);
           setIsValid(active.status);
+          setError(null);
+        } else {
+          // No active plan (cancelled/expired/downgraded upstream) — clear any
+          // previously shown plan so a refetch reflects the change.
+          setPlanName(null);
+          setIsValid(false);
         }
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => {
+        if (!cancelled) {
+          hasLoadedRef.current = true;
+          setLoading(false);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [refreshTick]);
+
+  // Keep the plan fresh site-wide without a manual reload: silently refetch on
+  // tab focus / visibility and every 90s while visible (mirrors the entitlement
+  // hooks), so admin plan/window changes in Race Auto India reflect quickly.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const bump = () => setRefreshTick((t) => t + 1);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") bump();
+    };
+
+    window.addEventListener("focus", bump);
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") bump();
+    }, 90_000);
+
+    return () => {
+      window.removeEventListener("focus", bump);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(interval);
+    };
   }, []);
 
   return { planName, isValid, loading, error, email };

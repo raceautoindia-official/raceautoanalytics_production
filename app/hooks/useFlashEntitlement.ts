@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface FlashEntitlement {
   effectivePlan: string | null;
@@ -54,6 +54,10 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // True once the initial load has completed — used to keep background
+  // refetches (focus/poll) silent so they don't flip `loading` and flicker the
+  // gate/country lock on every refresh.
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     const loggedIn = hasAuthToken();
@@ -69,7 +73,9 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
 
     async function load() {
       try {
-        setLoading(true);
+        // Only show the blocking loading state on the very first load. Focus/
+        // poll-driven refetches update entitlement silently in the background.
+        if (!hasLoadedRef.current) setLoading(true);
         setError(null);
 
         const [entitlementRes, countriesRes] = await Promise.all([
@@ -117,7 +123,10 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
           e instanceof Error ? e.message : "Network error";
         if (!cancelled) setError(message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          hasLoadedRef.current = true;
+          setLoading(false);
+        }
       }
     }
 
@@ -127,6 +136,30 @@ export function useFlashEntitlement(): UseFlashEntitlementResult {
       if (trialExpireTimer) clearTimeout(trialExpireTimer);
     };
   }, [refreshTick]);
+
+  // Keep entitlement fresh without a manual reload: silently refetch when the
+  // user returns to the tab (focus / visibility) and every 90s while visible.
+  // This is what makes an admin's plan/window change in Race Auto India show up
+  // here within seconds instead of only after a full page reload.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const bump = () => setRefreshTick((t) => t + 1);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") bump();
+    };
+
+    window.addEventListener("focus", bump);
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") bump();
+    }, 90_000);
+
+    return () => {
+      window.removeEventListener("focus", bump);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   function refreshCountries() {
     setRefreshTick((t) => t + 1);

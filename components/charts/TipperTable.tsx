@@ -1,42 +1,32 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import {
-  LineChart as RechartsLineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import React, { useState } from "react";
+import { LineChart } from "@/components/charts/LineChart";
 
 const PASSCODE = "TipperFlash@2025";
 
-export type SalesPoint = { month: string; sales: number | null };
-
 interface TipperTableProps {
-  /** Monthly Tipper series from the backend ({ month: "YYYY-MM", sales }). */
-  data?: SalesPoint[];
+  /** Overall-chart-data points; the historical "Tipper" series lives here. */
+  overallData?: any[];
+  /** Flash graph id mapped to Tipper (per country) — drives the forecast. */
+  graphId?: number | null;
+  allowForecast?: boolean;
+  baseMonth?: string | null;
+  horizon?: number | null;
+  country?: string | null;
   /** Admins skip the passcode and see the chart directly. */
   isAdmin?: boolean;
-  /** True while the upstream overall-chart-data fetch is in flight. */
-  loading?: boolean;
 }
 
-const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-function formatMonthLabel(yyyymm: string): string {
-  const [y, m] = String(yyyymm || "").split("-");
-  const idx = Number(m) - 1;
-  if (!y || Number.isNaN(idx) || idx < 0 || idx > 11) return String(yyyymm || "");
-  return `${MONTHS_SHORT[idx]} ${y}`;
-}
-
-const TipperTable = ({ data = [], isAdmin = false, loading = false }: TipperTableProps) => {
+const TipperTable = ({
+  overallData = [],
+  graphId = null,
+  allowForecast = false,
+  baseMonth = null,
+  horizon = 6,
+  country = null,
+  isAdmin = false,
+}: TipperTableProps) => {
   const [entered, setEntered] = useState("");
   const [authed, setAuthed] = useState(false);
   const [error, setError] = useState("");
@@ -134,113 +124,23 @@ const TipperTable = ({ data = [], isAdmin = false, loading = false }: TipperTabl
           </form>
         </div>
       ) : (
-        <TipperSalesChart data={data} loading={loading} />
+        // Same line-chart flow as the other segments: historical from the
+        // "Tipper" series + forecast lines driven by the mapped Flash graph.
+        // showSubmitScore={false} keeps it lean (no Build-Your-Forecast CTA).
+        <div className="mt-4">
+          <LineChart
+            overallData={overallData}
+            category="Tipper"
+            height={320}
+            allowForecast={allowForecast}
+            baseMonth={baseMonth}
+            horizon={horizon}
+            country={country}
+            graphId={graphId}
+            showSubmitScore={false}
+          />
+        </div>
       )}
-    </div>
-  );
-};
-
-const TipperSalesChart = ({
-  data,
-  loading,
-}: {
-  data: SalesPoint[];
-  loading: boolean;
-}) => {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const check = () => setIsMobile(window.innerWidth < 640);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
-  const chartData = useMemo(
-    () =>
-      (data || [])
-        .filter((p) => p && p.sales != null && Number.isFinite(Number(p.sales)))
-        .map((p) => ({ month: formatMonthLabel(p.month), sales: Number(p.sales) })),
-    [data],
-  );
-
-  if (loading) {
-    return (
-      <div
-        style={{ height: isMobile ? 220 : 320, marginTop: 16 }}
-        className="flex items-center justify-center text-sm text-zinc-400"
-      >
-        Loading tipper sales…
-      </div>
-    );
-  }
-
-  if (!chartData.length) {
-    return (
-      <div
-        style={{ height: isMobile ? 220 : 320, marginTop: 16 }}
-        className="flex items-center justify-center rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/40 text-center text-sm text-zinc-400"
-      >
-        Tipper sales data is not yet available for the selected market and month.
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: isMobile ? 220 : 320,
-        marginTop: 16,
-      }}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <RechartsLineChart
-          data={chartData}
-          margin={
-            isMobile
-              ? { top: 6, right: 12, left: 2, bottom: 6 }
-              : { top: 10, right: 30, left: 10, bottom: 10 }
-          }
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-          <XAxis
-            dataKey="month"
-            tick={{ fontSize: isMobile ? 9 : 11, fill: "#ccc" }}
-            angle={isMobile ? -35 : -25}
-            textAnchor="end"
-            height={isMobile ? 42 : 50}
-            minTickGap={isMobile ? 6 : 0}
-          />
-          <YAxis
-            tick={{ fontSize: isMobile ? 9 : 11, fill: "#ccc" }}
-            tickFormatter={(val) => val.toLocaleString()}
-            width={isMobile ? 40 : 60}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "#1f1f1f",
-              border: "1px solid #444",
-              borderRadius: 8,
-              fontSize: 12,
-              color: "#fff",
-            }}
-            formatter={(value: any) => [
-              `${value.toLocaleString()} units`,
-              "Sales",
-            ]}
-          />
-          <Line
-            type="monotone"
-            dataKey="sales"
-            stroke="#FFC043"
-            strokeWidth={2}
-            dot={{ r: 4, strokeWidth: 1, stroke: "#121212" }}
-            activeDot={{ r: 6 }}
-          />
-        </RechartsLineChart>
-      </ResponsiveContainer>
     </div>
   );
 };

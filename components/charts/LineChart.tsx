@@ -58,6 +58,8 @@ const catColors: Record<string, string> = {
   CV: "#9966FF",
   CE: "#65f89b",
   Total: "#FF9F40",
+  Tipper: "#FFC043",
+  Trailer: "#8B5CF6",
 };
 
 const forecastColors = {

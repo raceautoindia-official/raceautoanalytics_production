@@ -168,6 +168,9 @@ export default function TrucksPage() {
   const [appMonth, setAppMonth] = useState(""); // e.g. 'jan 2025'
 
   const [graphId, setGraphId] = useState<number | null>(null);
+  // Tipper / Tractor-Trailer forecast graph ids — mapped per country in the CMS.
+  const [tipperGraphId, setTipperGraphId] = useState<number | null>(null);
+  const [trailerGraphId, setTrailerGraphId] = useState<number | null>(null);
       const [segmentText, setSegmentText] = useState<any>(null);
 const [segmentTextLoading, setSegmentTextLoading] = useState(false);
 const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
@@ -414,6 +417,32 @@ useEffect(() => {
     return () => { cancelled = true; };
   }, []);
 
+  // ---------- FETCH TIPPER / TRACTOR-TRAILER FORECAST GRAPH CONFIG ----------
+  // Per-country (CMS-provisioned) so other countries can have their own mapping;
+  // kept separate from the India-default truck mapping above so truck behavior
+  // is untouched.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSubSegmentConfig() {
+      try {
+        const res = await fetch(
+          withCountry("/api/flash-reports/config", region),
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const cfg = await res.json();
+        if (!cancelled) {
+          setTipperGraphId(cfg?.tipper ?? null);
+          setTrailerGraphId(cfg?.trailer ?? null);
+        }
+      } catch (err) {
+        console.error("Failed to load tipper/trailer config", err);
+      }
+    }
+    loadSubSegmentConfig();
+    return () => { cancelled = true; };
+  }, [region]);
+
   // ---------- FETCH OVERALL TIMESERIES (for Truck forecast) ----------
   useEffect(() => {
     // Wait for entitlement to settle (race-condition fix — see two-wheeler).
@@ -467,22 +496,17 @@ useEffect(() => {
     // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
   }, [month, region, flashEntitlement?.loading, isFreeUser]);
 
-  // Tipper & Tractor-Trailer sales series — sub-segment columns ("Tipper" /
-  // "Trailer") that live in the same overall-chart-data payload. Months without
-  // these columns (e.g. forecast months) are dropped by the null filter.
-  const tipperSeries = useMemo(
-    () =>
-      (overallData || [])
-        .filter((p: any) => p?.data && p.data.Tipper != null)
-        .map((p: any) => ({ month: p.month, sales: Number(p.data.Tipper) })),
+  // Tipper / Tractor-Trailer availability for the selected country: do any
+  // overall-chart-data points carry a "Tipper" / "Trailer" value? This drives
+  // whether the whole section (chart AND passcode/lock UI) renders — so a user
+  // never sees a lock for data that doesn't exist for their country.
+  const hasTipperData = useMemo(
+    () => (overallData || []).some((p: any) => p?.data?.Tipper != null),
     [overallData],
   );
 
-  const trailerSeries = useMemo(
-    () =>
-      (overallData || [])
-        .filter((p: any) => p?.data && p.data.Trailer != null)
-        .map((p: any) => ({ month: p.month, sales: Number(p.data.Trailer) })),
+  const hasTrailerData = useMemo(
+    () => (overallData || []).some((p: any) => p?.data?.Trailer != null),
     [overallData],
   );
 
@@ -947,20 +971,37 @@ const showApplicationChartSection =
             )}
           </ChartWrapper>
 
-          {/* 5) Tipper & Tractor Trailer (backend-driven; passcode-gated for
-              non-admins, admins see the charts directly) */}
-          <div className="mt-8 space-y-8">
-            <TipperTable
-              data={tipperSeries}
-              isAdmin={!!flashEntitlement?.isAdmin}
-              loading={overallChartLoading}
-            />
-            <TractorTrailerForecast
-              data={trailerSeries}
-              isAdmin={!!flashEntitlement?.isAdmin}
-              loading={overallChartLoading}
-            />
-          </div>
+          {/* 5) Tipper & Tractor Trailer — same LineChart flow as other
+              segments (historical + forecast). Hidden entirely (chart AND
+              passcode/lock UI) when the selected country has no data, so users
+              never see a lock for data that doesn't exist. Admins skip the
+              passcode. Only rendered once the overall fetch has settled. */}
+          {!overallChartLoading && (hasTipperData || hasTrailerData) && (
+            <div className="mt-8 space-y-8">
+              {hasTipperData && (
+                <TipperTable
+                  overallData={overallData}
+                  graphId={tipperGraphId}
+                  allowForecast={!!overallMeta?.allowForecast}
+                  baseMonth={overallMeta?.baseMonth ?? month}
+                  horizon={overallMeta?.horizon ?? 6}
+                  country={region}
+                  isAdmin={!!flashEntitlement?.isAdmin}
+                />
+              )}
+              {hasTrailerData && (
+                <TractorTrailerForecast
+                  overallData={overallData}
+                  graphId={trailerGraphId}
+                  allowForecast={!!overallMeta?.allowForecast}
+                  baseMonth={overallMeta?.baseMonth ?? month}
+                  horizon={overallMeta?.horizon ?? 6}
+                  country={region}
+                  isAdmin={!!flashEntitlement?.isAdmin}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

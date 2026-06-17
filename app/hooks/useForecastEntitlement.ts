@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface ForecastEntitlement {
   effectivePlan: string | null;
@@ -54,6 +54,9 @@ export function useForecastEntitlement(): UseForecastEntitlementResult {
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // True once the initial load has completed — keeps focus/poll refetches
+  // silent so they don't flip `loading` and flicker the gate/region lock.
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     const loggedIn = hasAuthToken();
@@ -68,7 +71,9 @@ export function useForecastEntitlement(): UseForecastEntitlementResult {
 
     async function load() {
       try {
-        setLoading(true);
+        // Only the first load shows the blocking loading state; focus/poll
+        // refetches update entitlement silently in the background.
+        if (!hasLoadedRef.current) setLoading(true);
         setError(null);
 
         const [entitlementRes, regionsRes] = await Promise.all([
@@ -105,7 +110,10 @@ export function useForecastEntitlement(): UseForecastEntitlementResult {
           e instanceof Error ? e.message : "Network error";
         if (!cancelled) setError(message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          hasLoadedRef.current = true;
+          setLoading(false);
+        }
       }
     }
 
@@ -114,6 +122,30 @@ export function useForecastEntitlement(): UseForecastEntitlementResult {
       cancelled = true;
     };
   }, [refreshTick]);
+
+  // Keep entitlement fresh site-wide without a manual reload: silently refetch
+  // when the user returns to the browser tab (focus / visibility) and every 90s
+  // while the tab is visible. Mirrors useFlashEntitlement so Forecast pages
+  // pick up admin plan/window changes from Race Auto India just as quickly.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const bump = () => setRefreshTick((t) => t + 1);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") bump();
+    };
+
+    window.addEventListener("focus", bump);
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") bump();
+    }, 90_000);
+
+    return () => {
+      window.removeEventListener("focus", bump);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   function refreshRegions() {
     setRefreshTick((t) => t + 1);

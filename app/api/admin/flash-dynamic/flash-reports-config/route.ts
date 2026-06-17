@@ -14,6 +14,8 @@ const COLUMNS = [
   "truck_graph_id",
   "bus_graph_id",
   "ce_graph_id",
+  "tipper_graph_id",
+  "trailer_graph_id",
 ];
 
 export async function GET(req: Request) {
