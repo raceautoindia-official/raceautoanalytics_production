@@ -54,6 +54,11 @@ const SEGMENT_TO_CAT = {
   construction: "CE",
   constructionequipment: "CE",
   "construction equipment": "CE",
+  // Truck sub-segments (Tipper / Tractor-Trailer charts)
+  tipper: "Tipper",
+  trailer: "Trailer",
+  "tractor trailer": "Trailer",
+  tractortrailer: "Trailer",
 };
 
 function normalizeSeg(s) {
@@ -75,6 +80,10 @@ function guessFlashSegment(graph) {
 
   const name = String(graph?.name || "").toLowerCase();
   if (name.includes("overall") || name.includes("total")) return "overall";
+  // Tipper / Tractor-Trailer must be checked before tractor/truck so a name
+  // like "Tractor Trailer" doesn't fall into the "tractor" bucket.
+  if (name.includes("tipper")) return "tipper";
+  if (name.includes("trailer")) return "trailer";
   if (name.includes("pv") || name.includes("passenger")) return "pv";
   if (name.includes("cv") || name.includes("commercial")) return "cv";
   if (name.includes("2w") || name.includes("two")) return "tw";

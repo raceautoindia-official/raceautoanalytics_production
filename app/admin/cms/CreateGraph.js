@@ -521,6 +521,8 @@ export default function CreateGraph({
                     { label: "Truck", value: "truck" },
                     { label: "Bus", value: "bus" },
                     { label: "Construction Equipment", value: "ce" },
+                    { label: "Tipper", value: "tipper" },
+                    { label: "Tractor Trailer", value: "trailer" },
                   ]}
                 />
               </Form.Item>
