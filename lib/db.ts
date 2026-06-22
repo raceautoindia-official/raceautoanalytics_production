@@ -7,7 +7,14 @@ const db = mysql.createPool({
   database:  process.env.DB_NAME,
   password:  process.env.DB_PASSWORD,
   waitForConnections: true,
-  connectionLimit: 1500,
+  // Kept BELOW the MySQL server's max_connections (default 151). The previous
+  // value (1500) let the pool open far more connections than the server allows,
+  // so under load MySQL rejected them with "Too many connections" — surfacing
+  // as intermittently-blank CMS pages (failed query → empty data, no console
+  // error). With waitForConnections + queueLimit:0, excess queries QUEUE (wait)
+  // instead of failing, so normal flow is unchanged. If you run multiple app
+  // instances, size this as (max_connections - headroom) / instances.
+  connectionLimit: 50,
   maxIdle: 10, // max idle connections, the default value is the same as `connectionLimit`
   idleTimeout: 60000, // idle connections timeout, in milliseconds, the default value 60000
   queueLimit: 0,
