@@ -125,9 +125,11 @@ const TractorTrailerForecast = ({
           </form>
         </div>
       ) : (
-        // Same line-chart flow as the other segments: historical from the
-        // "Trailer" series + forecast lines driven by the mapped Flash graph.
-        // showSubmitScore={false} keeps it lean (no Build-Your-Forecast CTA).
+        // Full line-chart flow, identical to the other segments: historical
+        // from the "Trailer" series + AI/Race/Survey forecast lines AND the
+        // Build-Your-Forecast (BYF) score-card CTA driven by the mapped Flash
+        // graph + its BYF questions. showSubmitScore defaults to true (same as
+        // the Truck/2W/etc. forecast charts).
         <div className="mt-4">
           <LineChart
             overallData={overallData}
@@ -138,7 +140,6 @@ const TractorTrailerForecast = ({
             horizon={horizon}
             country={country}
             graphId={graphId}
-            showSubmitScore={false}
           />
         </div>
       )}
