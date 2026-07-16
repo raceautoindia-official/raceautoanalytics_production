@@ -30,9 +30,9 @@ export default function Footer() {
 
             {/* keep the description below with the same spacing as other columns' content */}
             <p className="mt-4 max-w-xl text-[13px] leading-5 text-white/75">
-              The leading AI-driven market intelligence platform providing
-              comprehensive analytics across automotive, commercial vehicles,
-              industrial equipment, and related sectors.
+              Analyst-ready automotive flash reports and forecasts across 14
+              countries and 9 vehicle segments — from two-wheelers and
+              three-wheelers to trucks, tractors and construction equipment.
             </p>
           </div>
 
@@ -138,7 +138,7 @@ export default function Footer() {
               <li className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-white/60" />
                 <a
-                  href="tel:+15551234567"
+                  href="tel:+918072098352"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
                  +91 8072098352

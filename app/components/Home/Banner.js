@@ -35,7 +35,7 @@ function Banner() {
           </div>
         </div>
         <h1 className="text-white  mt-auto">
-          The Ultimate AI-Driven Market Intelligence Platform for the<br></br>{" "}
+          Vehicle Sales Data &amp; 6-Month Forecasts for the<br></br>{" "}
           Truck, Bus, and Trailer Industry
         </h1>
       </div>

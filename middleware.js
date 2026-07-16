@@ -2,8 +2,8 @@
 import { NextResponse } from 'next/server';
 import { SEO_SKIP_PREFIXES, isIndexableSeoPath } from './lib/seoRoutes.js';
 
-const BASIC_USER = 'admin';
-const BASIC_PASS = 'letMeIn321';
+const BASIC_USER = process.env.ADMIN_BASIC_USER || 'admin';
+const BASIC_PASS = process.env.ADMIN_BASIC_PASS || 'letMeIn321';
 
 export function middleware(req) {
   const { pathname } = req.nextUrl;

@@ -60,9 +60,10 @@ export const metadata = {
     "demand forecasting",
     "automotive insights platform",
   ],
-  alternates: {
-    canonical: "/",
-  },
+  // NOTE: no site-wide canonical here — a root canonical of "/" propagated to
+  // every page that doesn't set its own, telling Google every URL was a
+  // duplicate of the homepage. Each page now self-canonicalizes (its own
+  // metadata.alternates.canonical, or the URL itself when none is set).
   robots: {
     index: true,
     follow: true,
@@ -82,7 +83,7 @@ export const metadata = {
     siteName,
     images: [
       {
-        url: "/",
+        url: "/images/logo.webp",
         width: 1200,
         height: 630,
         alt: "RACE Flash Forecast - Automotive Forecast & Analytics",

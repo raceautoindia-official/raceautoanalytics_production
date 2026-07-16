@@ -20,7 +20,7 @@ function Analytics() {
         </div>
         <div className="col-md-7 mt-3" style={{ textAlign: "justify",fontSize:"1.1rem" }}>
           <p>
-            <strong>RACE Analytics</strong> is the leading data intelligence
+            <strong>RACE Analytics</strong> is a specialized data intelligence
             platform for the global trucking, bus, trailer, and passenger
             vehicle industry. It offers comprehensive analytics on historical
             sales trends, production volumes, financial performance, and key
@@ -61,7 +61,7 @@ function Analytics() {
         </div>
         <div className="col-md-7 mt-3" style={{ textAlign: "justify",fontSize:"1.1rem" }}>
           <p>
-            <strong>RACE Analytics</strong> is the leading data intelligence
+            <strong>RACE Analytics</strong> is a specialized data intelligence
             platform for the global trucking, bus, trailer, and passenger
             vehicle industry. It offers comprehensive analytics on historical
             sales trends, production volumes, financial performance, and key
@@ -106,7 +106,7 @@ function Analytics() {
         </div>
         <div className="col-md-12 mt-3" style={{ textAlign: "justify",fontSize:"1.1rem" }}>
           <p>
-            <strong>RACE Analytics</strong> is the leading data intelligence
+            <strong>RACE Analytics</strong> is a specialized data intelligence
             platform for the global trucking, bus, trailer, and passenger
             vehicle industry. It offers comprehensive analytics on historical
             sales trends, production volumes, financial performance, and key
