@@ -10,6 +10,10 @@ import {
   type ByfAvailability,
   type ByfSegmentKey,
 } from "@/lib/byfSegments";
+import {
+  FLASH_COUNTRIES,
+  groupCountriesByRegion,
+} from "@/lib/flashReportRegistry";
 
 /* small UI helpers */
 const Badge = ({ children }: React.PropsWithChildren) => (
@@ -80,8 +84,7 @@ type CountryItem = {
   name: string;
   code: string; // ISO-2 lowercase
   slug: string;
-  scheduleLabel: string; // only shown in modal
-  description: string; // only shown in modal
+  description: string; // shown in the country modal
 };
 
 function CountryModal({
@@ -323,123 +326,31 @@ export default function MarketHeroSection() {
   const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
+  // Country chips are derived from the country registry so new markets appear
+  // automatically. Chips are grouped by region below.
   const countries = useMemo<CountryItem[]>(
-    () => [
-      {
-        name: "India",
-        code: "in",
-        slug: "india",
-        scheduleLabel: "Every month on 3rd",
-        description:
-          "India flash report includes total market sales, EV sales, and application split. This will be launched every month on the 3rd.",
-      },
-      {
-        name: "Brazil",
-        code: "br",
-        slug: "brazil",
-        scheduleLabel: "Every month on 5th",
-        description:
-          "Brazil flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "South Africa",
-        code: "za",
-        slug: "south-africa",
-        scheduleLabel: "Every month on 6th",
-        description:
-          "South Africa flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Japan",
-        code: "jp",
-        slug: "japan",
-        scheduleLabel: "Every month on 7th",
-        description:
-          "Japan flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Sweden",
-        code: "se",
-        slug: "sweden",
-        scheduleLabel: "Every month on 8th",
-        description:
-          "Sweden flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Vietnam",
-        code: "vn",
-        slug: "vietnam",
-        scheduleLabel: "Every month on 9th",
-        description:
-          "Vietnam flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Chile",
-        code: "cl",
-        slug: "chile",
-        scheduleLabel: "Every month on 10th",
-        description:
-          "Chile flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Pakistan",
-        code: "pk",
-        slug: "pakistan",
-        scheduleLabel: "Every month on 11th",
-        description:
-          "Pakistan flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Colombia",
-        code: "co",
-        slug: "colombia",
-        scheduleLabel: "Every month on 12th",
-        description:
-          "Colombia flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Australia",
-        code: "au",
-        slug: "australia",
-        scheduleLabel: "Every month on 13th",
-        description:
-          "Australia flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Germany",
-        code: "de",
-        slug: "germany",
-        scheduleLabel: "Every month on 14th",
-        description:
-          "Germany flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Peru",
-        code: "pe",
-        slug: "peru",
-        scheduleLabel: "Every month on 15th",
-        description:
-          "Peru flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Russia",
-        code: "ru",
-        slug: "russia",
-        scheduleLabel: "Every month on 16th",
-        description:
-          "Russia flash report includes total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Belgium",
-        code: "be",
-        slug: "belgium",
-        scheduleLabel: "Every month on 17th",
-        description:
-          "Belgium flash report includes total market sales, EV sales, and application split.",
-      },
-    ],
+    () =>
+      FLASH_COUNTRIES.map((c) => ({
+        name: c.name,
+        code: c.iso2.toLowerCase(),
+        slug: c.slug,
+        description: `${c.name} flash report includes total market sales, EV sales, and application split.`,
+      })),
     [],
   );
+
+  const countryGroups = useMemo(
+    () => groupCountriesByRegion(countries),
+    [countries],
+  );
+
+  // Region tabs keep the panel a constant height: only the selected region's
+  // chips are shown at a time, so adding markets never grows the card.
+  const [activeRegionKey, setActiveRegionKey] = useState<string>(
+    () => countryGroups[0]?.key ?? "",
+  );
+  const activeGroup =
+    countryGroups.find((g) => g.key === activeRegionKey) ?? countryGroups[0];
 
   async function handleOpenDataset(country: CountryItem) {
     const targetMonth = getPreviousMonthYyyyMm();
@@ -565,20 +476,46 @@ export default function MarketHeroSection() {
                       Countries
                     </h2>
                     <p className="mt-1 text-sm text-white/60">
-                      Tap a country to view flash report scope and release
-                      schedule.
+                      Pick a region, then tap a country to open its flash report.
                     </p>
                   </div>
                 </div>
 
-                {/* ✅ 3 per row on md+ */}
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                  {countries.map((c) => (
-                    <CountryChip
-                      key={c.name}
-                      c={c}
-                      onClick={setActiveCountry}
-                    />
+                {/* Region tabs — switch region without growing the panel */}
+                <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                  {countryGroups.map((group) => {
+                    const isActive = group.key === activeGroup?.key;
+                    return (
+                      <button
+                        key={group.key}
+                        type="button"
+                        onClick={() => setActiveRegionKey(group.key)}
+                        aria-pressed={isActive}
+                        className={
+                          "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-white/20 " +
+                          (isActive
+                            ? "bg-white/15 text-white ring-1 ring-white/25"
+                            : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/85")
+                        }
+                      >
+                        {group.label}
+                        <span
+                          className={
+                            "ml-1.5 " +
+                            (isActive ? "text-white/60" : "text-white/35")
+                          }
+                        >
+                          {group.items.length}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected region's chips (height-bounded, scrolls if needed) */}
+                <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 md:grid-cols-3">
+                  {activeGroup?.items.map((c) => (
+                    <CountryChip key={c.slug} c={c} onClick={setActiveCountry} />
                   ))}
                 </div>
               </GlassCard>

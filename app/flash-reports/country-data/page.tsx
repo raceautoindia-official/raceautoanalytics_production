@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FLASH_REPORT_COUNTRY_DATASETS } from "@/lib/flashReportCountryDataset";
+import { groupCountriesByRegion } from "@/lib/flashReportRegistry";
 
 export const metadata: Metadata = {
   title: "Country Flash Report Data Coverage",
@@ -19,9 +20,8 @@ export const metadata: Metadata = {
 };
 
 export default function CountryDataIndexPage() {
-  const countries = Object.values(FLASH_REPORT_COUNTRY_DATASETS).sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
+  const countries = Object.values(FLASH_REPORT_COUNTRY_DATASETS);
+  const regionGroups = groupCountriesByRegion(countries);
 
   return (
     <>
@@ -37,15 +37,24 @@ export default function CountryDataIndexPage() {
               application-level insights where available.
             </p>
 
-            <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {countries.map((country) => (
-                <Link
-                  key={country.slug}
-                  href={`/flash-reports/country-data/${country.slug}`}
-                  className="rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm font-medium text-white/90 transition hover:bg-slate-800/80 hover:text-white"
-                >
-                  {country.name} Data Coverage
-                </Link>
+            <div className="mt-7 space-y-6">
+              {regionGroups.map((group) => (
+                <div key={group.key} id={group.key} className="scroll-mt-24">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200/70">
+                    {group.label}
+                  </h2>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.items.map((country) => (
+                      <Link
+                        key={country.slug}
+                        href={`/flash-reports/country-data/${country.slug}`}
+                        className="rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm font-medium text-white/90 transition hover:bg-slate-800/80 hover:text-white"
+                      >
+                        {country.name} Data Coverage
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

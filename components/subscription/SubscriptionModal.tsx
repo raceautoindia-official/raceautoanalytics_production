@@ -7,6 +7,7 @@ import AuthModal from "@/app/flash-reports/components/Login/LoginModal";
 import { useSubscriptionModal } from "@/utils/SubscriptionModalContext";
 import transformPricing from "./transformPricing";
 import { formatPlanLabelOrFallback } from "@/lib/planLabels";
+import { notifySubscriptionChanged } from "@/lib/subscriptionEvents";
 
 type BillingCycle = "monthly" | "annual";
 type PlanKey = "bronze" | "silver" | "gold" | "platinum";
@@ -645,6 +646,10 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
           body: JSON.stringify({
             customer_email: email,
             AMT: chosenAmount,
+            // Lets the RAI webhook activate the right plan if the browser never
+            // returns to verify-payment (captured money, no plan otherwise).
+            plan: planToPay,
+            duration: billingCycle,
           }),
         }
       );
@@ -830,6 +835,10 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                 triggerPurchaseEmail: true,
               });
             }
+
+            // Flip any mounted entitlement consumer (navbar plan badge, gates)
+            // to "paid" immediately instead of waiting for the 90s poll.
+            notifySubscriptionChanged();
 
             if (!isPage) close();
             router.push(

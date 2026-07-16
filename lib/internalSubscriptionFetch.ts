@@ -273,14 +273,14 @@ async function fetchUpstreamAnalyticsStatus(
       { cache: "no-store" },
     );
 
-    // 404 = no subscription record for this email → definitively not active.
-    if (res.status === 404) {
-      analyticsStatusCache.set(key, {
-        value: "inactive",
-        expiresAt: now + ANALYTICS_STATUS_TTL_MS,
-      });
-      return "inactive";
-    }
+    // 404 here means the email isn't in RAI's users table at all — NOT that the
+    // user is unsubscribed (RAI returns 200 with status:"free" for a known-but-
+    // unsubscribed user). Treat "not found" as UNKNOWN, never authoritative-
+    // inactive, and do NOT cache it: otherwise a just-registered/just-paid user
+    // whose RAI record is still propagating would be pinned to "free" and the
+    // local paid mirror could never correct it. The caller falls back to the
+    // local mirror on "unknown".
+    if (res.status === 404) return "unknown";
     if (!res.ok) return "unknown"; // transient/server error → caller falls back
 
     const data = await res.json().catch(() => null);

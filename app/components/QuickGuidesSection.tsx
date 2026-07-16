@@ -20,6 +20,16 @@ import {
   type ByfAvailability,
   type ByfSegmentKey,
 } from "@/lib/byfSegments";
+import { groupByRegion, LIVE_FLASH_COUNTRIES } from "@/lib/flashReportRegistry";
+
+// Emoji icon per flash region (mirrors the Forecast side's region badges).
+const FLASH_REGION_ICON: Record<string, string> = {
+  "asia-pacific": "🌏",
+  europe: "🇪🇺",
+  "latin-america": "🌎",
+  "middle-east-africa": "🌍",
+  "north-america": "🗽",
+};
 
 type CountryItem = {
   name: string;
@@ -479,29 +489,6 @@ function FlipInfoCard({
   );
 }
 
-function CountryBadge({
-  country,
-  onClick,
-}: {
-  country: CountryItem;
-  onClick: (c: CountryItem) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(country)}
-      className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-full border border-white/15 bg-white/5 px-2 py-1.5 text-white/90 shadow-sm transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1"
-      aria-label={`Open ${country.name} info`}
-      title={country.name}
-    >
-      <FlagIcon code={country.code} alt={country.name} />
-      <span className="ml-2 hidden truncate text-xs sm:inline">
-        {country.name}
-      </span>
-    </button>
-  );
-}
-
 function RegionBadge({ region }: { region: RegionItem }) {
   return (
     <div
@@ -568,109 +555,9 @@ export default function QuickGuidesSection({
   const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
-  const countries: CountryItem[] = useMemo(
-    () => [
-      {
-        name: "India",
-        code: "in",
-        slug: "india",
-        description:
-          "India flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Brazil",
-        code: "br",
-        slug: "brazil",
-        description:
-          "Brazil flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "South Africa",
-        code: "za",
-        slug: "south-africa",
-        description:
-          "South Africa flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Japan",
-        code: "jp",
-        slug: "japan",
-        description:
-          "Japan flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Pakistan",
-        code: "pk",
-        slug: "pakistan",
-        description:
-          "Pakistan flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Vietnam",
-        code: "vn",
-        slug: "vietnam",
-        description:
-          "Vietnam flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Germany",
-        code: "de",
-        slug: "germany",
-        description:
-          "Germany flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Australia",
-        code: "au",
-        slug: "australia",
-        description:
-          "Australia flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Chile",
-        code: "cl",
-        slug: "chile",
-        description:
-          "Chile flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Sweden",
-        code: "se",
-        slug: "sweden",
-        description:
-          "Sweden flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Peru",
-        code: "pe",
-        slug: "peru",
-        description:
-          "Peru flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Colombia",
-        code: "co",
-        slug: "colombia",
-        description:
-          "Colombia flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Russia",
-        code: "ru",
-        slug: "russia",
-        description:
-          "Russia flash report will include total market sales, EV sales, and application split.",
-      },
-      {
-        name: "Belgium",
-        code: "be",
-        slug: "belgium",
-        description:
-          "Belgium flash report will include total market sales, EV sales, and application split.",
-      },
-    ],
-    [],
-  );
+  // Flash coverage is shown by region (registry-driven) so it scales with new
+  // markets. Empty regions are dropped automatically.
+  const flashRegions = useMemo(() => groupByRegion(LIVE_FLASH_COUNTRIES), []);
 
   const regions: RegionItem[] = useMemo(
     () => [
@@ -706,8 +593,11 @@ export default function QuickGuidesSection({
   const flashBullets = useMemo(
     () => [
       "Select Country + Month to load country-wise flash report data.",
-      // "Compare MoM/YoY trends across segments and categories.",
       "Open category cards to drill into 2W / 3W / PV / CV / TRAC / CE.",
+      "Compare month-on-month and year-on-year sales movement per segment.",
+      "Track OEM market share and EV / alternative-fuel adoption trends.",
+      "Review application splits and segment contribution where available.",
+      "Submit Build Your Forecast (BYF) scores to shape your own outlook.",
     ],
     [],
   );
@@ -808,25 +698,32 @@ export default function QuickGuidesSection({
                 extraFront={
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                     <div className="text-xs font-medium text-white/75">
-                      {/* Audit PO-7: previously "(launching)" implied beta /
-                          not-yet-live. Product is live and accepting
-                          subscriptions, so the label now confidently states
-                          these are supported markets. */}
-                      Supported countries
+                      Supported markets by region
                     </div>
 
-                    <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-3 md:grid-cols-3">
-                      {countries.map((c) => (
-                        <CountryBadge
-                          key={c.name}
-                          country={c}
-                          onClick={setActiveCountry}
-                        />
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {flashRegions.map((r) => (
+                        <a
+                          key={r.key}
+                          href={`/flash-reports/country-data#${r.key}`}
+                          title={`${r.label} — ${r.countries.length} ${
+                            r.countries.length === 1 ? "market" : "markets"
+                          }`}
+                          className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-white/90 shadow-sm transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                        >
+                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs">
+                            {FLASH_REGION_ICON[r.key] || "🌐"}
+                          </span>
+                          <span className="truncate text-xs">{r.label}</span>
+                          <span className="ml-auto text-[10px] text-white/50">
+                            {r.countries.length}
+                          </span>
+                        </a>
                       ))}
                     </div>
 
                     <div className="mt-2 text-[11px] text-white/55">
-                      Tap a country to preview what’s coming.
+                      Open a region to browse its country flash reports.
                     </div>
                   </div>
                 }

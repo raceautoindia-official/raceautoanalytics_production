@@ -5,6 +5,7 @@ import Footer from "@/app/components/Footer";
 import QuickGuidesSection from "./components/QuickGuidesSection";
 import NavBar from "./components/Navbar";
 import PricingTeaser from "@/app/components/PricingTeaser";
+import { groupByRegion, LIVE_FLASH_COUNTRIES } from "@/lib/flashReportRegistry";
 
 export const metadata: Metadata = {
   title: "Automotive Sales Forecast | Race Auto Analytics",
@@ -281,14 +282,9 @@ function HomeSeoContent({
 }: {
   faqItems: Array<{ question: string; answer: string }>;
 }) {
-  const countryLinks = [
-    ["India", "india"],
-    ["Brazil", "brazil"],
-    ["South Africa", "south-africa"],
-    ["Japan", "japan"],
-    ["Germany", "germany"],
-    ["Australia", "australia"],
-  ];
+  // Region coverage is derived from the country registry, so it scales as new
+  // markets are added without editing the homepage.
+  const regionCoverage = groupByRegion(LIVE_FLASH_COUNTRIES);
 
   const segments = [
     "Passenger vehicles",
@@ -345,20 +341,24 @@ function HomeSeoContent({
 
           <div className="rounded-2xl border border-white/10 bg-[#0b141f]/70 p-6 shadow-[0_12px_40px_rgba(0,0,0,.45)]">
             <h2 className="text-xl font-bold tracking-tight">
-              Country coverage
+              Regional coverage
             </h2>
             <p className="mt-2 text-sm leading-6 text-white/70">
-              Public country pages summarize automotive sales data coverage and
-              link back into the flash report and forecast hubs.
+              Country flash reports span markets across every major region. Open
+              a region to browse its country-level automotive sales data pages.
             </p>
             <div className="mt-4 grid grid-cols-1 gap-2">
-              {countryLinks.map(([name, slug]) => (
+              {regionCoverage.map((region) => (
                 <Link
-                  key={slug}
-                  href={`/flash-reports/country-data/${slug}`}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85 transition hover:bg-white/10"
+                  key={region.key}
+                  href={`/flash-reports/country-data#${region.key}`}
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85 transition hover:bg-white/10"
                 >
-                  {name} automotive sales data
+                  <span>{region.label}</span>
+                  <span className="text-xs text-white/50">
+                    {region.countries.length}{" "}
+                    {region.countries.length === 1 ? "market" : "markets"}
+                  </span>
                 </Link>
               ))}
             </div>

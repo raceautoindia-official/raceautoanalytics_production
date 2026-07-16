@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { SUBSCRIPTION_CHANGED_EVENT } from "@/lib/subscriptionEvents";
 
 export interface ForecastEntitlement {
   effectivePlan: string | null;
@@ -136,6 +137,8 @@ export function useForecastEntitlement(): UseForecastEntitlementResult {
 
     window.addEventListener("focus", bump);
     document.addEventListener("visibilitychange", onVisible);
+    // Refresh instantly after an in-app purchase/change in this browser.
+    window.addEventListener(SUBSCRIPTION_CHANGED_EVENT, bump);
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") bump();
     }, 90_000);
@@ -143,6 +146,7 @@ export function useForecastEntitlement(): UseForecastEntitlementResult {
     return () => {
       window.removeEventListener("focus", bump);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(SUBSCRIPTION_CHANGED_EVENT, bump);
       window.clearInterval(interval);
     };
   }, []);

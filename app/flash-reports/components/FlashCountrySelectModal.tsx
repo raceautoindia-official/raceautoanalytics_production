@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FlashEntitlement, AssignedCountry } from "@/app/hooks/useFlashEntitlement";
 import { formatPlanLabelOrFallback } from "@/lib/planLabels";
+import { FLASH_REGIONS } from "@/lib/flashReportRegistry";
 
-type CountryOpt = { value: string; label: string; flag?: string };
+type CountryOpt = {
+  value: string;
+  label: string;
+  flag?: string;
+  // additive metadata from /api/flash-reports/countries (optional/back-compat)
+  region?: string | null;
+  regionLabel?: string | null;
+};
 
 interface Props {
   entitlement: FlashEntitlement;
@@ -21,6 +29,7 @@ export default function FlashCountrySelectModal({
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const limit = entitlement.flashReportCountryLimit;
   const alreadyAssigned = assignedCountries.map((c) => c.country_id);
@@ -90,6 +99,64 @@ export default function FlashCountrySelectModal({
     }
   }
 
+  // Filter by search, then group by region (registry order), "Other" last.
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? availableOptions.filter(
+          (o) =>
+            o.label.toLowerCase().includes(q) ||
+            o.value.toLowerCase().includes(q),
+        )
+      : availableOptions;
+
+    const byRegion = new Map<string, CountryOpt[]>();
+    for (const o of filtered) {
+      const key = o.region || "other";
+      const bucket = byRegion.get(key);
+      if (bucket) bucket.push(o);
+      else byRegion.set(key, [o]);
+    }
+
+    const ordered: { key: string; label: string; items: CountryOpt[] }[] = [];
+    for (const r of FLASH_REGIONS) {
+      const items = byRegion.get(r.key);
+      if (items && items.length) ordered.push({ key: r.key, label: r.label, items });
+    }
+    const other = byRegion.get("other");
+    if (other && other.length) ordered.push({ key: "other", label: "Other", items: other });
+    return ordered;
+  }, [availableOptions, query]);
+
+  const showHeaders = groups.length > 1;
+  const showSearch = availableOptions.length > 8;
+
+  const renderOption = (opt: CountryOpt) => {
+    const isSelected = selected.includes(opt.value);
+    const isDisabled = !isSelected && selected.length >= remaining;
+    return (
+      <button
+        key={opt.value}
+        onClick={() => !isDisabled && toggleCountry(opt.value)}
+        disabled={isDisabled}
+        className={[
+          "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all text-left",
+          isSelected
+            ? "border-[#4F67FF] bg-[#4F67FF]/20 text-[#EAF0FF]"
+            : isDisabled
+              ? "border-white/5 bg-white/2 text-[#EAF0FF]/30 cursor-not-allowed"
+              : "border-white/10 bg-white/5 text-[#EAF0FF]/80 hover:border-white/25 hover:bg-white/8 cursor-pointer",
+        ].join(" ")}
+      >
+        <span className="text-base">{opt.flag || "🌍"}</span>
+        <span className="truncate">{opt.label}</span>
+        {isSelected && (
+          <span className="ml-auto text-[#7B93FF] text-xs">✓</span>
+        )}
+      </button>
+    );
+  };
+
   // Don't render if no remaining slots (all filled)
   if (remaining <= 0) return null;
 
@@ -155,32 +222,34 @@ export default function FlashCountrySelectModal({
             <div className="text-xs text-[#EAF0FF]/40 mb-2 uppercase tracking-wide">
               Choose {remaining} {remaining === 1 ? "country" : "countries"}
             </div>
-            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
-              {availableOptions.map((opt) => {
-                const isSelected = selected.includes(opt.value);
-                const isDisabled = !isSelected && selected.length >= remaining;
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => !isDisabled && toggleCountry(opt.value)}
-                    disabled={isDisabled}
-                    className={[
-                      "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all text-left",
-                      isSelected
-                        ? "border-[#4F67FF] bg-[#4F67FF]/20 text-[#EAF0FF]"
-                        : isDisabled
-                          ? "border-white/5 bg-white/2 text-[#EAF0FF]/30 cursor-not-allowed"
-                          : "border-white/10 bg-white/5 text-[#EAF0FF]/80 hover:border-white/25 hover:bg-white/8 cursor-pointer",
-                    ].join(" ")}
-                  >
-                    <span className="text-base">{opt.flag || "🌍"}</span>
-                    <span className="truncate">{opt.label}</span>
-                    {isSelected && (
-                      <span className="ml-auto text-[#7B93FF] text-xs">✓</span>
-                    )}
-                  </button>
-                );
-              })}
+
+            {showSearch && (
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search countries…"
+                className="w-full mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#EAF0FF] placeholder:text-[#EAF0FF]/30 outline-none focus:border-[#4F67FF]"
+              />
+            )}
+
+            <div className="max-h-64 overflow-y-auto pr-1 space-y-3">
+              {groups.length === 0 && (
+                <div className="py-6 text-center text-sm text-[#EAF0FF]/40">
+                  No countries found
+                </div>
+              )}
+              {groups.map((g) => (
+                <div key={g.key}>
+                  {showHeaders && (
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#EAF0FF]/35">
+                      {g.label}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    {g.items.map(renderOption)}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

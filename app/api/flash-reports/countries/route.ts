@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
+import {
+  getFlashCountry,
+  flagFromIso2,
+  regionLabel as regionLabelFor,
+  type FlashRegionKey,
+  type CountryStatus,
+} from "@/lib/flashReportRegistry";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +24,9 @@ const titleCase = (s: string) =>
     .trim()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+// Legacy flag fallback — used ONLY when a hierarchy country is not yet in the
+// registry. Registry countries get their flag from iso2 (flagFromIso2), so this
+// map no longer needs new entries; new markets should be added to the registry.
 const FLAG_MAP: Record<string, string> = {
   india: "🇮🇳",
   peru: "🇵🇪",
@@ -38,6 +48,40 @@ const FLAG_MAP: Record<string, string> = {
   belgium: "🇧🇪",
 };
 
+type CountryOption = {
+  // --- existing contract (unchanged) ---
+  value: string;
+  label: string;
+  flag: string;
+  // --- additive metadata (safe to ignore for existing consumers) ---
+  iso2: string | null;
+  region: FlashRegionKey | null;
+  regionLabel: string | null;
+  status: CountryStatus;
+};
+
+// Build a country option, enriching from the registry when the slug is known.
+// Existing keys keep their exact prior values; only extra fields are added.
+function makeOption(value: string, label: string): CountryOption {
+  const rc = getFlashCountry(value);
+  const region = rc?.region ?? null;
+  return {
+    value,
+    label,
+    // Registry flag (iso2-derived) matches the old FLAG_MAP for all 14 current
+    // markets; FLAG_MAP stays as the fallback for anything not in the registry.
+    flag: rc ? flagFromIso2(rc.iso2) : FLAG_MAP[value] || "🌍",
+    iso2: rc?.iso2 ?? null,
+    region,
+    regionLabel: region ? regionLabelFor(region) : null,
+    // A country present in the hierarchy has data, so it is effectively live
+    // even if the registry hasn't been updated with its metadata yet.
+    status: rc?.status ?? "live",
+  };
+}
+
+const INDIA_OPTION = makeOption("india", "India");
+
 export async function GET() {
   try {
     const [rows] = await db.query(
@@ -45,16 +89,6 @@ export async function GET() {
     );
 
     const nodes = Array.isArray(rows) ? (rows as any[]) : [];
-
-    const findByName = (nameKey: string, parentId?: any) =>
-      nodes.find((n) => {
-        const sameName =
-          String(n.name || "").toLowerCase().trim() === nameKey ||
-          String(n.name || "").toLowerCase().trim() === nameKey.replace("-", " ");
-        const sameParent =
-          parentId == null ? true : String(n.parent_id) === String(parentId);
-        return sameName && sameParent;
-      }) || null;
 
     // main root
     const mainRoot =
@@ -66,7 +100,7 @@ export async function GET() {
       ) || null;
 
     if (!mainRoot) {
-      return NextResponse.json([{ value: "india", label: "India", flag: "🇮🇳" }]);
+      return NextResponse.json([INDIA_OPTION]);
     }
 
     // flash-reports
@@ -79,7 +113,7 @@ export async function GET() {
       ) || null;
 
     if (!flashReports) {
-      return NextResponse.json([{ value: "india", label: "India", flag: "🇮🇳" }]);
+      return NextResponse.json([INDIA_OPTION]);
     }
 
     // countries node under flash-reports
@@ -95,9 +129,7 @@ export async function GET() {
       : [];
 
     // always include India first (India uses the old root flow)
-    const out: Array<{ value: string; label: string; flag: string }> = [
-      { value: "india", label: "India", flag: "🇮🇳" },
-    ];
+    const out: CountryOption[] = [INDIA_OPTION];
 
     for (const c of countryChildren) {
       const raw = String(c.name || "").trim();
@@ -106,11 +138,7 @@ export async function GET() {
       const value = normKey(raw); // url-safe key
       if (!value || value === "india") continue;
 
-      out.push({
-        value,
-        label: titleCase(raw),
-        flag: FLAG_MAP[value] || "🌍",
-      });
+      out.push(makeOption(value, titleCase(raw)));
     }
 
     // sort non-india alphabetically
@@ -122,9 +150,6 @@ export async function GET() {
     return NextResponse.json([head, ...tail]);
   } catch (e: any) {
     console.error("GET /api/flash-reports/countries error:", e);
-    return NextResponse.json(
-      [{ value: "india", label: "India", flag: "🇮🇳" }],
-      { status: 200 },
-    );
+    return NextResponse.json([INDIA_OPTION], { status: 200 });
   }
 }

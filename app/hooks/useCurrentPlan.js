@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getPublicPlanLabel } from '@/lib/planLabels';
+import { SUBSCRIPTION_CHANGED_EVENT } from '@/lib/subscriptionEvents';
 
 // Helper to read a named cookie
 function getCookie(name) {
@@ -117,6 +118,8 @@ export function useCurrentPlan() {
 
     window.addEventListener("focus", bump);
     document.addEventListener("visibilitychange", onVisible);
+    // Refresh instantly after an in-app purchase/change in this browser.
+    window.addEventListener(SUBSCRIPTION_CHANGED_EVENT, bump);
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") bump();
     }, 90_000);
@@ -124,6 +127,7 @@ export function useCurrentPlan() {
     return () => {
       window.removeEventListener("focus", bump);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(SUBSCRIPTION_CHANGED_EVENT, bump);
       window.clearInterval(interval);
     };
   }, []);

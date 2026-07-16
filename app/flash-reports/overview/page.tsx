@@ -6,6 +6,7 @@ import MarketHeroSection from "@/app/components/MarketHeroSection";
 import ExploreVehicleCategories from "@/app/components/ExploreVehicleCategories";
 import DeferredOverviewSections from "./components/DeferredOverviewSections";
 import { FLASH_REPORT_COUNTRY_DATASETS } from "@/lib/flashReportCountryDataset";
+import { groupCountriesByRegion } from "@/lib/flashReportRegistry";
 import { SITE_URL } from "@/lib/seoRoutes";
 
 export const metadata: Metadata = {
@@ -101,6 +102,8 @@ function FlashReportSeoContent({
   countries: Array<{ slug: string; name: string; modules: string[] }>;
   faqItems: Array<{ question: string; answer: string }>;
 }) {
+  const regionGroups = groupCountriesByRegion(countries);
+
   const segments = [
     [
       "Passenger vehicles",
@@ -181,16 +184,25 @@ function FlashReportSeoContent({
               segment visibility, release rhythm, and links back to the global
               automotive flash reports hub.
             </p>
-            <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {countries.map((country) => (
-                <Link
-                  key={country.slug}
-                  href={`/flash-reports/country-data/${country.slug}`}
-                  prefetch={false}
-                  className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white/85 transition hover:bg-white/10"
-                >
-                  {country.name} automotive flash report
-                </Link>
+            <div className="mt-5 space-y-5">
+              {regionGroups.map((group) => (
+                <div key={group.key}>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200/70">
+                    {group.label}
+                  </h3>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.items.map((country) => (
+                      <Link
+                        key={country.slug}
+                        href={`/flash-reports/country-data/${country.slug}`}
+                        prefetch={false}
+                        className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white/85 transition hover:bg-white/10"
+                      >
+                        {country.name} automotive flash report
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
