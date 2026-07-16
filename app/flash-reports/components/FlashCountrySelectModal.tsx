@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import type { FlashEntitlement, AssignedCountry } from "@/app/hooks/useFlashEntitlement";
 import { formatPlanLabelOrFallback } from "@/lib/planLabels";
 import { FLASH_REGIONS } from "@/lib/flashReportRegistry";
+import { CountryFlag } from "@/components/ui/CountryFlag";
 
 type CountryOpt = {
   value: string;
   label: string;
   flag?: string;
   // additive metadata from /api/flash-reports/countries (optional/back-compat)
+  iso2?: string | null;
   region?: string | null;
   regionLabel?: string | null;
 };
@@ -148,7 +150,11 @@ export default function FlashCountrySelectModal({
               : "border-white/10 bg-white/5 text-[#EAF0FF]/80 hover:border-white/25 hover:bg-white/8 cursor-pointer",
         ].join(" ")}
       >
-        <span className="text-base">{opt.flag || "🌍"}</span>
+        <CountryFlag
+          iso2={opt.iso2}
+          name={opt.label}
+          className="h-4 w-6 shrink-0 rounded-sm object-cover"
+        />
         <span className="truncate">{opt.label}</span>
         {isSelected && (
           <span className="ml-auto text-[#7B93FF] text-xs">✓</span>

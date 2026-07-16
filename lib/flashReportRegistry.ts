@@ -22,6 +22,8 @@
 // `status` here is the *product* intent (live / coming_soon / hidden), not a
 // substitute for the data check.
 
+import { WORLD_COUNTRIES } from "@/lib/worldCountries";
+
 export type FlashRegionKey =
   | "asia-pacific"
   | "europe"
@@ -90,9 +92,37 @@ export function getFlashCountry(slug?: string | null): FlashCountry | null {
   return BY_SLUG.get(String(slug || "").toLowerCase().trim()) ?? null;
 }
 
+/**
+ * Resolve display metadata (name, iso2, region) for ANY country slug/alias.
+ * The explicit launch registry wins (it carries product status); otherwise the
+ * full ISO-3166 world dataset fills in iso2 + region — so every country the CMS
+ * ever adds gets a flag and a region, not just the 14 launch markets.
+ */
+export function resolveCountryMeta(slug?: string | null): {
+  slug: string;
+  name: string;
+  iso2: string | null;
+  region: FlashRegionKey | null;
+} | null {
+  const s = String(slug || "").toLowerCase().trim();
+  if (!s) return null;
+  const explicit = BY_SLUG.get(s);
+  if (explicit) {
+    return { slug: s, name: explicit.name, iso2: explicit.iso2, region: explicit.region };
+  }
+  const world = WORLD_COUNTRIES[s];
+  if (world) return { slug: s, name: world.name, iso2: world.iso2, region: world.region };
+  return null;
+}
+
+/** ISO2 for any country slug/alias (registry or world dataset), or null. */
+export function iso2ForSlug(slug?: string | null): string | null {
+  return resolveCountryMeta(slug)?.iso2 ?? null;
+}
+
 export function flagForSlug(slug?: string | null): string {
-  const c = getFlashCountry(slug);
-  return c ? flagFromIso2(c.iso2) : "🌍";
+  const iso2 = resolveCountryMeta(slug)?.iso2;
+  return iso2 ? flagFromIso2(iso2) : "🌍";
 }
 
 export function regionLabel(key: FlashRegionKey): string {
@@ -124,7 +154,7 @@ export function groupCountriesByRegion<T extends { slug: string; name: string }>
 ): { key: string; label: string; items: T[] }[] {
   const byRegion = new Map<string, T[]>();
   for (const it of items) {
-    const key = BY_SLUG.get(String(it.slug || "").toLowerCase().trim())?.region || "other";
+    const key = resolveCountryMeta(it.slug)?.region || "other";
     const bucket = byRegion.get(key);
     if (bucket) bucket.push(it);
     else byRegion.set(key, [it]);

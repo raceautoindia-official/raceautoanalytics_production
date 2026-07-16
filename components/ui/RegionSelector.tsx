@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 import { useAppContext } from "@/components/providers/Providers";
 import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { FLASH_REGIONS } from "@/lib/flashReportRegistry";
+import { CountryFlag } from "@/components/ui/CountryFlag";
 
 type CountryOpt = {
   value: string;
   label: string;
   flag?: string;
   // additive metadata from /api/flash-reports/countries (optional/back-compat)
+  iso2?: string | null;
   region?: string | null;
   regionLabel?: string | null;
 };
@@ -46,7 +48,7 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<CountryOpt[]>([
-    { value: "india", label: "India", flag: "🇮🇳" },
+    { value: "india", label: "India", flag: "🇮🇳", iso2: "IN" },
   ]);
 
   useEffect(() => {
@@ -76,7 +78,7 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
   const current = useMemo(() => {
     return (
       options.find((o) => o.value === region) ||
-      options.find((o) => o.value === "india") || { value: "india", label: "India", flag: "🇮🇳" }
+      options.find((o) => o.value === "india") || { value: "india", label: "India", flag: "🇮🇳", iso2: "IN" }
     );
   }, [options, region]);
 
@@ -138,7 +140,7 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
           region === opt.value && "bg-primary/10 text-primary",
         )}
       >
-        <span className="text-base">{opt.flag || "🌍"}</span>
+        <CountryFlag iso2={opt.iso2} name={opt.label} />
         <span className="text-sm font-medium">{opt.label}</span>
         {isLocked && <span className="ml-auto text-xs opacity-60">🔒</span>}
         {!isLocked && region === opt.value && (
@@ -157,8 +159,13 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
         aria-expanded={isOpen}
       >
         <Globe className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">
-          {(current.flag || "🌍")} {current.label}
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <CountryFlag
+            iso2={current.iso2}
+            name={current.label}
+            className="h-3.5 w-5 shrink-0 rounded-sm object-cover"
+          />
+          {current.label}
         </span>
         <ChevronDown
           className={cn(

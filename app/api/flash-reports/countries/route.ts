@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import {
   getFlashCountry,
+  resolveCountryMeta,
   flagFromIso2,
   regionLabel as regionLabelFor,
   type FlashRegionKey,
@@ -63,15 +64,19 @@ type CountryOption = {
 // Build a country option, enriching from the registry when the slug is known.
 // Existing keys keep their exact prior values; only extra fields are added.
 function makeOption(value: string, label: string): CountryOption {
-  const rc = getFlashCountry(value);
-  const region = rc?.region ?? null;
+  const rc = getFlashCountry(value); // explicit launch registry (for product status)
+  // iso2 + region resolve for ANY country via the full ISO-3166 world dataset,
+  // so a market like Czech Republic gets its flag + Europe region, not "Other".
+  const meta = resolveCountryMeta(value);
+  const iso2 = meta?.iso2 ?? null;
+  const region = meta?.region ?? null;
   return {
     value,
     label,
-    // Registry flag (iso2-derived) matches the old FLAG_MAP for all 14 current
-    // markets; FLAG_MAP stays as the fallback for anything not in the registry.
-    flag: rc ? flagFromIso2(rc.iso2) : FLAG_MAP[value] || "🌍",
-    iso2: rc?.iso2 ?? null,
+    // Emoji flag kept for backward compatibility; the UI renders a real flag
+    // image from `iso2` (emoji flags show as country codes on Windows).
+    flag: iso2 ? flagFromIso2(iso2) : FLAG_MAP[value] || "🌍",
+    iso2,
     region,
     regionLabel: region ? regionLabelFor(region) : null,
     // A country present in the hierarchy has data, so it is effectively live
