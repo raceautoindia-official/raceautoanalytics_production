@@ -22,7 +22,7 @@ Race Auto Analytics is an automotive market intelligence platform for vehicle sa
 ## Contact
 
 - Website: https://raceautoanalytics.com/
-- Email: info@raceautoindia.com
+- Email: info@raceautoanalytics.com
 `;
 
 export function GET() {

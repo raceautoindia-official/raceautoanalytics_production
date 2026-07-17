@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/sendEmail";
 import { FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS } from "@/lib/forecastInternalNotificationRecipients";
 
-// General enquiry form (replaces the "Email info@raceautoindia.com" footer
+// General enquiry form (replaces the "Email info@raceautoanalytics.com" footer
 // on the subscription FAQ). Sends a single email to the internal recipient
 // list defined in lib/forecastInternalNotificationRecipients.ts so any team
 // member can pick it up.

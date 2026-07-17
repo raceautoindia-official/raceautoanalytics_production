@@ -1168,19 +1168,19 @@ export default function ForecastPage() {
                 <div className="space-y-1">
                   <a
                     className="block rounded-md px-3 py-2 hover:bg-white/5 hover:text-[#FFDC00]"
-                    href="mailto:info@raceautoindia.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Key%20Market%20Indicators&body=Hello%2C%0D%0A%0D%0AThis%20request%20is%20made%20from%20the%20Forecast%20Page%20of%20Race%20Auto%20India.%0D%0AI%20would%20like%20to%20receive%20the%20latest%20Key%20Market%20Indicators.%0D%0AThank%20you."
+                    href="mailto:info@raceautoanalytics.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Key%20Market%20Indicators&body=Hello%2C%0D%0A%0D%0AThis%20request%20is%20made%20from%20the%20Forecast%20Page%20of%20Race%20Auto%20India.%0D%0AI%20would%20like%20to%20receive%20the%20latest%20Key%20Market%20Indicators.%0D%0AThank%20you."
                   >
                     Key Market Indicators
                   </a>
                   <a
                     className="block rounded-md px-3 py-2 hover:bg-white/5 hover:text-[#FFDC00]"
-                    href="mailto:info@raceautoindia.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Global%20Comparisons&body=Hi%2C%0D%0A%0D%0ARequest%20made%20from%20the%20Forecast%20Page.%20I%20am%20interested%20in%20Global%20Comparison%20data.%0D%0ARegards."
+                    href="mailto:info@raceautoanalytics.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Global%20Comparisons&body=Hi%2C%0D%0A%0D%0ARequest%20made%20from%20the%20Forecast%20Page.%20I%20am%20interested%20in%20Global%20Comparison%20data.%0D%0ARegards."
                   >
                     Global Comparisons
                   </a>
                   <a
                     className="block rounded-md px-3 py-2 hover:bg-white/5 hover:text-[#FFDC00]"
-                    href="mailto:info@raceautoindia.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Market%20Highlights&body=Dear%20Team%2C%0D%0A%0D%0AThis%20is%20a%20request%20from%20the%20Forecast%20Page.%20Please%20share%20the%20latest%20market%20highlights.%0D%0AThank%20you."
+                    href="mailto:info@raceautoanalytics.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Market%20Highlights&body=Dear%20Team%2C%0D%0A%0D%0AThis%20is%20a%20request%20from%20the%20Forecast%20Page.%20Please%20share%20the%20latest%20market%20highlights.%0D%0AThank%20you."
                   >
                     Highlights
                   </a>
@@ -1194,13 +1194,13 @@ export default function ForecastPage() {
                   </div>
                   <a
                     className="block rounded-md px-3 py-2 hover:bg-white/5 hover:text-[#15AFE4]"
-                    href="mailto:info@raceautoindia.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Book%20Analyst%20Appointment&body=Hello%2C%0D%0A%0D%0AI%20am%20requesting%20an%20appointment%20with%20an%20analyst%20via%20the%20Forecast%20Page.%0D%0ARegards."
+                    href="mailto:info@raceautoanalytics.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Book%20Analyst%20Appointment&body=Hello%2C%0D%0A%0D%0AI%20am%20requesting%20an%20appointment%20with%20an%20analyst%20via%20the%20Forecast%20Page.%0D%0ARegards."
                   >
                     Book an Appointment
                   </a>
                   <a
                     className="block rounded-md px-3 py-2 hover:bg-white/5 hover:text-[#15AFE4]"
-                    href="mailto:info@raceautoindia.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Submit%20a%20Query&body=Hi%20Team%2C%0D%0A%0D%0AI%20have%20a%20market-related%20query%20from%20the%20Forecast%20Page.%0D%0ARegards."
+                    href="mailto:info@raceautoanalytics.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Submit%20a%20Query&body=Hi%20Team%2C%0D%0A%0D%0AI%20have%20a%20market-related%20query%20from%20the%20Forecast%20Page.%0D%0ARegards."
                   >
                     Send Your Queries
                   </a>
@@ -1214,13 +1214,13 @@ export default function ForecastPage() {
                   </div>
                   <a
                     className="block rounded-md px-3 py-2 hover:bg-white/5 hover:text-[#15AFE4]"
-                    href="mailto:info@raceautoindia.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Sample%20Report&body=Dear%20Team%2C%0D%0A%0D%0ARequest%20from%20the%20Forecast%20Page%20to%20receive%20a%20sample%20report.%0D%0AThanks."
+                    href="mailto:info@raceautoanalytics.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Sample%20Report&body=Dear%20Team%2C%0D%0A%0D%0ARequest%20from%20the%20Forecast%20Page%20to%20receive%20a%20sample%20report.%0D%0AThanks."
                   >
                     Sample Reports on Demand
                   </a>
                   <a
                     className="block rounded-md px-3 py-2 hover:bg-white/5 hover:text-[#15AFE4]"
-                    href="mailto:info@raceautoindia.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Full%20Report%20Purchase&body=Hi%2C%0D%0A%0D%0AI%20want%20to%20purchase%20a%20full%20market%20report%20via%20the%20Forecast%20Page.%20Please%20send%20pricing%20and%20access%20details.%0D%0AThanks."
+                    href="mailto:info@raceautoanalytics.com,director@raceautoindia.com?subject=Forecast%20Page%20Request%20-%20Full%20Report%20Purchase&body=Hi%2C%0D%0A%0D%0AI%20want%20to%20purchase%20a%20full%20market%20report%20via%20the%20Forecast%20Page.%20Please%20send%20pricing%20and%20access%20details.%0D%0AThanks."
                   >
                     Purchase Full Report on Demand
                   </a>
@@ -1635,10 +1635,10 @@ export default function ForecastPage() {
                 <p className="mt-2 text-xs text-[#EAF0FF]/45">
                   For early access, contact{" "}
                   <a
-                    href="mailto:info@raceautoindia.com"
+                    href="mailto:info@raceautoanalytics.com"
                     className="text-[#7B93FF] hover:underline"
                   >
-                    info@raceautoindia.com
+                    info@raceautoanalytics.com
                   </a>
                 </p>
               </div>

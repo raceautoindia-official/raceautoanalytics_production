@@ -6,6 +6,11 @@ import QuickGuidesSection from "./components/QuickGuidesSection";
 import NavBar from "./components/Navbar";
 import PricingTeaser from "@/app/components/PricingTeaser";
 import { groupByRegion, LIVE_FLASH_COUNTRIES } from "@/lib/flashReportRegistry";
+import InsightsHighlights from "@/app/components/InsightsHighlights";
+
+// ISR: the homepage now pulls the latest published insights (InsightsHighlights).
+// Regenerate every 10 min so new posts surface without a rebuild.
+export const revalidate = 600;
 
 export const metadata: Metadata = {
   title: "Automotive Sales Forecast | Race Auto Analytics",
@@ -168,7 +173,7 @@ export default function Page() {
     image: "https://raceautoanalytics.com/images/logo.webp",
     url: "https://raceautoanalytics.com/",
     telephone: "+91 8072098352",
-    email: "info@raceautoindia.com",
+    email: "info@raceautoanalytics.com",
     address: {
       "@type": "PostalAddress",
       addressCountry: "IN",
@@ -260,6 +265,7 @@ export default function Page() {
           }
         />
         <HomeSeoContent faqItems={faqItems} />
+        <InsightsHighlights />
         {/* Audit I-2: pricing teaser so first-time visitors see a price range
             on the homepage without having to click into /subscription. */}
         <PricingTeaser />
@@ -335,6 +341,12 @@ function HomeSeoContent({
                 className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
               >
                 Automotive flash reports
+              </Link>
+              <Link
+                href="/insights"
+                className="inline-flex items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(79,103,255,0.28)] transition hover:from-indigo-400 hover:to-blue-400"
+              >
+                Market insights →
               </Link>
             </div>
           </div>

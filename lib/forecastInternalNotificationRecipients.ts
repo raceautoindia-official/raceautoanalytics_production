@@ -1,6 +1,6 @@
 export const FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS = [
   "enquiry@raceinnovations.in",
-  "info@raceautoindia.com",
+  "info@raceautoanalytics.com",
   "kh@raceinnovations.in",
   "raceautoindia@gmail.com",
   "director@raceautoindia.com",

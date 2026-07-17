@@ -238,7 +238,7 @@ export default function AccountSettingsPage() {
               app. Pre-fills the user's email in the subject line so support
               can identify them without a back-and-forth. */}
           <a
-            href={`mailto:info@raceautoindia.com?subject=${encodeURIComponent(
+            href={`mailto:info@raceautoanalytics.com?subject=${encodeURIComponent(
               "Account help" + (loggedInEmail ? ` - ${loggedInEmail}` : ""),
             )}`}
             className="inline-flex h-10 items-center rounded-xl border border-white/12 bg-white/5 px-4 text-xs font-semibold text-[#EAF0FF]/85 transition hover:bg-white/10"
@@ -757,7 +757,7 @@ function ActionsCard({ email }: { email: string | null }) {
   // include the user's email so support can identify them immediately.
   function mailto(subject: string, body: string): string {
     const userTag = email ? `\n\nAccount: ${email}` : "";
-    return `mailto:info@raceautoindia.com?subject=${encodeURIComponent(
+    return `mailto:info@raceautoanalytics.com?subject=${encodeURIComponent(
       subject,
     )}&body=${encodeURIComponent(body + userTag + "\n\nThank you.")}`;
   }
@@ -810,7 +810,7 @@ function ActionsCard({ email }: { email: string | null }) {
         />
       </div>
       <div className="mt-3 text-[11px] text-[#EAF0FF]/35">
-        These actions go to <span className="text-[#EAF0FF]/55">info@raceautoindia.com</span>.
+        These actions go to <span className="text-[#EAF0FF]/55">info@raceautoanalytics.com</span>.
         Requests are typically responded to within 2 business days; legal
         requests within 30 days as required by applicable law.
       </div>

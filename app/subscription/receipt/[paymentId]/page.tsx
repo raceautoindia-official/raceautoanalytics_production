@@ -103,8 +103,8 @@ export default async function ReceiptPage({
         <p className="mt-2 text-sm">
           We could not find a payment matching that reference under your account.
           If you believe this is an error, please email{" "}
-          <a className="text-blue-700 underline" href="mailto:info@raceautoindia.com">
-            info@raceautoindia.com
+          <a className="text-blue-700 underline" href="mailto:info@raceautoanalytics.com">
+            info@raceautoanalytics.com
           </a>
           .
         </p>
@@ -199,8 +199,8 @@ export default async function ReceiptPage({
         <div className="mt-6 text-xs text-gray-500 leading-relaxed">
           Prices shown above are inclusive of applicable GST. For a tax invoice
           with your business GSTIN or any billing query, contact{" "}
-          <a className="text-blue-700 underline" href="mailto:info@raceautoindia.com">
-            info@raceautoindia.com
+          <a className="text-blue-700 underline" href="mailto:info@raceautoanalytics.com">
+            info@raceautoanalytics.com
           </a>{" "}
           quoting the Payment ID above.
         </div>

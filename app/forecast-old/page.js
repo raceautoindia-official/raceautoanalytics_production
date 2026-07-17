@@ -222,10 +222,10 @@ export default function ForecastPage() {
           <p style={{ marginBottom: 6 }}>Already subscribed? Contact us at:</p>
           <p style={{ fontWeight: "bold", marginBottom: 12 }}>
             <a
-              href="mailto:info@raceautoindia.com"
+              href="mailto:info@raceautoanalytics.com"
               style={{ color: "#F58C1F", textDecoration: "underline" }}
             >
-              info@raceautoindia.com
+              info@raceautoanalytics.com
             </a>
           </p>
           {/* <p style={{ fontWeight: "bold", marginBottom: 12, color: "#F58C1F" }}>

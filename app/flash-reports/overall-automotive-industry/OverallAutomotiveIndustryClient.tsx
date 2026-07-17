@@ -533,7 +533,7 @@ const growthSummary = formatGrowthWithYoY(
                 ? altFuelComparison.leftMonth
                   ? `Comparison of segment-wise alternative fuel share between ${altFuelComparison.leftMonth} and ${altFuelComparison.rightMonth}.`
                   : `Segment-wise alternative fuel share for ${altFuelComparison.rightMonth}.`
-                : "This segment data will be available soon. For early access, contact info@raceautoindia.com."
+                : "This segment data will be available soon. For early access, contact info@raceautoanalytics.com."
             }
           >
             {altFuelLoading ? (

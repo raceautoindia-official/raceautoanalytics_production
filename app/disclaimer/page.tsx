@@ -140,7 +140,7 @@ export default function Page() {
                 <p className="font-semibold text-white">RACE EDITORIALE LLP</p>
                 <p>
                   Email:{" "}
-                  <span className="text-white/90">info@raceautoindia.com</span>
+                  <span className="text-white/90">info@raceautoanalytics.com</span>
                 </p>
               </div>
             </div>

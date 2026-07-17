@@ -145,7 +145,7 @@ export default async function SubscriptionPaymentFailurePage({
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <a
-              href={`mailto:info@raceautoindia.com?subject=${encodeURIComponent(
+              href={`mailto:info@raceautoanalytics.com?subject=${encodeURIComponent(
                 "Payment Failure Support" + (paymentId ? ` - ${paymentId}` : ""),
               )}&body=${encodeURIComponent(
                 `Hello Race Auto Analytics support,\n\nMy payment failed on the subscription page.\n\nOrder ID: ${
@@ -156,7 +156,7 @@ export default async function SubscriptionPaymentFailurePage({
               )}`}
               className="inline-flex items-center rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
             >
-              ✉ info@raceautoindia.com
+              ✉ info@raceautoanalytics.com
             </a>
             <a
               href="https://raceautoindia.com/page/contact"

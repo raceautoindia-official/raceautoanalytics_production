@@ -148,7 +148,7 @@ export default async function InsightDetailPage({ params }: PageProps) {
       <style dangerouslySetInnerHTML={{ __html: BODY_CSS }} />
 
       <article className="bg-slate-950 pb-20">
-        <div className="mx-auto w-full max-w-3xl px-4 pt-10 sm:px-6">
+        <div className="mx-auto w-full max-w-4xl px-4 pt-10 sm:px-6">
           {/* Breadcrumb */}
           <nav aria-label="Breadcrumb" className="text-xs text-white/50">
             <ol className="flex flex-wrap items-center gap-1.5">

@@ -197,12 +197,12 @@ export default async function SubscriptionPaymentSuccessPage({
               For a GST invoice with your business GSTIN, or for any
               refund / billing query, contact{" "}
               <a
-                href={`mailto:info@raceautoindia.com?subject=${encodeURIComponent(
+                href={`mailto:info@raceautoanalytics.com?subject=${encodeURIComponent(
                   "Subscription Support" + (paymentId ? ` - ${paymentId}` : ""),
                 )}`}
                 className="text-[#7B93FF] underline decoration-dotted hover:text-[#a3b4ff]"
               >
-                info@raceautoindia.com
+                info@raceautoanalytics.com
               </a>
               .
             </li>

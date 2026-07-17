@@ -60,6 +60,14 @@ export default function Footer() {
               </li>
               <li>
                 <Link
+                  href="/pricing"
+                  className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
+                >
+                  Pricing
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/forecast/overview"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
@@ -136,10 +144,10 @@ export default function Footer() {
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-white/60" />
                 <a
-                  href="mailto:info@raceautoindia.com"
+                  href="mailto:info@raceautoanalytics.com"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
-                 info@raceautoindia.com
+                 info@raceautoanalytics.com
 
                 </a>
               </li>
@@ -178,6 +186,14 @@ export default function Footer() {
           <div>© Copyright 2025 RACE EDITORIALE LLP – All Rights Reserved.</div>
 
           <nav aria-label="Footer links" className="flex flex-wrap items-center">
+            <Link href="/about" className="hover:text-white">
+              About
+            </Link>
+            <span className="mx-2 select-none text-white/35">•</span>
+            <Link href="/methodology" className="hover:text-white">
+              Methodology
+            </Link>
+            <span className="mx-2 select-none text-white/35">•</span>
             <Link href="/terms-conditions" className="hover:text-white">
               Terms &amp; Conditions
             </Link>
@@ -186,7 +202,7 @@ export default function Footer() {
               Privacy Policy
             </Link>
             <span className="mx-2 select-none text-white/35">•</span>
-            <Link href="https://raceautoindia.com/page/contact" className="hover:text-white">
+            <Link href="/contact" className="hover:text-white">
               Contact Us
             </Link>
             <span className="mx-2 select-none text-white/35">•</span>

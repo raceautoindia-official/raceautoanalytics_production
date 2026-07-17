@@ -649,7 +649,7 @@ export default function ScoreCard() {
     ].join("\n");
 
     window.location.href =
-      `mailto:info@raceautoindia.com` +
+      `mailto:info@raceautoanalytics.com` +
       `?subject=${encodeURIComponent(subject)}` +
       `&body=${encodeURIComponent(body)}`;
   };

@@ -149,13 +149,13 @@ export default function NavBar() {
               </Link>
               <Link
                 className="text-sm font-extrabold tracking-wide text-white hover:text-white"
-                href="https://raceautoindia.com/magazine"
+                href="/pricing"
               >
-                MAGAZINE
+                PRICING
               </Link>
               <Link
                 className="text-sm font-extrabold tracking-wide text-white hover:text-white"
-                href="https://raceautoindia.com/page/contact"
+                href="/contact"
               >
                 CONTACT&nbsp;US
               </Link>
@@ -239,14 +239,14 @@ export default function NavBar() {
                   INSIGHTS
                 </Link>
                 <Link
-                  href="https://raceautoindia.com/magazine"
+                  href="/pricing"
                   className="rounded-lg px-2 py-1.5 hover:bg-white/10"
                   onClick={() => setMobileOpen(false)}
                 >
-                  MAGAZINE
+                  PRICING
                 </Link>
                 <Link
-                  href="https://raceautoindia.com/page/contact"
+                  href="/contact"
                   className="rounded-lg px-2 py-1.5 hover:bg-white/10"
                   onClick={() => setMobileOpen(false)}
                 >

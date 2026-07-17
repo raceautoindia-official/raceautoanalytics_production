@@ -1045,7 +1045,7 @@ const showApplicationChartSection =
         <div className="flex h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
           <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
           <div className="text-xs text-muted-foreground text-center max-w-md px-4">
-            This segment data will be available soon. For early access, contact info@raceautoindia.com.
+            This segment data will be available soon. For early access, contact info@raceautoanalytics.com.
           </div>
         </div>
       )}
