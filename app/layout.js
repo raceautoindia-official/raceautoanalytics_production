@@ -11,11 +11,12 @@ import Script from "next/script";
 import GoogleTagManager from "@/components/GoogleTagManager";
 import RouteAuthGate from "@/components/auth/RouteAuthGate";
 import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
-import dynamic from "next/dynamic";
-const ScrollToTopButton = dynamic(
-  () => import("@/components/ui/ScrollToTopButton"),
-  { ssr: false }
-);
+// NOTE: imported directly (NOT via next/dynamic { ssr:false }). An ssr:false
+// dynamic import in the ROOT layout bails every statically-generated page
+// (home, /pricing, /about, …) to full client-side rendering, so crawlers were
+// served an empty <body>. ScrollToTopButton is a "use client" button that only
+// touches window/document inside its click handler, so it SSRs safely.
+import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
 
 const inter = Inter({
