@@ -8,6 +8,10 @@ import {
   useRef,
   ReactNode,
   useMemo,
+  Suspense,
+  MutableRefObject,
+  Dispatch,
+  SetStateAction,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -103,45 +107,52 @@ function getLatestUploadedMonth(rows: any): string | null {
   return months[months.length - 1];
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+// ---------------------------------------------------------------------------
+// SearchParamsSync
+//
+// SEO-critical: useSearchParams() de-opts a statically-rendered route's tree up
+// to the nearest <Suspense> to client-side rendering. Keeping this hook here (in
+// a leaf wrapped in its OWN <Suspense> and rendered as a SIBLING of {children})
+// means only this null-rendering leaf de-opts — the pages themselves prerender
+// as static HTML. All URL→state reconciliation for /flash-reports lives here;
+// it only ever does meaningful work on the client (fetch/setState/router), so
+// nothing is lost by isolating it. See memory: static-pages-csr-deopt.
+// ---------------------------------------------------------------------------
+type SyncProps = {
+  pendingRegion: string;
+  region: string;
+  minMonth: string;
+  maxMonth: string;
+  initializedMonthRef: MutableRefObject<boolean>;
+  setPendingRegion: Dispatch<SetStateAction<string>>;
+  setRegionState: Dispatch<SetStateAction<string>>;
+  setMaxMonth: Dispatch<SetStateAction<string>>;
+  setMonthState: Dispatch<SetStateAction<string>>;
+  setMonthFallback: Dispatch<
+    SetStateAction<{ requested: string; applied: string } | null>
+  >;
+};
+
+function SearchParamsSync({
+  pendingRegion,
+  region,
+  minMonth,
+  maxMonth,
+  initializedMonthRef,
+  setPendingRegion,
+  setRegionState,
+  setMaxMonth,
+  setMonthState,
+  setMonthFallback,
+}: SyncProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const initializedMonthRef = useRef(false);
-
-  const [maxMonth, setMaxMonth] = useState(() => {
-    const latest = getPrevMonthIST();
-    // ensure maxMonth is never earlier than MIN_MONTH
-    return cmpYYYYMM(latest, MIN_MONTH) < 0 ? MIN_MONTH : latest;
-  });
-
-  const minMonth = MIN_MONTH;
-
-  // committed region — only updates atomically together with month/maxMonth
-  // once loadLatestMonthForRegion resolves the new country's data.
-  // segment pages read this so they never see a (newRegion, staleMonth) pair.
-  const [region, setRegionState] = useState("india");
-
-  // user's latest pick — drives loadLatestMonthForRegion and the selector UI.
-  // updates immediately on click so the selector feels instant.
-  const [pendingRegion, setPendingRegion] = useState("india");
-
-  // ✅ Current month selection (clamped to [minMonth, maxMonth])
-  const [month, setMonthState] = useState(() =>
-    clampYYYYMM(maxMonth, minMonth, maxMonth),
-  );
-
-  // Audit F-12: set when a deep-linked month is unavailable and clamped to the
-  // latest available month. Cleared on dismiss or any explicit month/region change.
-  const [monthFallback, setMonthFallback] = useState<
-    { requested: string; applied: string } | null
-  >(null);
-  const clearMonthFallback = () => setMonthFallback(null);
 
   useEffect(() => {
     const urlCountry = searchParams.get("country") ?? searchParams.get("region");
     if (urlCountry) setPendingRegion(sanitizeCountry(urlCountry));
-  }, [searchParams]);
+  }, [searchParams, setPendingRegion]);
 
   useEffect(() => {
     if (!pathname?.startsWith("/flash-reports")) return;
@@ -259,10 +270,52 @@ export function Providers({ children }: { children: ReactNode }) {
     ) {
       setMonthState(clampYYYYMM(urlMonth, minMonth, maxMonth));
     }
-  }, [pathname, searchParams, minMonth, maxMonth, region]);
+  }, [pathname, searchParams, minMonth, maxMonth, region, setMonthState]);
+
+  return null;
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const initializedMonthRef = useRef(false);
+
+  const [maxMonth, setMaxMonth] = useState(() => {
+    const latest = getPrevMonthIST();
+    // ensure maxMonth is never earlier than MIN_MONTH
+    return cmpYYYYMM(latest, MIN_MONTH) < 0 ? MIN_MONTH : latest;
+  });
+
+  const minMonth = MIN_MONTH;
+
+  // committed region — only updates atomically together with month/maxMonth
+  // once loadLatestMonthForRegion resolves the new country's data.
+  // segment pages read this so they never see a (newRegion, staleMonth) pair.
+  const [region, setRegionState] = useState("india");
+
+  // user's latest pick — drives loadLatestMonthForRegion and the selector UI.
+  // updates immediately on click so the selector feels instant.
+  const [pendingRegion, setPendingRegion] = useState("india");
+
+  // ✅ Current month selection (clamped to [minMonth, maxMonth])
+  const [month, setMonthState] = useState(() =>
+    clampYYYYMM(maxMonth, minMonth, maxMonth),
+  );
+
+  // Audit F-12: set when a deep-linked month is unavailable and clamped to the
+  // latest available month. Cleared on dismiss or any explicit month/region change.
+  const [monthFallback, setMonthFallback] = useState<
+    { requested: string; applied: string } | null
+  >(null);
+  const clearMonthFallback = () => setMonthFallback(null);
+
+  // Read the live query string at call time (handlers only ever run on the
+  // client). Avoids a top-level useSearchParams() here, which would de-opt
+  // every statically-rendered page's <body> to client-side rendering.
+  const currentSearch = () =>
+    typeof window !== "undefined" ? window.location.search : "";
 
   const updateUrl = (params: Record<string, string>) => {
-    const current = new URLSearchParams(searchParams.toString());
+    const current = new URLSearchParams(currentSearch());
     Object.entries(params).forEach(([key, value]) => current.set(key, value));
 
     const search = current.toString();
@@ -281,7 +334,7 @@ export function Providers({ children }: { children: ReactNode }) {
     // the previous country's month so the URL→state sync effect doesn't
     // briefly apply it under the new country).
     setPendingRegion(clean);
-    const current = new URLSearchParams(searchParams.toString());
+    const current = new URLSearchParams(currentSearch());
     current.set("country", clean);
     current.delete("month");
     const search = current.toString();
@@ -315,5 +368,25 @@ export function Providers({ children }: { children: ReactNode }) {
     [region, pendingRegion, month, maxMonth, minMonth, monthFallback],
   );
 
-  return <AppContext.Provider value={ctxValue}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={ctxValue}>
+      {/* useSearchParams isolated behind its own Suspense so it does NOT
+          de-opt {children} (the static pages) to client-side rendering. */}
+      <Suspense fallback={null}>
+        <SearchParamsSync
+          pendingRegion={pendingRegion}
+          region={region}
+          minMonth={minMonth}
+          maxMonth={maxMonth}
+          initializedMonthRef={initializedMonthRef}
+          setPendingRegion={setPendingRegion}
+          setRegionState={setRegionState}
+          setMaxMonth={setMaxMonth}
+          setMonthState={setMonthState}
+          setMonthFallback={setMonthFallback}
+        />
+      </Suspense>
+      {children}
+    </AppContext.Provider>
+  );
 }
