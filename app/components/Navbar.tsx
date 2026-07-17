@@ -143,6 +143,12 @@ export default function NavBar() {
               </Link>
               <Link
                 className="text-sm font-extrabold tracking-wide text-white hover:text-white"
+                href="/insights"
+              >
+                INSIGHTS
+              </Link>
+              <Link
+                className="text-sm font-extrabold tracking-wide text-white hover:text-white"
                 href="https://raceautoindia.com/magazine"
               >
                 MAGAZINE
@@ -224,6 +230,13 @@ export default function NavBar() {
                   onClick={() => setMobileOpen(false)}
                 >
                   NEWS
+                </Link>
+                <Link
+                  href="/insights"
+                  className="rounded-lg px-2 py-1.5 hover:bg-white/10"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  INSIGHTS
                 </Link>
                 <Link
                   href="https://raceautoindia.com/magazine"

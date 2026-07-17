@@ -52,6 +52,14 @@ export default function Footer() {
               </li>
               <li>
                 <Link
+                  href="/insights"
+                  className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
+                >
+                  Insights
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/forecast/overview"
                   className="hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >

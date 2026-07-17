@@ -19,6 +19,7 @@ import AIForecast from "./AIForecast";
 import MLScoreRange from "./MLScoreRange";
 import FlashReportsTab from "./FlashReportsTab";
 import HomePageContentManager from "./HomePageContentManager";
+import InsightsPanel from "./InsightsPanel";
 import UserManagement from "./UserManagement";
 import SubscriptionReferencePanel from "./SubscriptionReferencePanel";
 import TrialLeadsPanel from "./TrialLeadsPanel";
@@ -103,6 +104,11 @@ export default function Home() {
       key: "home",
       label: "Home Page",
       children: <HomePageContentManager />,
+    },
+    {
+      key: "insights",
+      label: "Insights",
+      children: <InsightsPanel />,
     },
     {
       key: "users",

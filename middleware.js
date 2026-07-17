@@ -8,7 +8,7 @@ const BASIC_PASS = process.env.ADMIN_BASIC_PASS || 'letMeIn321';
 export function middleware(req) {
   const { pathname } = req.nextUrl;
 
-  const protectedPaths = ['/admin', '/forecast-new'];
+  const protectedPaths = ['/admin', '/forecast-new', '/api/admin/insights'];
   const isProtected = protectedPaths.some((path) => pathname === path || pathname.startsWith(path + '/'));
 
   if (isProtected) {
@@ -66,5 +66,9 @@ function withSeoHeaders(res, pathname) {
 export const config = {
   matcher: [
     '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|llms.txt).*)',
+    // Run on the insights admin API too, so basic-auth guards writes (the
+    // default matcher above excludes all /api).
+    '/api/admin/insights',
+    '/api/admin/insights/:path*',
   ],
 };
