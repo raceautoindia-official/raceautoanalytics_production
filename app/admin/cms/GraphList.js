@@ -57,7 +57,17 @@ export default function GraphList({ context = "forecast" } = {}) {
           headers: {
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
           },
-        }).then((r) => (r.ok ? r.json() : Promise.reject())),
+        }).then((r) => {
+          if (!r.ok) return Promise.reject();
+          // Protected contexts return a silent [] with this header when the
+          // access check fails — surface it instead of "No graphs available".
+          if (r.headers.get("x-access-denied") === "1") {
+            message.warning(
+              "Could not verify your access for the graph list — refresh the page or log in again."
+            );
+          }
+          return r.json();
+        }),
         fetch("/api/contentHierarchy", {
           headers: {
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,

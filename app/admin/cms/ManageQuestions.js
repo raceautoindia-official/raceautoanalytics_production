@@ -182,8 +182,21 @@ export default function ManageQuestions({ context } = {}) {
       ? `/api/graphs?context=${encodeURIComponent(context)}`
       : "/api/graphs";
 
-    fetch(url)
-      .then((r) => r.json())
+    fetch(url, {
+      headers: {
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+      },
+    })
+      .then((r) => {
+        // Protected contexts return a silent [] with this header when the
+        // access check fails — surface it instead of a blank tab.
+        if (r.headers.get("x-access-denied") === "1") {
+          message.warning(
+            "Could not verify your access for the graph list — refresh the page or log in again."
+          );
+        }
+        return r.json();
+      })
       .then((data) => {
         const parsed = data.map((g) => {
           let ids = [];

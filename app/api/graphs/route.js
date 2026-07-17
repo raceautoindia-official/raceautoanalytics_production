@@ -150,7 +150,13 @@ export async function GET(request) {
         allowTrial: true,
       });
       if (!access.ok) {
-        return NextResponse.json([], { status: 200 });
+        // Silent-empty keeps public consumers unbroken, but the header lets
+        // admin UIs (CMS) distinguish "access denied" from "no graphs yet" —
+        // an undetectable [] here rendered CMS tabs blank with no error.
+        return NextResponse.json([], {
+          status: 200,
+          headers: { "x-access-denied": "1" },
+        });
       }
     }
 

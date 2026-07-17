@@ -99,10 +99,25 @@ export default function FlashGraphMappingEditor() {
         cfgRes.json(),
       ]);
 
-      const g = graphsJson || [];
+      const g = Array.isArray(graphsJson) ? graphsJson : [];
       setGraphs(g);
 
-      const validIds = new Set((g || []).map((x) => Number(x.id)));
+      // SAFETY: if the graph list is empty — including the silent [] the API
+      // returns when the access check fails (x-access-denied) — do NOT
+      // validate the saved mapping against it: that would clear every field,
+      // and a subsequent Save would wipe the country's real mappings.
+      const accessDenied = graphsRes.headers.get("x-access-denied") === "1";
+      if (accessDenied || g.length === 0) {
+        form.setFieldsValue({ ...(cfgJson || {}) });
+        message.warning(
+          accessDenied
+            ? "Could not verify your access for the Flash graph list — showing the saved mapping read-only. Refresh the page or log in again."
+            : "No Flash graphs were returned — showing the saved mapping read-only. Refresh before editing."
+        );
+        return;
+      }
+
+      const validIds = new Set(g.map((x) => Number(x.id)));
       const cleaned = { ...(cfgJson || {}) };
       let cleared = 0;
 
@@ -217,7 +232,14 @@ export default function FlashGraphMappingEditor() {
 
           <Space>
             <Button onClick={() => load(selectedCountry)}>Refresh</Button>
-            <Button type="primary" onClick={onSave} loading={saving}>
+            {/* Disabled when the graph list is empty (incl. access-denied
+                silent []) — saving then would wipe the saved mappings. */}
+            <Button
+              type="primary"
+              onClick={onSave}
+              loading={saving}
+              disabled={graphs.length === 0}
+            >
               Save Mapping
             </Button>
           </Space>

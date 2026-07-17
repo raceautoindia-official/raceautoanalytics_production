@@ -2,9 +2,81 @@ import db from "@/lib/db";
 import {
   decodeJwtPayload,
   fetchRaiAccessSummary,
+  type RaiAccessSummary,
 } from "@/lib/internalSubscriptionFetch";
 
 const ADMIN_ROLES = new Set(["admin", "moderator"]);
+
+// ---------------------------------------------------------------------------
+// RAI access-summary cache (guards only — subscription endpoints unaffected).
+//
+// requireProtectedDataAccess / requireAdminAccess run on every protected data
+// request, and each uncached call is a live HTTP round-trip to Race Auto India.
+// Observed in production (2026-07-17): RAI slowness made data endpoints hang,
+// and transient RAI failures made the guard deny access — which /api/graphs
+// maps to a silent empty list, i.e. blank CMS panes with no visible error.
+//
+// - Successful summaries are cached ~60s per email (entitlement changes still
+//   reflect within a minute; the client entitlement poll is 90s).
+// - On upstream failure a recent stale summary (≤10 min) is served instead of
+//   denying, so an RAI blip never locks out a valid session.
+// - A hard timeout stops a hung upstream call from holding requests open.
+// ---------------------------------------------------------------------------
+const ACCESS_SUMMARY_TTL_MS = 60_000;
+const ACCESS_SUMMARY_STALE_MAX_MS = 10 * 60_000;
+const ACCESS_SUMMARY_TIMEOUT_MS = 8_000;
+
+type CachedSummary = { summary: RaiAccessSummary; fetchedAt: number };
+const accessSummaryCache = new Map<string, CachedSummary>();
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`RAI access-summary timed out after ${ms}ms`)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function getAccessSummaryCached(
+  email: string,
+): Promise<RaiAccessSummary> {
+  const key = email.trim().toLowerCase();
+  const now = Date.now();
+  const cached = accessSummaryCache.get(key);
+
+  if (cached && now - cached.fetchedAt < ACCESS_SUMMARY_TTL_MS) {
+    return cached.summary;
+  }
+
+  try {
+    const summary = await withTimeout(
+      fetchRaiAccessSummary(key),
+      ACCESS_SUMMARY_TIMEOUT_MS,
+    );
+    accessSummaryCache.set(key, { summary, fetchedAt: now });
+    return summary;
+  } catch (error) {
+    if (cached && now - cached.fetchedAt < ACCESS_SUMMARY_STALE_MAX_MS) {
+      console.error(
+        "getAccessSummaryCached: upstream failed, serving stale summary:",
+        error,
+      );
+      return cached.summary;
+    }
+    throw error;
+  }
+}
 
 function normalizeText(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
@@ -91,7 +163,7 @@ export async function requireAdminAccess(req: Request): Promise<GuardResult> {
   }
 
   try {
-    const summary = await fetchRaiAccessSummary(email);
+    const summary = await getAccessSummaryCached(email);
     const role = normalizeText(summary.role);
     // const hasRoleAccess =
     //   Boolean(summary.hasFullAccess) || ADMIN_ROLES.has(role);
@@ -164,7 +236,7 @@ export async function requireProtectedDataAccess(
   }
 
   try {
-    const summary = await fetchRaiAccessSummary(email);
+    const summary = await getAccessSummaryCached(email);
     const role = normalizeText(summary.role);
     const hasRoleAccess =
       Boolean(summary.hasFullAccess) || ADMIN_ROLES.has(role);
