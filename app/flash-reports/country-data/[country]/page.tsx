@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import CountryPageActions from "./CountryPageActions";
 import {
-  FLASH_REPORT_COUNTRY_DATASETS,
-  getFlashReportCountryDataset,
+  getFlashReportCountryDatasetOrDefault,
+  listFlashReportCountryDatasets,
 } from "@/lib/flashReportCountryDataset";
+import { regionLabel, resolveCountryMeta } from "@/lib/flashReportRegistry";
 import { SITE_URL } from "@/lib/seoRoutes";
 
 type PageProps = {
@@ -194,14 +195,29 @@ const COUNTRY_SEO_PROFILES: Record<string, CountrySeoProfile> = {
   },
 };
 
+// Generic SEO profile for markets without hand-authored copy above (e.g. newly
+// added registry countries). Keeps every live country page complete.
+function genericProfile(slug: string, name: string): CountrySeoProfile {
+  const meta = resolveCountryMeta(slug);
+  const region = meta?.region ? regionLabel(meta.region) : "Global";
+  return {
+    region,
+    releaseDay: "monthly release cycle",
+    marketContext: `${name} is a monitored automotive market where passenger vehicles, commercial vehicles, trucks, and buses are tracked for monthly demand and planning.`,
+    segmentContext: `The ${name} country page gives OEM, dealer, and planning teams a compact monthly read on vehicle demand and segment movement.`,
+    evContext: `EV and alternative fuel context is included for ${name} where the published dataset exposes those indicators.`,
+    oemContext: `OEM share views help compare competitive movement across the vehicle segments covered for ${name}.`,
+  };
+}
+
 export function generateStaticParams() {
-  return Object.keys(FLASH_REPORT_COUNTRY_DATASETS).map((country) => ({
-    country,
+  return listFlashReportCountryDatasets().map((dataset) => ({
+    country: dataset.slug,
   }));
 }
 
 export function generateMetadata({ params }: PageProps): Metadata {
-  const dataset = getFlashReportCountryDataset(params.country);
+  const dataset = getFlashReportCountryDatasetOrDefault(params.country);
 
   if (!dataset) {
     return {
@@ -245,10 +261,12 @@ export function generateMetadata({ params }: PageProps): Metadata {
 }
 
 export default function CountryDataPage({ params }: PageProps) {
-  const dataset = getFlashReportCountryDataset(params.country);
+  const dataset = getFlashReportCountryDatasetOrDefault(params.country);
   if (!dataset) notFound();
 
-  const profile = COUNTRY_SEO_PROFILES[dataset.slug];
+  const profile =
+    COUNTRY_SEO_PROFILES[dataset.slug] ??
+    genericProfile(dataset.slug, dataset.name);
   const moduleSummary = summarizeModules(dataset.modules);
   const faqItems = buildCountryFaq(dataset.name, profile);
   const canonical = `${SITE_URL}/flash-reports/country-data/${dataset.slug}`;

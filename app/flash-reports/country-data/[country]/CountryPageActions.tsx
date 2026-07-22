@@ -33,9 +33,10 @@ export default function CountryPageActions({
       </button>
       <Link
         href={`/flash-reports?country=${encodeURIComponent(countrySlug)}`}
-        className="inline-flex items-center rounded-xl border border-blue-300/40 bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-100 hover:bg-blue-500/30"
+        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600 px-5 py-2 text-sm font-semibold text-slate-900 shadow-lg shadow-orange-500/25 transition hover:from-amber-300 hover:via-orange-400 hover:to-orange-500 hover:shadow-orange-500/40"
       >
         Go To {countryName} Flash Report
+        <span aria-hidden className="text-base leading-none">→</span>
       </Link>
     </div>
   );

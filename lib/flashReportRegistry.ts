@@ -72,6 +72,9 @@ export const FLASH_COUNTRIES: FlashCountry[] = [
   { slug: "peru", name: "Peru", iso2: "PE", region: "latin-america", status: "live" },
   // Middle East & Africa
   { slug: "south-africa", name: "South Africa", iso2: "ZA", region: "middle-east-africa", status: "live" },
+  // Newly added markets (data live in the hierarchy; catalog metadata here)
+  { slug: "czech-republic", name: "Czech Republic", iso2: "CZ", region: "europe", status: "live" },
+  { slug: "uruguay", name: "Uruguay", iso2: "UY", region: "latin-america", status: "live" },
 ];
 
 /** ISO2 → flag emoji via regional-indicator symbols. Falls back to 🌍. */

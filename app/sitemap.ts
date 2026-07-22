@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
-import { FLASH_REPORT_COUNTRY_DATASETS } from "@/lib/flashReportCountryDataset";
+import { listFlashReportCountryDatasets } from "@/lib/flashReportCountryDataset";
 import { SITE_URL } from "@/lib/seoRoutes";
-import { FLASH_COUNTRY_SLUGS } from "@/lib/flashReportRegistry";
 import { publishedInsightSlugs } from "@/lib/insights";
 
 // Regenerate hourly so newly published insight posts appear without a rebuild.
@@ -9,13 +8,10 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
-  // Country pages are sourced from the registry, gated by an actual dataset page
-  // so a URL is only sitemapped once it has real content. Adding a new market to
-  // the registry (with a dataset entry) includes it here automatically.
-  const countryEntries = FLASH_COUNTRY_SLUGS.filter(
-    (slug) => FLASH_REPORT_COUNTRY_DATASETS[slug],
-  ).map((slug) => ({
-    url: `${SITE_URL}/flash-reports/country-data/${slug}`,
+  // Every live registry market gets a country-data page (explicit dataset or a
+  // generic fallback), so adding a market to the registry sitemaps it too.
+  const countryEntries = listFlashReportCountryDatasets().map((d) => ({
+    url: `${SITE_URL}/flash-reports/country-data/${d.slug}`,
     lastModified: now,
     changeFrequency: "monthly" as const,
     priority: 0.85,

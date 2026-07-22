@@ -22,6 +22,7 @@ import { RegionSelector } from "@/components/ui/RegionSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { VehicleCategoryCard } from "@/components/ui/VehicleCategoryCard";
+import { isOthersLike } from "@/lib/flashReportSummary";
 import { useAppContext } from "@/components/providers/Providers";
 import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
 import { cn } from "@/lib/utils";
@@ -257,10 +258,10 @@ function getTopOemNameFromRows(rows: any[], monthKey: string) {
     .filter((row) => row.name)
     .sort((a, b) => b.value - a.value);
 
-  const firstRealOem = sorted.find((row) => {
-    const name = row.name.toLowerCase().trim();
-    return name !== "others" && name !== "other";
-  });
+  // Prefer the top NAMED OEM. Skip the "Others" bucket in all its forms
+  // ("Others", "Others (including …)", "Others[tata, …]"), so a card never
+  // shows "Others" as the leader when a real OEM ranks just below it.
+  const firstRealOem = sorted.find((row) => !isOthersLike(row.name));
 
   return firstRealOem?.name || sorted[0]?.name || "";
 }

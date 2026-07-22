@@ -1,3 +1,5 @@
+import { LIVE_FLASH_COUNTRIES, resolveCountryMeta } from "@/lib/flashReportRegistry";
+
 export type FlashReportCountryDataset = {
   slug: string;
   name: string;
@@ -282,5 +284,41 @@ export const FLASH_REPORT_COUNTRY_DATASETS: Record<
 export function getFlashReportCountryDataset(country: string) {
   const key = String(country || "").trim().toLowerCase();
   return FLASH_REPORT_COUNTRY_DATASETS[key] || null;
+}
+
+// Generic module set for live markets that don't yet have a hand-authored
+// dataset above. Keeps the public country page complete (and out of 404) the
+// moment a market is added to the registry, before bespoke copy is written.
+const DEFAULT_COUNTRY_MODULES = [
+  "Overall Automotive Industry Sales Forecast",
+  "Passenger Vehicle Sales Forecast",
+  "Passenger Vehicle OEM Segment Share",
+  "Commercial Vehicle Sales Forecast",
+  "CV OEM Segment Share",
+  "Truck Sales Forecast",
+  "Buses Sales Forecast",
+];
+
+/**
+ * Dataset for a country, falling back to a generic one for any live registry /
+ * world country that lacks a hand-authored entry — so newly-added markets
+ * (e.g. Czech Republic, Uruguay) render a complete page instead of a 404.
+ */
+export function getFlashReportCountryDatasetOrDefault(
+  country: string,
+): FlashReportCountryDataset | null {
+  const key = String(country || "").trim().toLowerCase();
+  const explicit = FLASH_REPORT_COUNTRY_DATASETS[key];
+  if (explicit) return explicit;
+  const meta = resolveCountryMeta(key);
+  if (!meta) return null;
+  return { slug: key, name: meta.name, modules: DEFAULT_COUNTRY_MODULES };
+}
+
+/** All LIVE registry markets as datasets (explicit where available, else generic). */
+export function listFlashReportCountryDatasets(): FlashReportCountryDataset[] {
+  return LIVE_FLASH_COUNTRIES.map((c) =>
+    getFlashReportCountryDatasetOrDefault(c.slug),
+  ).filter((d): d is FlashReportCountryDataset => Boolean(d));
 }
 

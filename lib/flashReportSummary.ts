@@ -314,13 +314,11 @@ export function formatLeadingOemLabel(
     | null
     | undefined,
 ) {
+  // Skip the "Others" bucket in every form ("Others", "Others (including …)",
+  // "Others[…]") so the leading-OEM label falls through to the top NAMED OEM.
   const candidate = Array.isArray(topRowOrRows)
-    ? topRowOrRows.find(
-        (row) =>
-          row?.name &&
-          !isOthers(String(row.name)) &&
-          String(row.name).trim().toLowerCase() !== "other",
-      ) ?? topRowOrRows[0]
+    ? topRowOrRows.find((row) => row?.name && !isOthersLike(String(row.name))) ??
+      topRowOrRows[0]
     : topRowOrRows;
 
   if (!candidate?.name) return "—";
