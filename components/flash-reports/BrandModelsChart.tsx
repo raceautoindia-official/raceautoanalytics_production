@@ -15,21 +15,27 @@ interface BrandModelsChartProps {
   title: string;
 }
 
+// Sentinel dropdown value for the aggregate "Top 10 brands" view.
+const TOP10 = "__top10__";
+const TOP_N = 10;
+
 /**
  * Brand → sub-model sales bar chart, shown below the market-share chart on each
  * segment page. Data: /api/flash-reports/model-data (hierarchy models node).
  *
- * Rendered as HORIZONTAL bars (rows): a brand with a single model reads as one
- * clean labeled row instead of a lone oversized column, and the same layout
- * scales cleanly to many models. The month is driven by the PAGE-level month
- * selector (no separate control here). The whole section renders NOTHING when
- * the segment/country/month has no model data — no empty card is left behind.
+ * The brand dropdown has a "Top 10 brands" option that aggregates each brand's
+ * models into a single bar (brand total) and shows the top N brands — plus one
+ * entry per brand to drill into that brand's individual models.
+ *
+ * Rendered as HORIZONTAL bars (rows) so a single model / few brands still read
+ * cleanly. The month is driven by the PAGE-level month selector. The whole
+ * section renders NOTHING when there is no model data — no empty card is left.
  */
 export function BrandModelsChart({ segmentName, title }: BrandModelsChartProps) {
   const { region, month } = useAppContext();
 
   const [brands, setBrands] = useState<BrandModels[]>([]);
-  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [selection, setSelection] = useState<string>(TOP10);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,29 +68,42 @@ export function BrandModelsChart({ segmentName, title }: BrandModelsChartProps) 
     };
   }, [segmentName, region, month]);
 
-  // Keep the selected brand valid across data changes; default to the brand
-  // with the most models so the first impression isn't a single-bar view.
+  // Keep the selection valid across data changes; default to the Top 10 view.
   useEffect(() => {
-    if (!brands.length) {
-      setSelectedBrand(null);
-      return;
-    }
-    setSelectedBrand((prev) => {
+    if (!brands.length) return;
+    setSelection((prev) => {
+      if (prev === TOP10) return prev;
       if (prev && brands.some((b) => b.brand === prev)) return prev;
-      return [...brands].sort((a, b) => b.models.length - a.models.length)[0]
-        .brand;
+      return TOP10;
     });
   }, [brands]);
 
-  const current = useMemo(
-    () => brands.find((b) => b.brand === selectedBrand) || null,
-    [brands, selectedBrand],
-  );
+  const isTop10 = selection === TOP10;
 
-  const chartData = useMemo(
-    () => (current?.models ?? []).map((m) => ({ name: m.name, value: m.value })),
-    [current],
-  );
+  const chartData = useMemo(() => {
+    if (!brands.length) return [] as ModelPoint[];
+
+    if (isTop10) {
+      // One bar per brand = sum of that brand's model values; top N by total.
+      return brands
+        .map((b) => ({
+          name: b.brand,
+          value: b.models.reduce(
+            (sum, m) => sum + (Number.isFinite(m.value) ? Number(m.value) : 0),
+            0,
+          ),
+        }))
+        .filter((row) => row.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, TOP_N);
+    }
+
+    const current = brands.find((b) => b.brand === selection);
+    return (current?.models ?? []).map((m) => ({
+      name: m.name,
+      value: m.value,
+    }));
+  }, [brands, selection, isTop10]);
 
   const monthLabel = useMemo(() => {
     try {
@@ -97,17 +116,16 @@ export function BrandModelsChart({ segmentName, title }: BrandModelsChartProps) 
     }
   }, [month]);
 
-  // Render NOTHING unless there is actual data to show. No loading box, no
-  // empty-state card — so segments/countries/months without model data leave
-  // no blank section on the page (per requirement).
-  if (!current || chartData.length === 0) return null;
+  // Render NOTHING unless there is actual data to show — no empty card.
+  if (chartData.length === 0) return null;
 
-  const summary = `${current.brand}: ${current.models.length} model${
-    current.models.length === 1 ? "" : "s"
-  } with sales data in ${monthLabel}. Select a brand to compare its models.`;
+  const summary = isTop10
+    ? `Top ${chartData.length} brands by total model sales in ${monthLabel}. Pick a brand to break it down by model.`
+    : `${selection}: ${chartData.length} model${
+        chartData.length === 1 ? "" : "s"
+      } with sales data in ${monthLabel}.`;
 
-  // Height grows per row so a single model is a compact row; maxBarSize keeps
-  // each bar a sensible thickness.
+  // Height grows per row; maxBarSize keeps each bar a sensible thickness.
   const chartHeight = Math.max(160, chartData.length * 46 + 72);
 
   return (
@@ -118,11 +136,12 @@ export function BrandModelsChart({ segmentName, title }: BrandModelsChartProps) 
         brands.length > 0 ? (
           <label className="inline-flex flex-col items-start">
             <select
-              value={selectedBrand ?? ""}
-              onChange={(e) => setSelectedBrand(e.target.value)}
+              value={selection}
+              onChange={(e) => setSelection(e.target.value)}
               aria-label="Select brand"
               className="h-9 min-w-[9rem] rounded-lg border border-border bg-card px-2 text-xs font-medium focus-ring hover:bg-accent transition-colors sm:px-3 sm:text-sm"
             >
+              <option value={TOP10}>Top {TOP_N} brands</option>
               {brands.map((b) => (
                 <option key={b.brand} value={b.brand}>
                   {b.brand}
@@ -135,7 +154,13 @@ export function BrandModelsChart({ segmentName, title }: BrandModelsChartProps) 
     >
       <BarChart
         data={chartData}
-        bars={[{ key: "value", name: "Units", color: "#7C3AED" }]}
+        bars={[
+          {
+            key: "value",
+            name: isTop10 ? "Total units" : "Units",
+            color: isTop10 ? "#2563EB" : "#7C3AED",
+          },
+        ]}
         height={chartHeight}
         layout="vertical"
         showLegend={false}
