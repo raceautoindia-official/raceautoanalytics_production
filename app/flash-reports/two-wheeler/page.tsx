@@ -16,6 +16,7 @@ import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
+import { BrandModelsChart } from "@/components/flash-reports/BrandModelsChart";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -998,6 +999,9 @@ const showApplicationChartSection =
 </p>
   </ChartWrapper>
 )}
+
+          {/* Brand → models bar chart (directly below market share) */}
+          <BrandModelsChart segmentName="two-wheeler" title="Two-Wheeler Brand Models" />
 
           {/* 2) EV / alternative fuel share comparison – backend, segmentType=ev */}
           {showEvChartSection && (

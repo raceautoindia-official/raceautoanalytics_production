@@ -59,6 +59,14 @@ interface BarChartProps {
    * in the tooltip regardless of this value.
    */
   xTickMaxChars?: number;
+
+  /**
+   * Optional cap on a bar's thickness (px). Keeps a chart with very few bars
+   * (e.g. a brand with a single model) from rendering one giant bar — the bar
+   * stays a sensible width and the chart reads intentionally. Omitted = default
+   * recharts sizing (existing behavior for all other charts).
+   */
+  maxBarSize?: number;
 }
 
 export function BarChart({
@@ -73,6 +81,7 @@ export function BarChart({
   valueSuffix,
   valueDecimals,
   xTickMaxChars,
+  maxBarSize,
 }: BarChartProps) {
   const isReducedMotion = useReducedMotion();
   const animationConfig = getAnimationConfig(isReducedMotion);
@@ -373,6 +382,7 @@ export function BarChart({
                 dataKey={bar.key}
                 fill={fillColor}
                 name={bar.name}
+                maxBarSize={maxBarSize}
                 radius={layout === "vertical" ? [0, 4, 4, 0] : [4, 4, 0, 0]}
                 isAnimationActive={animationConfig.isAnimationActive}
                 animationDuration={

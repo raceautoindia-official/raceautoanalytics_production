@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
+import { BrandModelsChart } from "@/components/flash-reports/BrandModelsChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
@@ -858,6 +859,9 @@ const showApplicationChartSection =
 </p>
   </ChartWrapper>
 )}
+
+          {/* Brand → models bar chart (directly below market share) */}
+          <BrandModelsChart segmentName="truck" title="Truck Brand Models" />
 
           {/* 2) Segment split (backend) + 3) Application Chart (backend) */}
         {(showSegmentChartSection || showApplicationChartSection) && (
