@@ -378,3 +378,51 @@ export function enterpriseInquiryEmail(args: {
   const text = `Enterprise inquiry from ${args.name} (${args.email}, ${args.phone}) - ${args.company}. Requirement: ${args.requirement}`;
   return { subject, html, text };
 }
+
+export function talkToExpertEmail(args: {
+  name: string;
+  email: string;
+  phone: string;
+  preferredDate: string;
+  preferredTime: string;
+  message?: string | null;
+}) {
+  const app = process.env.APP_NAME || "RaceAutoAnalytics";
+  const esc = (s: string) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  const subject = `[${app}] Talk to an Expert - ${args.name}`;
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:6px 12px 6px 0; color:rgba(234,240,255,0.6); white-space:nowrap;">${label}</td><td style="padding:6px 0;">${esc(value)}</td></tr>`;
+  const html = `
+  <div style="font-family:Arial,sans-serif; background:#050B1A; padding:24px; color:#EAF0FF;">
+    <div style="max-width:640px; margin:0 auto; background:#0B1228; border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden;">
+      <div style="padding:18px 18px 0 18px;">
+        <h2 style="margin:0; font-size:18px;">New &ldquo;Talk to an Expert&rdquo; request</h2>
+      </div>
+      <div style="padding:18px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          ${row("Name", args.name)}
+          ${row("Email", args.email)}
+          ${row("Phone", args.phone)}
+          ${row("Preferred Date", args.preferredDate)}
+          ${row("Preferred Time", args.preferredTime)}
+        </table>
+        ${
+          args.message
+            ? `<p style="margin:14px 0 0 0; color:rgba(234,240,255,0.9); font-size:13px; line-height:1.6;"><b>How can we help:</b><br />${esc(
+                args.message,
+              ).replace(/\n/g, "<br />")}</p>`
+            : ""
+        }
+      </div>
+    </div>
+  </div>
+  `;
+  const text = `Talk to an Expert request from ${args.name} (${args.email}, ${args.phone}). Preferred: ${args.preferredDate} ${args.preferredTime}.${
+    args.message ? " How can we help: " + args.message : ""
+  }`;
+  return { subject, html, text };
+}

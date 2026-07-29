@@ -17,6 +17,7 @@ import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
 // served an empty <body>. ScrollToTopButton is a "use client" button that only
 // touches window/document inside its click handler, so it SSRs safely.
 import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
+import TalkToExpertWidget from "@/app/components/TalkToExpertWidget";
 
 
 const inter = Inter({
@@ -135,6 +136,7 @@ export default function RootLayout({ children }) {
         ) : null}
 
         <ScrollToTopButton />
+        <TalkToExpertWidget />
         <Suspense fallback={null}>
           <Providers>
             {/* <BootstrapClient /> */}
