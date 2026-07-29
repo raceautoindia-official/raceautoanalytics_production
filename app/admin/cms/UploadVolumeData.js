@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Button,
   Select,
@@ -10,10 +10,50 @@ import {
   InputNumber,
   Spin,
   Empty,
+  Progress,
+  Alert,
 } from 'antd';
 import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 
 const { TabPane } = Tabs;
+
+// ── Styles + helpers for the Bulk Multi-Month grid (add-on feature only) ──
+const bulkTh = (first) => ({
+  position: 'sticky',
+  top: 0,
+  background: '#fafafa',
+  padding: '6px 8px',
+  borderBottom: '1px solid #eee',
+  borderRight: '1px solid #eee',
+  fontSize: 12,
+  textAlign: 'left',
+  fontWeight: 600,
+  zIndex: first ? 4 : 1,
+  ...(first ? { left: 0 } : {}),
+});
+const bulkTdLabel = {
+  position: 'sticky',
+  left: 0,
+  background: '#fff',
+  zIndex: 2,
+  padding: '4px 8px',
+  borderRight: '1px solid #eee',
+  borderBottom: '1px solid #f5f5f5',
+  fontSize: 12,
+  whiteSpace: 'nowrap',
+  fontWeight: 500,
+};
+const bulkTd = {
+  padding: 2,
+  borderBottom: '1px solid #f5f5f5',
+  borderRight: '1px solid #f5f5f5',
+};
+const parseNum = (t) => {
+  const c = String(t ?? '').trim().replace(/,/g, '');
+  if (c === '') return null;
+  const n = Number(c);
+  return Number.isFinite(n) ? n : null;
+};
 
 export default function UploadVolumeData() {
   const [formatCharts, setFormatCharts] = useState([]);
@@ -32,6 +72,11 @@ export default function UploadVolumeData() {
   const [manualData, setManualData] = useState([]);
   const [loadingManualTable, setLoadingManualTable] = useState(false);
   const [allVolumeEntries, setAllVolumeEntries] = useState([]);
+
+  // Bulk Multi-Month Entry (add-on) state
+  const [bulkGrid, setBulkGrid] = useState({}); // { [monthId]: { [company]: value } }
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
 
   const canShowTabs = rowChart && selectedRowLevel && colChart && selectedColLevel && streamSelection.length;
 
@@ -268,6 +313,223 @@ export default function UploadVolumeData() {
     }
   };
 
+  // ═════════════════════════════════════════════════════════════════════════
+  // BULK MULTI-MONTH ENTRY (add-on)
+  // Enter many months at once: rows = months under the selected type/year,
+  // columns = the same companies as Manual Entry. Saving replays the EXISTING
+  // per-month /api/uploadVolumeData call once per month — no backend change,
+  // identical storage/merge behaviour. Existing tabs are not affected.
+  // ═════════════════════════════════════════════════════════════════════════
+  const bulkRowLabel = selectedRowLevel?.nodeLabels?.[0] ?? null; // e.g. "data"
+  const bulkCompanies = selectedColLevel?.nodeLabels ?? [];
+  const deepestSelectedId = streamSelection.length
+    ? Number(streamSelection[streamSelection.length - 1])
+    : null;
+  const deepestSelectedNode =
+    contentHierarchy.find((n) => n.id === deepestSelectedId) || null;
+  const deepestIsYear = /^\d{4}$/.test(
+    String(deepestSelectedNode?.name || '').trim(),
+  );
+
+  // Every leaf (month) node under the deepest selected stream node, chronologically.
+  const bulkMonths = useMemo(() => {
+    if (!deepestSelectedId || !contentHierarchy.length) return [];
+    const childrenOf = (pid) => contentHierarchy.filter((n) => n.parent_id === pid);
+
+    const leaves = [];
+    const walk = (pid) => {
+      for (const k of childrenOf(pid)) {
+        if (childrenOf(k.id).length === 0) leaves.push(k);
+        else walk(k.id);
+      }
+    };
+    walk(deepestSelectedId);
+
+    const buildPath = (nodeId) => {
+      const path = [];
+      let cur = contentHierarchy.find((n) => n.id === nodeId);
+      while (cur) {
+        path.unshift(cur.id);
+        cur = cur.parent_id != null
+          ? contentHierarchy.find((n) => n.id === cur.parent_id)
+          : null;
+      }
+      return path.join(',');
+    };
+    const MONTH_IDX = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+    let rows = leaves.map((leaf) => {
+      const parent = contentHierarchy.find((n) => n.id === leaf.parent_id);
+      const yearName = String(parent?.name ?? '').trim();
+      const monthName = String(leaf.name ?? '').trim();
+      return {
+        monthId: leaf.id,
+        streamPath: buildPath(leaf.id),
+        label: `${yearName} · ${monthName}`,
+        dedupeKey: `${yearName.toLowerCase()}|${monthName.toLowerCase()}`,
+        sortKey: (Number(yearName) || 0) * 100 + (MONTH_IDX[monthName.toLowerCase()] ?? 99),
+      };
+    });
+
+    // Defensive de-dupe: the tree can contain duplicate month nodes. Keep the
+    // one that already has data for this format, so edits land on the live row.
+    const seen = new Map();
+    for (const r of rows) {
+      const hasData = allVolumeEntries.some(
+        (e) => e.formatChartId === rowChart && e.stream === r.streamPath,
+      );
+      const prev = seen.get(r.dedupeKey);
+      if (!prev || (hasData && !prev.hasData)) seen.set(r.dedupeKey, { ...r, hasData });
+    }
+    return Array.from(seen.values()).sort((a, b) => a.sortKey - b.sortKey);
+  }, [deepestSelectedId, contentHierarchy, allVolumeEntries, rowChart]);
+
+  // Prefill the grid from existing volume_data.
+  useEffect(() => {
+    if (!bulkMonths.length || !bulkRowLabel || !bulkCompanies.length) {
+      setBulkGrid({});
+      return;
+    }
+    const grid = {};
+    for (const m of bulkMonths) {
+      const entry = allVolumeEntries.find(
+        (e) => e.formatChartId === rowChart && e.stream === m.streamPath,
+      );
+      const rowData = entry?.data?.[bulkRowLabel] ?? {};
+      grid[m.monthId] = {};
+      bulkCompanies.forEach((c) => { grid[m.monthId][c] = rowData?.[c] ?? null; });
+    }
+    setBulkGrid(grid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkMonths, allVolumeEntries, rowChart, bulkRowLabel]);
+
+  const onBulkCell = (monthId, company, raw) => {
+    setBulkGrid((prev) => ({
+      ...prev,
+      [monthId]: { ...(prev[monthId] || {}), [company]: parseNum(raw) },
+    }));
+  };
+
+  // Paste a tab/newline block copied from Excel, starting at the pasted cell.
+  const onBulkPaste = (e, startRow, startCol) => {
+    const text = e.clipboardData?.getData('text') ?? '';
+    if (!text.includes('\t') && !text.includes('\n')) return; // single value → normal paste
+    e.preventDefault();
+    const lines = text.replace(/\r/g, '').replace(/\n+$/, '').split('\n');
+    setBulkGrid((prev) => {
+      const next = { ...prev };
+      lines.forEach((line, rOff) => {
+        const mr = bulkMonths[startRow + rOff];
+        if (!mr) return;
+        next[mr.monthId] = { ...(next[mr.monthId] || {}) };
+        line.split('\t').forEach((cell, cOff) => {
+          const comp = bulkCompanies[startCol + cOff];
+          if (!comp) return;
+          next[mr.monthId][comp] = parseNum(cell);
+        });
+      });
+      return next;
+    });
+  };
+
+  const refreshVolume = () =>
+    fetch('/api/volumeData', {
+      headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}` },
+    })
+      .then((r) => r.json())
+      .then(setAllVolumeEntries)
+      .catch(() => {});
+
+  const handleBulkSave = async () => {
+    if (!canShowTabs) return message.error('Complete the selections first.');
+    if (!bulkRowLabel) return message.error('Pick a single-row Row format (e.g. "data").');
+
+    const toSave = bulkMonths.filter((m) => {
+      const v = bulkGrid[m.monthId];
+      return v && Object.values(v).some((x) => x !== null && x !== undefined && x !== '');
+    });
+    if (!toSave.length) return message.warning('No months have values to save.');
+
+    setBulkSaving(true);
+    setBulkProgress({ done: 0, total: toSave.length });
+    const failed = [];
+
+    for (let i = 0; i < toSave.length; i++) {
+      const m = toSave[i];
+      const vals = bulkGrid[m.monthId] || {};
+      const matrix = { [bulkRowLabel]: {} };
+      bulkCompanies.forEach((c) => { matrix[bulkRowLabel][c] = vals[c] ?? null; });
+
+      try {
+        const res = await fetch('/api/uploadVolumeData', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+          },
+          body: JSON.stringify({
+            rowChartId: rowChart,
+            colChartId: colChart,
+            rowLevelNodes: selectedRowLevel.nodeIds.join(','),
+            colLevelNodes: selectedColLevel.nodeIds.join(','),
+            streamPath: m.streamPath,
+            data: matrix,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || j.message || `HTTP ${res.status}`);
+        }
+      } catch (err) {
+        console.error('Bulk save failed for', m.label, err);
+        failed.push(m.label);
+      }
+      setBulkProgress({ done: i + 1, total: toSave.length });
+    }
+
+    setBulkSaving(false);
+    await refreshVolume();
+    if (failed.length) {
+      message.warning(
+        `Saved ${toSave.length - failed.length}/${toSave.length} months. Failed: ${failed.join(', ')}`,
+      );
+    } else {
+      message.success(`Saved all ${toSave.length} month(s) successfully.`);
+    }
+  };
+
+  // One-click: create any missing jan–dec under the selected YEAR node.
+  const handleGenerateMonths = async () => {
+    if (!deepestIsYear || !deepestSelectedId) {
+      return message.info('Select the stream down to a specific YEAR to add its months.');
+    }
+    const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const existing = contentHierarchy
+      .filter((n) => n.parent_id === deepestSelectedId)
+      .map((n) => String(n.name).trim().toLowerCase());
+    const missing = MONTHS.filter((m) => !existing.includes(m));
+    if (!missing.length) return message.info('All 12 months already exist for this year.');
+    try {
+      for (const m of missing) {
+        await fetch('/api/contentHierarchy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+          },
+          body: JSON.stringify({ parent_id: deepestSelectedId, name: m }),
+        });
+      }
+      const data = await fetch('/api/contentHierarchy', {
+        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}` },
+      }).then((r) => r.json());
+      setContentHierarchy(data);
+      message.success(`Added ${missing.length} month(s) to the selected year.`);
+    } catch (e) {
+      message.error('Failed to add months: ' + e.message);
+    }
+  };
+
   return (
     <div style={{ padding: 16 }}>
       <h3>Upload Volume Data with Format Validation</h3>
@@ -440,6 +702,118 @@ export default function UploadVolumeData() {
                 <Button type="primary" onClick={handleManualSubmit}>
                   Submit Manual Data
                 </Button>
+              </>
+            )}
+          </TabPane>
+
+          {/* ─── TAB 3: Bulk Multi-Month Entry (ADD-ON — existing tabs untouched) ─── */}
+          <TabPane tab="Bulk Multi-Month Entry" key="bulk">
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="Enter many months at once"
+              description={
+                <span>
+                  Select the stream down to the <b>type</b> (e.g. “market share”) or a{' '}
+                  <b>year</b> — <i>not</i> a single month. Every month found under it becomes a
+                  row. Type values, or <b>copy a block from Excel and paste (Ctrl+V)</b> starting
+                  from any cell, then “Save All Months”. Column order matches the headers below.
+                  This reuses the same per-month save — nothing else changes.
+                </span>
+              }
+            />
+
+            {deepestIsYear && (
+              <Button
+                size="small"
+                onClick={handleGenerateMonths}
+                style={{ marginBottom: 12 }}
+              >
+                + Add missing Jan–Dec to “{deepestSelectedNode?.name}”
+              </Button>
+            )}
+
+            {!bulkRowLabel || !bulkCompanies.length ? (
+              <Empty description="Pick Row format, Column format and a stream (down to type/year) to build the grid." />
+            ) : bulkMonths.length === 0 ? (
+              <Empty description="No month nodes found under the selected stream. Select down to a type/year that has months (or add months above)." />
+            ) : (
+              <>
+                <div
+                  style={{
+                    overflow: 'auto',
+                    maxHeight: 520,
+                    border: '1px solid #f0f0f0',
+                    borderRadius: 6,
+                  }}
+                >
+                  <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', minWidth: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={bulkTh(true)}>Month</th>
+                        {bulkCompanies.map((c) => (
+                          <th key={c} style={bulkTh(false)} title={c}>
+                            <div
+                              style={{
+                                maxWidth: 120,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {c}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkMonths.map((m, rIdx) => (
+                        <tr key={m.monthId}>
+                          <td style={bulkTdLabel}>{m.label}</td>
+                          {bulkCompanies.map((c, cIdx) => (
+                            <td key={c} style={bulkTd}>
+                              <input
+                                type="number"
+                                value={bulkGrid[m.monthId]?.[c] ?? ''}
+                                onChange={(e) => onBulkCell(m.monthId, c, e.target.value)}
+                                onPaste={(e) => onBulkPaste(e, rIdx, cIdx)}
+                                style={{
+                                  width: 96,
+                                  border: '1px solid #eee',
+                                  borderRadius: 4,
+                                  padding: '4px 6px',
+                                }}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {bulkSaving && (
+                  <Progress
+                    style={{ marginTop: 12, maxWidth: 420 }}
+                    percent={
+                      bulkProgress.total
+                        ? Math.round((bulkProgress.done / bulkProgress.total) * 100)
+                        : 0
+                    }
+                    format={() => `${bulkProgress.done}/${bulkProgress.total} months`}
+                  />
+                )}
+
+                <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <Button type="primary" onClick={handleBulkSave} loading={bulkSaving}>
+                    Save All Months
+                  </Button>
+                  <span style={{ color: '#888', fontSize: 12 }}>
+                    {bulkMonths.length} month(s) · {bulkCompanies.length} column(s)
+                  </span>
+                </div>
               </>
             )}
           </TabPane>
