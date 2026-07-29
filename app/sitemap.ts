@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listFlashReportCountryDatasets } from "@/lib/flashReportCountryDataset";
+import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
 import { SITE_URL } from "@/lib/seoRoutes";
 import { publishedInsightSlugs } from "@/lib/insights";
 
@@ -8,10 +8,11 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
-  // Every live registry market gets a country-data page (explicit dataset or a
-  // generic fallback), so adding a market to the registry sitemaps it too.
-  const countryEntries = listFlashReportCountryDatasets().map((d) => ({
-    url: `${SITE_URL}/flash-reports/country-data/${d.slug}`,
+  // Live markets from the hierarchy (+ registry) — a market added in the CMS is
+  // sitemapped on the next revalidate, no rebuild needed.
+  const countrySlugs = await getLiveFlashCountrySlugs();
+  const countryEntries = countrySlugs.map((slug) => ({
+    url: `${SITE_URL}/flash-reports/country-data/${slug}`,
     lastModified: now,
     changeFrequency: "monthly" as const,
     priority: 0.85,

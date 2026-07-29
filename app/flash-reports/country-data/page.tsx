@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { listFlashReportCountryDatasets } from "@/lib/flashReportCountryDataset";
+import { getFlashReportCountryDatasetOrDefault } from "@/lib/flashReportCountryDataset";
 import {
   groupCountriesByRegion,
   resolveCountryMeta,
 } from "@/lib/flashReportRegistry";
+import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
 import { CountryFlag } from "@/components/ui/CountryFlag";
+
+// Refresh hourly so a market added in the CMS appears without a rebuild.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Country Flash Report Data Coverage",
@@ -33,8 +37,11 @@ const REGION_ACCENTS = [
   { dot: "bg-violet-400", text: "text-violet-300", glow: "hover:border-violet-400/60 hover:shadow-violet-500/20", chip: "bg-violet-500/15 text-violet-200" },
 ];
 
-export default function CountryDataIndexPage() {
-  const countries = listFlashReportCountryDatasets();
+export default async function CountryDataIndexPage() {
+  const slugs = await getLiveFlashCountrySlugs();
+  const countries = slugs
+    .map((s) => getFlashReportCountryDatasetOrDefault(s))
+    .filter((d): d is NonNullable<typeof d> => Boolean(d));
   const regionGroups = groupCountriesByRegion(countries);
   const totalMarkets = countries.length;
 

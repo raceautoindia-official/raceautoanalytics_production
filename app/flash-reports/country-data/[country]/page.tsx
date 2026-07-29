@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import CountryPageActions from "./CountryPageActions";
-import {
-  getFlashReportCountryDatasetOrDefault,
-  listFlashReportCountryDatasets,
-} from "@/lib/flashReportCountryDataset";
+import { getFlashReportCountryDatasetOrDefault } from "@/lib/flashReportCountryDataset";
 import { regionLabel, resolveCountryMeta } from "@/lib/flashReportRegistry";
+import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
 import { SITE_URL } from "@/lib/seoRoutes";
 
 type PageProps = {
@@ -210,10 +208,9 @@ function genericProfile(slug: string, name: string): CountrySeoProfile {
   };
 }
 
-export function generateStaticParams() {
-  return listFlashReportCountryDatasets().map((dataset) => ({
-    country: dataset.slug,
-  }));
+export async function generateStaticParams() {
+  const slugs = await getLiveFlashCountrySlugs();
+  return slugs.map((country) => ({ country }));
 }
 
 export function generateMetadata({ params }: PageProps): Metadata {

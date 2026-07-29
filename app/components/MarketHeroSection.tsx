@@ -326,18 +326,39 @@ export default function MarketHeroSection() {
   const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
-  // Country chips are derived from the country registry so new markets appear
-  // automatically. Chips are grouped by region below.
-  const countries = useMemo<CountryItem[]>(
-    () =>
-      FLASH_COUNTRIES.map((c) => ({
-        name: c.name,
-        code: c.iso2.toLowerCase(),
-        slug: c.slug,
-        description: `${c.name} flash report includes total market sales, EV sales, and application split.`,
-      })),
-    [],
+  // Country chips start from the registry (instant + SSR-safe), then refresh
+  // from the live CMS hierarchy so a market added in the CMS appears here
+  // automatically without a code change. Grouped by region below.
+  const [countries, setCountries] = useState<CountryItem[]>(() =>
+    FLASH_COUNTRIES.map((c) => ({
+      name: c.name,
+      code: c.iso2.toLowerCase(),
+      slug: c.slug,
+      description: `${c.name} flash report includes total market sales, EV sales, and application split.`,
+    })),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/flash-reports/countries", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((list) => {
+        if (cancelled || !Array.isArray(list)) return;
+        const mapped: CountryItem[] = list
+          .filter((o: any) => o && o.iso2 && o.value)
+          .map((o: any) => ({
+            name: o.label || o.value,
+            code: String(o.iso2).toLowerCase(),
+            slug: o.value,
+            description: `${o.label || o.value} flash report includes total market sales, EV sales, and application split.`,
+          }));
+        if (mapped.length) setCountries(mapped);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const countryGroups = useMemo(
     () => groupCountriesByRegion(countries),

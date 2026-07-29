@@ -36,6 +36,9 @@ export default function ManageQuestions({ context } = {}) {
   // filter state: 'all' | 'positive' | 'negative'
   const [filterType, setFilterType] = useState("all");
 
+  // Bulk selection for multi-delete
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+
   // ✅ Flash country support
   const [countries, setCountries] = useState([{ value: "india", label: "India" }]);
   const [activeCountry, setActiveCountry] = useState("india");
@@ -272,6 +275,36 @@ export default function ManageQuestions({ context } = {}) {
     }
   };
 
+  // Delete every selected question (reuses the same single-delete endpoint).
+  const bulkDeleteQuestions = async () => {
+    if (!selectedRowKeys.length) return;
+    let failed = 0;
+    for (const id of selectedRowKeys) {
+      try {
+        const res = await fetch("/api/questions", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+          },
+          body: JSON.stringify({ id }),
+        });
+        if (!res.ok) throw new Error();
+      } catch {
+        failed++;
+      }
+    }
+    if (failed) {
+      message.warning(
+        `Deleted ${selectedRowKeys.length - failed}/${selectedRowKeys.length}; ${failed} failed.`,
+      );
+    } else {
+      message.success(`Deleted ${selectedRowKeys.length} question(s)`);
+    }
+    setSelectedRowKeys([]);
+    fetchQuestions();
+  };
+
   // coerce weight to Number so reduce stays numeric
   const totalPositive = questions
     .filter((q) => q.type === "positive")
@@ -448,8 +481,30 @@ export default function ManageQuestions({ context } = {}) {
         </Col>
       </Row>
 
+      {selectedRowKeys.length > 0 && (
+        <Popconfirm
+          title={`Delete ${selectedRowKeys.length} selected question(s)? This cannot be undone.`}
+          onConfirm={bulkDeleteQuestions}
+          okText="Delete"
+          okButtonProps={{ danger: true }}
+        >
+          <Button danger style={{ marginBottom: 12 }}>
+            Delete Selected ({selectedRowKeys.length})
+          </Button>
+        </Popconfirm>
+      )}
+
       <Table
         rowKey="id"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+          selections: [
+            Table.SELECTION_ALL,
+            Table.SELECTION_INVERT,
+            Table.SELECTION_NONE,
+          ],
+        }}
         loading={loading}
         dataSource={displayed}
         columns={columns}
