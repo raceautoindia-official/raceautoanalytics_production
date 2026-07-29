@@ -386,6 +386,8 @@ export function talkToExpertEmail(args: {
   preferredDate: string;
   preferredTime: string;
   message?: string | null;
+  approveUrl?: string;
+  rejectUrl?: string;
 }) {
   const app = process.env.APP_NAME || "RaceAutoAnalytics";
   const esc = (s: string) =>
@@ -396,6 +398,14 @@ export function talkToExpertEmail(args: {
   const subject = `[${app}] Talk to an Expert - ${args.name}`;
   const row = (label: string, value: string) =>
     `<tr><td style="padding:6px 12px 6px 0; color:rgba(234,240,255,0.6); white-space:nowrap;">${label}</td><td style="padding:6px 0;">${esc(value)}</td></tr>`;
+  const actions =
+    args.approveUrl && args.rejectUrl
+      ? `<div style="margin-top:18px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.1);">
+           <a href="${args.approveUrl}" style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:bold; margin-right:8px;">Approve meeting</a>
+           <a href="${args.rejectUrl}" style="display:inline-block; background:#dc2626; color:#ffffff; text-decoration:none; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:bold;">Decline</a>
+           <p style="margin:10px 0 0 0; font-size:11px; color:rgba(234,240,255,0.5);">The requester is emailed automatically once you approve or decline.</p>
+         </div>`
+      : "";
   const html = `
   <div style="font-family:Arial,sans-serif; background:#050B1A; padding:24px; color:#EAF0FF;">
     <div style="max-width:640px; margin:0 auto; background:#0B1228; border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden;">
@@ -417,12 +427,66 @@ export function talkToExpertEmail(args: {
               ).replace(/\n/g, "<br />")}</p>`
             : ""
         }
+        ${actions}
       </div>
     </div>
   </div>
   `;
   const text = `Talk to an Expert request from ${args.name} (${args.email}, ${args.phone}). Preferred: ${args.preferredDate} ${args.preferredTime}.${
     args.message ? " How can we help: " + args.message : ""
-  }`;
+  }${args.approveUrl ? ` | Approve: ${args.approveUrl} | Decline: ${args.rejectUrl}` : ""}`;
+  return { subject, html, text };
+}
+
+function tteUserWrapper(bodyHtml: string) {
+  return `
+  <div style="font-family:Arial,sans-serif; background:#050B1A; padding:24px; color:#EAF0FF;">
+    <div style="max-width:600px; margin:0 auto; background:#0B1228; border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden;">
+      <div style="padding:22px 22px 20px 22px;">
+        ${bodyHtml}
+        <p style="margin:22px 0 0 0; font-size:12px; color:rgba(234,240,255,0.5);">Race Auto Analytics &middot; info@raceautoanalytics.com</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+export function talkToExpertApprovedEmail(args: {
+  name: string;
+  preferredDate: string;
+  preferredTime: string;
+}) {
+  const first = String(args.name || "").split(" ")[0] || args.name;
+  const subject = "Your consultation with Race Auto Analytics is confirmed";
+  const html = tteUserWrapper(`
+    <h2 style="margin:0 0 8px; font-size:19px; color:#4ade80;">Your consultation is confirmed &#10003;</h2>
+    <p style="margin:0; font-size:14px; line-height:1.7; color:rgba(234,240,255,0.9);">
+      Hi ${first},<br /><br />
+      Good news &mdash; your request to speak with our automotive analysts has been <b>confirmed</b>.
+    </p>
+    <div style="margin:16px 0; padding:12px 14px; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.25); border-radius:10px; font-size:13px;">
+      <b>Preferred date:</b> ${args.preferredDate}<br /><b>Preferred time:</b> ${args.preferredTime}
+    </div>
+    <p style="margin:0; font-size:14px; line-height:1.7; color:rgba(234,240,255,0.9);">
+      Our team will reach out to you around this time. If you need to reschedule, just reply to this email.
+    </p>`);
+  const text = `Hi ${args.name}, your consultation is confirmed for ${args.preferredDate} ${args.preferredTime}. Our team will reach out around this time.`;
+  return { subject, html, text };
+}
+
+export function talkToExpertRejectedEmail(args: { name: string }) {
+  const first = String(args.name || "").split(" ")[0] || args.name;
+  const subject = "Update on your consultation request";
+  const html = tteUserWrapper(`
+    <h2 style="margin:0 0 8px; font-size:19px; color:#EAF0FF;">About your consultation request</h2>
+    <p style="margin:0; font-size:14px; line-height:1.7; color:rgba(234,240,255,0.9);">
+      Hi ${first},<br /><br />
+      Thank you for your interest in speaking with our analysts. Unfortunately we&rsquo;re unable to confirm your
+      requested slot at this time.
+    </p>
+    <p style="margin:14px 0 0 0; font-size:14px; line-height:1.7; color:rgba(234,240,255,0.9);">
+      Please reply to this email with an alternate time, or reach us at
+      <a href="mailto:info@raceautoanalytics.com" style="color:#60a5fa;">info@raceautoanalytics.com</a> &mdash; we&rsquo;d be glad to help.
+    </p>`);
+  const text = `Hi ${args.name}, thank you for your interest. Unfortunately we couldn't confirm your requested slot. Please reply with an alternate time or contact info@raceautoanalytics.com.`;
   return { subject, html, text };
 }

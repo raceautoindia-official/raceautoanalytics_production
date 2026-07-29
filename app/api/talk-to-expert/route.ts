@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
+import db from "@/lib/db";
 import { sendEmail } from "@/lib/sendEmail";
 import { talkToExpertEmail } from "@/lib/emailTemplates";
 import { FORECAST_INTERNAL_NOTIFICATION_RECIPIENTS } from "@/lib/forecastInternalNotificationRecipients";
+import { SITE_URL } from "@/lib/seoRoutes";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,28 @@ export async function POST(req: Request) {
       );
     }
 
+    // Persist so the request can be approved/declined from the admin email.
+    // Best-effort: if the insert fails we still notify admins (no action buttons).
+    let actionLinks: { approveUrl?: string; rejectUrl?: string } = {};
+    try {
+      const token = crypto.randomBytes(24).toString("hex");
+      const [result]: any = await db.query(
+        `INSERT INTO talk_to_expert_leads
+           (name, email, phone, preferred_date, preferred_time, message, status, token)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
+        [name, email, phone, preferredDate, preferredTime, message || null, token],
+      );
+      const id = result?.insertId;
+      if (id) {
+        const base = String(SITE_URL || "").replace(/\/+$/, "");
+        const link = (action: string) =>
+          `${base}/api/talk-to-expert/action?id=${id}&token=${token}&action=${action}`;
+        actionLinks = { approveUrl: link("approve"), rejectUrl: link("reject") };
+      }
+    } catch (dbErr) {
+      console.error("talk-to-expert insert failed (still emailing):", dbErr);
+    }
+
     const template = talkToExpertEmail({
       name,
       email,
@@ -38,6 +63,7 @@ export async function POST(req: Request) {
       preferredDate,
       preferredTime,
       message,
+      ...actionLinks,
     });
 
     await sendEmail({
