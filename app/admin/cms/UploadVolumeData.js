@@ -48,8 +48,12 @@ const bulkTd = {
   borderBottom: '1px solid #f5f5f5',
   borderRight: '1px solid #f5f5f5',
 };
+// Strip %, commas and spaces so pasted values like "45.2%" or "1,234" import
+// cleanly (never block the paste). cleanCell keeps the display string;
+// parseNum coerces to a number for saving.
+const cleanCell = (t) => String(t ?? '').replace(/[%,\s]/g, '');
 const parseNum = (t) => {
-  const c = String(t ?? '').trim().replace(/,/g, '');
+  const c = cleanCell(t);
   if (c === '') return null;
   const n = Number(c);
   return Number.isFinite(n) ? n : null;
@@ -77,6 +81,7 @@ export default function UploadVolumeData() {
   const [bulkGrid, setBulkGrid] = useState({}); // { [monthId]: { [company]: value } }
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
+  const [activeTab, setActiveTab] = useState('excel'); // gate heavy bulk work to its tab
 
   const canShowTabs = rowChart && selectedRowLevel && colChart && selectedColLevel && streamSelection.length;
 
@@ -332,9 +337,21 @@ export default function UploadVolumeData() {
   );
 
   // Every leaf (month) node under the deepest selected stream node, chronologically.
+  // Only computed while the Bulk tab is active, using O(1) indexed lookups — so
+  // it never slows the rest of the CMS or the other Upload sub-tabs.
   const bulkMonths = useMemo(() => {
+    if (activeTab !== 'bulk') return [];
     if (!deepestSelectedId || !contentHierarchy.length) return [];
-    const childrenOf = (pid) => contentHierarchy.filter((n) => n.parent_id === pid);
+
+    // Index the tree once (it can be large) for O(1) parent/child lookups.
+    const byId = new Map();
+    const byParent = new Map();
+    for (const n of contentHierarchy) {
+      byId.set(n.id, n);
+      const a = byParent.get(n.parent_id);
+      if (a) a.push(n); else byParent.set(n.parent_id, [n]);
+    }
+    const childrenOf = (pid) => byParent.get(pid) || [];
 
     const leaves = [];
     const walk = (pid) => {
@@ -347,85 +364,93 @@ export default function UploadVolumeData() {
 
     const buildPath = (nodeId) => {
       const path = [];
-      let cur = contentHierarchy.find((n) => n.id === nodeId);
+      let cur = byId.get(nodeId);
       while (cur) {
         path.unshift(cur.id);
-        cur = cur.parent_id != null
-          ? contentHierarchy.find((n) => n.id === cur.parent_id)
-          : null;
+        cur = cur.parent_id != null ? byId.get(cur.parent_id) : null;
       }
       return path.join(',');
     };
-    const MONTH_IDX = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
-    let rows = leaves.map((leaf) => {
-      const parent = contentHierarchy.find((n) => n.id === leaf.parent_id);
-      const yearName = String(parent?.name ?? '').trim();
-      const monthName = String(leaf.name ?? '').trim();
-      return {
-        monthId: leaf.id,
-        streamPath: buildPath(leaf.id),
-        label: `${yearName} · ${monthName}`,
-        dedupeKey: `${yearName.toLowerCase()}|${monthName.toLowerCase()}`,
-        sortKey: (Number(yearName) || 0) * 100 + (MONTH_IDX[monthName.toLowerCase()] ?? 99),
-      };
-    });
+    // Streams that already carry data for this row-format (de-dupe preference).
+    const dataStreams = new Set(
+      allVolumeEntries
+        .filter((e) => e.formatChartId === rowChart)
+        .map((e) => String(e.stream)),
+    );
+    const MONTH_IDX = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
     // Defensive de-dupe: the tree can contain duplicate month nodes. Keep the
     // one that already has data for this format, so edits land on the live row.
     const seen = new Map();
-    for (const r of rows) {
-      const hasData = allVolumeEntries.some(
-        (e) => e.formatChartId === rowChart && e.stream === r.streamPath,
-      );
-      const prev = seen.get(r.dedupeKey);
-      if (!prev || (hasData && !prev.hasData)) seen.set(r.dedupeKey, { ...r, hasData });
+    for (const leaf of leaves) {
+      const parent = byId.get(leaf.parent_id);
+      const yearName = String(parent?.name ?? '').trim();
+      const monthName = String(leaf.name ?? '').trim();
+      const streamPath = buildPath(leaf.id);
+      const r = {
+        monthId: leaf.id,
+        streamPath,
+        label: `${yearName} · ${monthName}`,
+        shortLabel: `${monthName} '${yearName.slice(-2)}`,
+        sortKey: (Number(yearName) || 0) * 100 + (MONTH_IDX[monthName.toLowerCase()] ?? 99),
+        hasData: dataStreams.has(streamPath),
+      };
+      const key = `${yearName.toLowerCase()}|${monthName.toLowerCase()}`;
+      const prev = seen.get(key);
+      if (!prev || (r.hasData && !prev.hasData)) seen.set(key, r);
     }
     return Array.from(seen.values()).sort((a, b) => a.sortKey - b.sortKey);
-  }, [deepestSelectedId, contentHierarchy, allVolumeEntries, rowChart]);
+  }, [activeTab, deepestSelectedId, contentHierarchy, allVolumeEntries, rowChart]);
 
-  // Prefill the grid from existing volume_data.
+  // Prefill the grid from existing volume_data (string values for the inputs).
   useEffect(() => {
-    if (!bulkMonths.length || !bulkRowLabel || !bulkCompanies.length) {
-      setBulkGrid({});
+    if (activeTab !== 'bulk' || !bulkMonths.length || !bulkRowLabel || !bulkCompanies.length) {
       return;
+    }
+    const byStream = new Map();
+    for (const e of allVolumeEntries) {
+      if (e.formatChartId === rowChart) byStream.set(String(e.stream), e);
     }
     const grid = {};
     for (const m of bulkMonths) {
-      const entry = allVolumeEntries.find(
-        (e) => e.formatChartId === rowChart && e.stream === m.streamPath,
-      );
-      const rowData = entry?.data?.[bulkRowLabel] ?? {};
+      const rowData = byStream.get(m.streamPath)?.data?.[bulkRowLabel] ?? {};
       grid[m.monthId] = {};
-      bulkCompanies.forEach((c) => { grid[m.monthId][c] = rowData?.[c] ?? null; });
+      bulkCompanies.forEach((c) => {
+        const v = rowData?.[c];
+        grid[m.monthId][c] = v === null || v === undefined ? '' : String(v);
+      });
     }
     setBulkGrid(grid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bulkMonths, allVolumeEntries, rowChart, bulkRowLabel]);
+  }, [activeTab, bulkMonths, allVolumeEntries, rowChart, bulkRowLabel]);
 
+  // Store the raw typed string (so decimals can be typed); parsed on save.
   const onBulkCell = (monthId, company, raw) => {
     setBulkGrid((prev) => ({
       ...prev,
-      [monthId]: { ...(prev[monthId] || {}), [company]: parseNum(raw) },
+      [monthId]: { ...(prev[monthId] || {}), [company]: raw },
     }));
   };
 
-  // Paste a tab/newline block copied from Excel, starting at the pasted cell.
-  const onBulkPaste = (e, startRow, startCol) => {
+  // Paste a block copied from Excel. Grid is transposed (rows = companies,
+  // columns = months), so pasted rows map to companies and columns to months.
+  // % / commas are stripped (never blocks the paste). Handles single + block.
+  const onBulkPaste = (e, startCompanyIdx, startMonthIdx) => {
     const text = e.clipboardData?.getData('text') ?? '';
-    if (!text.includes('\t') && !text.includes('\n')) return; // single value → normal paste
+    if (!text) return;
     e.preventDefault();
     const lines = text.replace(/\r/g, '').replace(/\n+$/, '').split('\n');
     setBulkGrid((prev) => {
       const next = { ...prev };
       lines.forEach((line, rOff) => {
-        const mr = bulkMonths[startRow + rOff];
-        if (!mr) return;
-        next[mr.monthId] = { ...(next[mr.monthId] || {}) };
+        const company = bulkCompanies[startCompanyIdx + rOff];
+        if (!company) return;
         line.split('\t').forEach((cell, cOff) => {
-          const comp = bulkCompanies[startCol + cOff];
-          if (!comp) return;
-          next[mr.monthId][comp] = parseNum(cell);
+          const mr = bulkMonths[startMonthIdx + cOff];
+          if (!mr) return;
+          next[mr.monthId] = { ...(next[mr.monthId] || {}) };
+          next[mr.monthId][company] = cleanCell(cell);
         });
       });
       return next;
@@ -446,7 +471,7 @@ export default function UploadVolumeData() {
 
     const toSave = bulkMonths.filter((m) => {
       const v = bulkGrid[m.monthId];
-      return v && Object.values(v).some((x) => x !== null && x !== undefined && x !== '');
+      return v && Object.values(v).some((x) => parseNum(x) !== null);
     });
     if (!toSave.length) return message.warning('No months have values to save.');
 
@@ -458,7 +483,7 @@ export default function UploadVolumeData() {
       const m = toSave[i];
       const vals = bulkGrid[m.monthId] || {};
       const matrix = { [bulkRowLabel]: {} };
-      bulkCompanies.forEach((c) => { matrix[bulkRowLabel][c] = vals[c] ?? null; });
+      bulkCompanies.forEach((c) => { matrix[bulkRowLabel][c] = parseNum(vals[c]); });
 
       try {
         const res = await fetch('/api/uploadVolumeData', {
@@ -619,7 +644,7 @@ export default function UploadVolumeData() {
 
       {/* If we have all four selections, show the two tabs: */}
       {canShowTabs ? (
-        <Tabs defaultActiveKey="excel" style={{ marginTop: 16 }}>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} style={{ marginTop: 16 }}>
           {/* ─── TAB 1: Upload Excel ──────────────────────────────────────────────── */}
           <TabPane tab="Upload Excel" key="excel">
             <div style={{ marginBottom: 16 }}>
@@ -716,9 +741,10 @@ export default function UploadVolumeData() {
               description={
                 <span>
                   Select the stream down to the <b>type</b> (e.g. “market share”) or a{' '}
-                  <b>year</b> — <i>not</i> a single month. Every month found under it becomes a
-                  row. Type values, or <b>copy a block from Excel and paste (Ctrl+V)</b> starting
-                  from any cell, then “Save All Months”. Column order matches the headers below.
+                  <b>year</b> — <i>not</i> a single month. The grid shows{' '}
+                  <b>companies as rows and months as columns</b>. Type values, or{' '}
+                  <b>copy a block from Excel and paste (Ctrl+V)</b> starting at any cell —{' '}
+                  <b>%, commas and spaces are stripped automatically</b>. Then “Save All Months”.
                   This reuses the same per-month save — nothing else changes.
                 </span>
               }
@@ -751,12 +777,30 @@ export default function UploadVolumeData() {
                   <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', minWidth: '100%' }}>
                     <thead>
                       <tr>
-                        <th style={bulkTh(true)}>Month</th>
-                        {bulkCompanies.map((c) => (
-                          <th key={c} style={bulkTh(false)} title={c}>
+                        <th style={bulkTh(true)}>Company</th>
+                        {bulkMonths.map((m) => (
+                          <th key={m.monthId} style={bulkTh(false)} title={m.label}>
                             <div
                               style={{
-                                maxWidth: 120,
+                                maxWidth: 90,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {m.shortLabel}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkCompanies.map((c, compIdx) => (
+                        <tr key={c}>
+                          <td style={bulkTdLabel} title={c}>
+                            <div
+                              style={{
+                                maxWidth: 200,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
@@ -764,23 +808,17 @@ export default function UploadVolumeData() {
                             >
                               {c}
                             </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bulkMonths.map((m, rIdx) => (
-                        <tr key={m.monthId}>
-                          <td style={bulkTdLabel}>{m.label}</td>
-                          {bulkCompanies.map((c, cIdx) => (
-                            <td key={c} style={bulkTd}>
+                          </td>
+                          {bulkMonths.map((m, monthIdx) => (
+                            <td key={m.monthId} style={bulkTd}>
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={bulkGrid[m.monthId]?.[c] ?? ''}
                                 onChange={(e) => onBulkCell(m.monthId, c, e.target.value)}
-                                onPaste={(e) => onBulkPaste(e, rIdx, cIdx)}
+                                onPaste={(e) => onBulkPaste(e, compIdx, monthIdx)}
                                 style={{
-                                  width: 96,
+                                  width: 84,
                                   border: '1px solid #eee',
                                   borderRadius: 4,
                                   padding: '4px 6px',
@@ -811,7 +849,7 @@ export default function UploadVolumeData() {
                     Save All Months
                   </Button>
                   <span style={{ color: '#888', fontSize: 12 }}>
-                    {bulkMonths.length} month(s) · {bulkCompanies.length} column(s)
+                    {bulkCompanies.length} companies × {bulkMonths.length} months
                   </span>
                 </div>
               </>
