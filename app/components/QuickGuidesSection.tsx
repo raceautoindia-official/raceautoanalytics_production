@@ -20,7 +20,11 @@ import {
   type ByfAvailability,
   type ByfSegmentKey,
 } from "@/lib/byfSegments";
-import { groupByRegion, LIVE_FLASH_COUNTRIES } from "@/lib/flashReportRegistry";
+import {
+  groupByRegion,
+  LIVE_FLASH_COUNTRIES,
+  type FlashRegionKey,
+} from "@/lib/flashReportRegistry";
 
 // Emoji icon per flash region (mirrors the Forecast side's region badges).
 const FLASH_REGION_ICON: Record<string, string> = {
@@ -555,9 +559,37 @@ export default function QuickGuidesSection({
   const [openingCountryData, setOpeningCountryData] = useState(false);
   const [countryAccessNoticeOpen, setCountryAccessNoticeOpen] = useState(false);
 
-  // Flash coverage is shown by region (registry-driven) so it scales with new
-  // markets. Empty regions are dropped automatically.
-  const flashRegions = useMemo(() => groupByRegion(LIVE_FLASH_COUNTRIES), []);
+  // Flash coverage by region — starts from the registry (instant/SSR), then
+  // refreshes from the live CMS hierarchy so new markets are reflected.
+  const [flashRegions, setFlashRegions] = useState(() =>
+    groupByRegion<{ slug: string; name: string; region: FlashRegionKey }>(
+      LIVE_FLASH_COUNTRIES.map((c) => ({
+        slug: c.slug,
+        name: c.name,
+        region: c.region,
+      })),
+    ),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/flash-reports/countries", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((list) => {
+        if (cancelled || !Array.isArray(list)) return;
+        const items = list
+          .filter((o: any) => o && o.value && o.region)
+          .map((o: any) => ({
+            slug: String(o.value),
+            name: String(o.label || o.value),
+            region: o.region as FlashRegionKey,
+          }));
+        if (items.length) setFlashRegions(groupByRegion(items));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const regions: RegionItem[] = useMemo(
     () => [

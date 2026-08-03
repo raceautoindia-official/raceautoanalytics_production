@@ -5,9 +5,12 @@ import IndustryCategories from "@/app/components/IndustryCategories";
 import MarketHeroSection from "@/app/components/MarketHeroSection";
 import ExploreVehicleCategories from "@/app/components/ExploreVehicleCategories";
 import DeferredOverviewSections from "./components/DeferredOverviewSections";
-import { FLASH_REPORT_COUNTRY_DATASETS } from "@/lib/flashReportCountryDataset";
+import { getLiveFlashCountryDatasets } from "@/lib/flashReportLiveCountries";
 import { groupCountriesByRegion } from "@/lib/flashReportRegistry";
 import { SITE_URL } from "@/lib/seoRoutes";
+
+// Refresh hourly so a market added in the CMS appears without a rebuild.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title:
@@ -26,8 +29,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
-  const countries = Object.values(FLASH_REPORT_COUNTRY_DATASETS).sort((a, b) =>
+export default async function Page() {
+  const countries = (await getLiveFlashCountryDatasets()).sort((a, b) =>
     a.name.localeCompare(b.name),
   );
 

@@ -5,7 +5,7 @@ import Footer from "@/app/components/Footer";
 import QuickGuidesSection from "./components/QuickGuidesSection";
 import NavBar from "./components/Navbar";
 import PricingTeaser from "@/app/components/PricingTeaser";
-import { groupByRegion, LIVE_FLASH_COUNTRIES } from "@/lib/flashReportRegistry";
+import { getLiveFlashCountryGroups } from "@/lib/flashReportLiveCountries";
 import InsightsHighlights from "@/app/components/InsightsHighlights";
 
 // ISR: the homepage now pulls the latest published insights (InsightsHighlights).
@@ -283,14 +283,14 @@ export default function Page() {
   );
 }
 
-function HomeSeoContent({
+async function HomeSeoContent({
   faqItems,
 }: {
   faqItems: Array<{ question: string; answer: string }>;
 }) {
-  // Region coverage is derived from the country registry, so it scales as new
-  // markets are added without editing the homepage.
-  const regionCoverage = groupByRegion(LIVE_FLASH_COUNTRIES);
+  // Region coverage is derived from the LIVE hierarchy, so it scales as new
+  // markets are added in the CMS without editing the homepage.
+  const regionCoverage = await getLiveFlashCountryGroups();
 
   const segments = [
     "Passenger vehicles",
