@@ -10,23 +10,35 @@ import PricingCards from "./PricingCards";
 export const revalidate = 600; // reflect plan/price edits within ~10 min
 
 const TITLE = "Pricing | Race Auto Analytics";
-const DESCRIPTION =
-  "Transparent pricing for automotive flash reports and forecasts across 14 countries and 9 vehicle segments — a fraction of enterprise platforms that start at $5,100/year.";
 
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: "/pricing" },
-  robots: { index: true, follow: true },
-  openGraph: {
+// Country count comes from the CMS, same as the page body — the description
+// previously hardcoded "14 countries" and drifted as markets were added.
+const buildDescription = (countryCount: number) =>
+  `Transparent pricing for automotive flash reports and forecasts across ${countryCount} countries and 9 vehicle segments — a fraction of enterprise platforms that start at $5,100/year.`;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const countryCount = (await getLiveFlashCountrySlugs()).length;
+  const DESCRIPTION = buildDescription(countryCount);
+
+  return {
     title: TITLE,
     description: DESCRIPTION,
-    url: `${SITE_URL}/pricing`,
-    type: "website",
-    siteName: "RACE Auto Analytics",
-  },
-  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
-};
+    alternates: { canonical: "/pricing" },
+    robots: { index: true, follow: true },
+    openGraph: {
+      title: TITLE,
+      description: DESCRIPTION,
+      url: `${SITE_URL}/pricing`,
+      type: "website",
+      siteName: "RACE Auto Analytics",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: TITLE,
+      description: DESCRIPTION,
+    },
+  };
+}
 
 const FAQ = [
   {
@@ -57,7 +69,7 @@ export default async function PricingPage() {
     "@context": "https://schema.org",
     "@type": "Product",
     name: "Race Auto Analytics subscription",
-    description: DESCRIPTION,
+    description: buildDescription(countryCount),
     brand: { "@type": "Brand", name: "Race Auto Analytics" },
     ...(plans.length
       ? {

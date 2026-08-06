@@ -51,8 +51,16 @@ function isHiddenRow(label: string) {
 function isFeatureEnabled(value: unknown) {
   const v = toText(value).toLowerCase();
 
-  if (v === "1" || v === "3") return true;
   if (["yes", "true", "included", "active"].includes(v)) return true;
+
+  // Numeric-aware on purpose. The subscription page reads the upstream API,
+  // which returns plain JSON numbers (1 / 2 / 3), but /pricing reads the local
+  // synced table whose columns are DECIMAL — mysql2 hands those back as
+  // "1.00" / "3.00". A strict v === "1" check therefore matched upstream and
+  // silently failed for every locally-read row, so /pricing rendered ZERO
+  // features while /subscription rendered the real list.
+  const n = Number(v);
+  if (Number.isFinite(n)) return n === 1 || n === 3;
 
   return false;
 }
