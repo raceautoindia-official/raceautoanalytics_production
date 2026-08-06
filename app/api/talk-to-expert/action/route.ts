@@ -4,8 +4,41 @@ import {
   talkToExpertApprovedEmail,
   talkToExpertRejectedEmail,
 } from "@/lib/emailTemplates";
+import { SITE_URL } from "@/lib/seoRoutes";
 
 export const dynamic = "force-dynamic";
+
+// Public base URL for the "Confirm" link on the confirmation page.
+// `new URL(req.url).origin` is the INTERNAL address (behind nginx that is
+// http://localhost:3003), so the confirm button would point at localhost for
+// the admin. Resolve the public origin instead:
+//  - Production: the canonical site URL.
+//  - Local/dev: this server's real origin (via x-forwarded-host / host).
+function getPublicBase(req: Request): string {
+  if (process.env.NODE_ENV === "production") {
+    return String(SITE_URL || "").replace(/\/+$/, "");
+  }
+  try {
+    const url = new URL(req.url);
+    const host = (
+      req.headers.get("x-forwarded-host") ||
+      req.headers.get("host") ||
+      url.host
+    )
+      .split(",")[0]
+      .trim();
+    const proto = (
+      req.headers.get("x-forwarded-proto") ||
+      url.protocol.replace(":", "")
+    )
+      .split(",")[0]
+      .trim();
+    if (host) return `${proto || "http"}://${host}`.replace(/\/+$/, "");
+  } catch {
+    /* fall through to canonical */
+  }
+  return String(SITE_URL || "").replace(/\/+$/, "");
+}
 
 // A simple branded HTML page shown to the admin after they click a link.
 function page(title: string, bodyHtml: string, accent = "#60a5fa") {
@@ -25,7 +58,8 @@ function page(title: string, bodyHtml: string, accent = "#60a5fa") {
 }
 
 export async function GET(req: Request) {
-  const { searchParams, origin } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
+  const origin = getPublicBase(req);
   const id = Number(searchParams.get("id"));
   const token = String(searchParams.get("token") || "");
   const action = String(searchParams.get("action") || "");
