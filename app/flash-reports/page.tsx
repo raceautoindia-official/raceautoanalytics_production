@@ -266,7 +266,7 @@ function getTopOemNameFromRows(rows: any[], monthKey: string) {
   return firstRealOem?.name || sorted[0]?.name || "";
 }
 
-// CONFIG: what segmentName your OEM market share backend expects for overall
+// CONFIG: what segmentName your OEM segment share backend expects for overall
 // Adjust this to match your existing PieChart usage, e.g. "overall" or "overall industry"
 const OVERALL_OEM_SEGMENT_NAME = "overall";
 
@@ -645,7 +645,7 @@ export default function FlashReportsPage() {
     };
   }, [month, region]);
 
-  // Fetch overall OEM market share for "Top OEM Performance" widget
+  // Fetch overall OEM segment share for "Top OEM Performance" widget
   useEffect(() => {
     let cancelled = false;
 
@@ -695,7 +695,7 @@ export default function FlashReportsPage() {
         console.error(err);
         if (!cancelled) {
           setTopOemError(
-            "Failed to load overall OEM market share from backend.",
+            "Failed to load overall OEM segment share from backend.",
           );
           setTopOEMs([]);
         }
@@ -1233,7 +1233,7 @@ export default function FlashReportsPage() {
                       }${topOemDelta.toFixed(
                         1
                       )}% change in share vs previous month.`
-                    : "OEM market share data will appear here when available."
+                    : "OEM segment share data will appear here when available."
                 }
               >
                 {topOemLoading ? (
@@ -1430,7 +1430,7 @@ export default function FlashReportsPage() {
                 <p className="font-medium mb-1">Top Share Segment</p>
                 <p className="text-sm text-muted-foreground">
                   {topShareSegment
-                    ? `${topShareSegment.title} held the largest market share at ${topShareSegment.marketShare.toFixed(1)}%, supported by ${Math.round(
+                    ? `${topShareSegment.title} held the largest segment share at ${topShareSegment.marketShare.toFixed(1)}%, supported by ${Math.round(
                         topShareSegment.salesVolume,
                       ).toLocaleString("en-US")} units in the selected period.`
                     : "Top-share segment will appear here once category series data is available for the selected period."}

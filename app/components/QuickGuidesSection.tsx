@@ -496,14 +496,16 @@ function FlipInfoCard({
 function RegionBadge({ region }: { region: RegionItem }) {
   return (
     <div
-      className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-full border border-white/15 bg-white/5 px-2 py-1.5 text-white/90 shadow-sm sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1"
+      className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-xl border border-indigo-400/25 bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-transparent px-2 py-1.5 text-white/90 shadow-[0_2px_10px_rgba(0,0,0,0.25)] sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1.5"
       title={region.name}
       aria-label={region.name}
     >
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-xs">
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-xs ring-1 ring-inset ring-white/10">
         {region.icon}
       </span>
-      <span className="ml-2 hidden text-xs sm:inline">{region.name}</span>
+      <span className="ml-2 hidden text-xs font-semibold sm:inline">
+        {region.name}
+      </span>
     </div>
   );
 }
@@ -729,8 +731,21 @@ export default function QuickGuidesSection({
                 backSubtitle="Quick steps and video guide for flash reports"
                 extraFront={
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <div className="text-xs font-medium text-white/75">
-                      Supported markets by region
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-medium text-white/75">
+                        Supported markets by region
+                      </div>
+                      <span className="hidden shrink-0 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-200 ring-1 ring-inset ring-blue-400/30 sm:inline">
+                        Clickable
+                      </span>
+                    </div>
+
+                    {/* Prompt sits directly above the buttons so the tiles read
+                        as interactive at a glance (they previously looked like
+                        flat, dull labels). */}
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-blue-200/90">
+                      <ChevronRight className="h-3 w-3 shrink-0" />
+                      Click a region to know the data coverage
                     </div>
 
                     <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -741,15 +756,20 @@ export default function QuickGuidesSection({
                           title={`${r.label} — ${r.countries.length} ${
                             r.countries.length === 1 ? "market" : "markets"
                           }`}
-                          className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-white/90 shadow-sm transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+                          className="group relative flex cursor-pointer items-center gap-2 overflow-hidden rounded-xl border border-blue-400/25 bg-gradient-to-br from-blue-500/15 via-indigo-500/10 to-transparent px-2.5 py-2 text-white shadow-[0_2px_10px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-300/60 hover:from-blue-500/30 hover:via-indigo-500/20 hover:shadow-[0_10px_24px_rgba(59,130,246,0.30)] focus:outline-none focus:ring-2 focus:ring-blue-400/60"
                         >
-                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs">
+                          {/* Sheen on hover — reinforces affordance. */}
+                          <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs ring-1 ring-inset ring-white/10">
                             {FLASH_REGION_ICON[r.key] || "🌐"}
                           </span>
-                          <span className="truncate text-xs">{r.label}</span>
-                          <span className="ml-auto text-[10px] text-white/50">
+                          <span className="truncate text-xs font-semibold">
+                            {r.label}
+                          </span>
+                          <span className="ml-auto inline-flex shrink-0 items-center rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[10px] font-bold text-blue-50 ring-1 ring-inset ring-blue-300/30">
                             {r.countries.length}
                           </span>
+                          <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-blue-200/70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-blue-100 sm:block" />
                         </a>
                       ))}
                     </div>

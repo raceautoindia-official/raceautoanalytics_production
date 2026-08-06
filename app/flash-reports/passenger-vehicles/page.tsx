@@ -350,7 +350,7 @@ useEffect(() => {
         console.error(err);
         if (!cancelled) {
           setMarketError(
-            "Failed to load passenger vehicle OEM market share data",
+            "Failed to load passenger vehicle OEM segment share data",
           );
           setMarketRaw([]);
         }
@@ -471,8 +471,8 @@ useEffect(() => {
     buildLeadershipGrowthSummary({
       rows: marketComputed?.chartData ?? [],
       compareMode: marketCompare,
-      emptyMessage: "No passenger vehicle OEM market share data available for the selected period.",
-      metricLabel: "market share",
+      emptyMessage: "No passenger vehicle OEM segment share data available for the selected period.",
+      metricLabel: "segment share",
     }),
   [marketComputed, marketCompare],
 );
@@ -877,7 +877,7 @@ const showApplicationChartSection =
       <p className="text-sm text-destructive">{marketError}</p>
     ) : marketLoading ? (
       <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-        Loading passenger vehicle OEM market share…
+        Loading passenger vehicle OEM segment share…
       </div>
     ) : marketChartData.length ? (
       marketHasMeaningfulData ? (
@@ -899,7 +899,7 @@ const showApplicationChartSection =
         <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
           <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
           <div className="text-xs text-muted-foreground text-center max-w-md px-4">
-            OEM market share data is not yet available for this period and country.
+            OEM segment share data is not yet available for this period and country.
           </div>
         </div>
       )
@@ -921,7 +921,7 @@ const showApplicationChartSection =
           {/* 2) PV EV OEM Share Comparison */}
          {showEvChartSection && (
   <ChartWrapper
-    title="Passenger Vehicle EV Electric OEM Market Share"
+    title="Passenger Vehicle EV Electric OEM Segment Share"
     summary={evHasMeaningfulData ? evSummary : undefined}
     controls={
       <div className="flex items-center space-x-3">

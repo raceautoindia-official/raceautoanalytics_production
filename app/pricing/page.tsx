@@ -4,6 +4,7 @@ import NavBar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { SITE_URL } from "@/lib/seoRoutes";
 import { getPricingPlans } from "@/lib/pricing";
+import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
 import PricingCards from "./PricingCards";
 
 export const revalidate = 600; // reflect plan/price edits within ~10 min
@@ -48,6 +49,9 @@ const FAQ = [
 
 export default async function PricingPage() {
   const plans = await getPricingPlans();
+  // Live market count from the CMS — the hero previously hardcoded "14
+  // countries", which drifted as new markets were added.
+  const countryCount = (await getLiveFlashCountrySlugs()).length;
 
   const pricingJsonLd = {
     "@context": "https://schema.org",
@@ -100,9 +104,9 @@ export default async function PricingPage() {
               Automotive market intelligence at a price you can actually afford
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/70 md:text-base">
-              Flash reports and forecasts across 14 countries and 9 vehicle
-              segments — including two-wheelers, three-wheelers, tractors and
-              construction equipment. A fraction of enterprise platforms that
+              Flash reports and forecasts across {countryCount} countries and 9
+              vehicle segments — including two-wheelers, three-wheelers, tractors
+              and construction equipment. A fraction of enterprise platforms that
               start at <span className="text-white/90">$5,100/year</span>.
             </p>
           </div>
@@ -121,9 +125,13 @@ export default async function PricingPage() {
                 or contact us.
               </div>
             )}
+            {/* Must match the subscription page, which states prices are
+                GST-INCLUSIVE ("· incl. GST" on every card and in its FAQ).
+                This previously said "GST / taxes extra", contradicting it. */}
             <p className="mt-6 text-center text-xs text-white/45">
               Switch INR / USD above. USD is indicative — billing is processed in
-              INR. GST / taxes extra where applicable.
+              INR. All prices are inclusive of applicable GST; no additional tax
+              is added at checkout.
             </p>
           </div>
         </section>

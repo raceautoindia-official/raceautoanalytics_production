@@ -73,7 +73,7 @@ export default async function CountryDataIndexPage() {
             </h1>
             <p className="mt-4 max-w-4xl text-sm leading-7 text-white/75 md:text-base">
               Browse country-specific flash report data availability. Each page
-              outlines segment coverage, OEM market share visibility, and EV or
+              outlines segment coverage, OEM segment share visibility, and EV or
               application-level insights where available.
             </p>
           </div>

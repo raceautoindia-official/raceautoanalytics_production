@@ -287,7 +287,7 @@ export function VehicleCategoryCard({
 
               <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
                 <div className="mb-1 text-xs text-muted-foreground">
-                  Market Share
+                  Segment Share
                 </div>
                 <div className="text-xl font-bold text-foreground/60">–</div>
               </div>
@@ -382,7 +382,7 @@ export function VehicleCategoryCard({
               {!isOverall && (
                 <div>
                   <div className="mb-1 text-xs text-muted-foreground">
-                    Market Share
+                    Segment Share
                   </div>
                   <div className="text-xl font-bold">
                     {metrics.marketShare.toFixed(1)}%

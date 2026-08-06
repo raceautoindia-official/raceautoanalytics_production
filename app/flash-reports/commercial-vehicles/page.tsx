@@ -221,7 +221,7 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
         console.error(err);
         if (!cancelled) {
           setOemError(
-            "Failed to load commercial vehicle OEM market share data",
+            "Failed to load commercial vehicle OEM segment share data",
           );
           setOemRaw([]);
         }
@@ -340,8 +340,8 @@ const oemSummary = useMemo(
       rows: oemComputed?.chartData ?? [],
       compareMode: oemCompare,
       emptyMessage:
-        "No commercial vehicle OEM market share data available for the selected period.",
-      metricLabel: "market share",
+        "No commercial vehicle OEM segment share data available for the selected period.",
+      metricLabel: "segment share",
     }),
   [oemComputed, oemCompare],
 );
@@ -842,7 +842,7 @@ const oemHasMeaningfulData = oemChartData.some((r) => r.current !== 0);
         <p className="text-sm text-destructive">{oemError}</p>
       ) : oemLoading ? (
         <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-          Loading commercial vehicle OEM market share…
+          Loading commercial vehicle OEM segment share…
         </div>
       ) : oemChartData.length ? (
         oemHasMeaningfulData ? (
@@ -864,7 +864,7 @@ const oemHasMeaningfulData = oemChartData.some((r) => r.current !== 0);
           <div className="flex h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
             <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
             <div className="text-xs text-muted-foreground text-center max-w-md px-4">
-              OEM market share data is not yet available for this period and country.
+              OEM segment share data is not yet available for this period and country.
             </div>
           </div>
         )

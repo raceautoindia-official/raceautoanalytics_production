@@ -1,59 +1,45 @@
 "use client";
 
+import { useAppContext } from "@/components/providers/Providers";
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-// Compute the "publish month" label using IST + a 3rd-of-month cutoff:
-//   * On or after the 3rd of the current month → show the CURRENT month
-//   * Before the 3rd of the current month       → show the PREVIOUS month
-//
-// Example: today is April 29 (IST) → "April 2026". On May 4 → still
-// "April 2026". On May 5 → flips to "May 2026".
-//
-// This intentionally ignores `maxMonth` from AppContext (which is per-country
-// data availability) — the user wants a calendar-driven label that's the same
-// across all countries and rolls forward automatically every 3rd.
-function getPublishMonthLabel(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
+const YYYYMM = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-  const year = Number(parts.find((p) => p.type === "year")?.value ?? "1970");
-  const month = Number(parts.find((p) => p.type === "month")?.value ?? "1");
-  const day = Number(parts.find((p) => p.type === "day")?.value ?? "1");
-
-  const cutoffDay = 3;
-  let labelMonth: number;
-  let labelYear: number;
-  if (day >= cutoffDay) {
-    labelMonth = month;
-    labelYear = year;
-  } else {
-    // Roll back one month, handling January → December of previous year
-    if (month === 1) {
-      labelMonth = 12;
-      labelYear = year - 1;
-    } else {
-      labelMonth = month - 1;
-      labelYear = year;
-    }
-  }
-
-  const monthName = MONTH_NAMES[labelMonth - 1] ?? String(labelMonth);
-  return `${monthName} ${labelYear}`;
+/** "2025-06" + 1 → "2025-07" (handles the December → January rollover). */
+function addMonths(yyyymm: string, delta: number): string {
+  const [y, m] = yyyymm.split("-").map(Number);
+  // Month index is 0-based here, so (m - 1 + delta) stays in the same space.
+  const total = y * 12 + (m - 1) + delta;
+  const year = Math.floor(total / 12);
+  const month = total % 12;
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
+/** "2025-07" → "July 2025". */
+function formatYYYYMM(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-").map(Number);
+  return `${MONTH_NAMES[m - 1] ?? m} ${y}`;
+}
+
+// The publish month is derived from the SELECTED COUNTRY's newest available
+// data month, not from today's calendar date. A month of data is published the
+// following month — if the latest data is June, it went out in July, so the
+// label reads "July 2025".
+//
+// This previously ignored per-country availability and showed the same
+// calendar-driven month (e.g. "August 2026") for every country, which was wrong
+// for any market whose data lags.
 export function LastPublishedHint() {
-  // Computed at render time so the label naturally reflects today's date
-  // every time the page is loaded (no need for a timer — the change only
-  // matters at the 3rd-of-month boundary, which any reasonable user will
-  // pick up via a normal page reload).
-  const label = getPublishMonthLabel();
+  const { maxMonth } = useAppContext();
+
+  if (!maxMonth || !YYYYMM.test(maxMonth)) return null;
+
+  const label = formatYYYYMM(addMonths(maxMonth, 1));
+
   return (
     <p className="text-xs text-muted-foreground mt-0.5">
       Last published: {label}

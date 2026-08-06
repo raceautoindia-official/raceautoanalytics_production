@@ -43,7 +43,7 @@ export default async function Page() {
     {
       question: "What data is covered in RACE flash reports?",
       answer:
-        "Coverage includes passenger vehicles, commercial vehicles, two-wheelers, three-wheelers, tractors, trucks, buses, construction equipment, OEM market share, EV penetration, and application splits where available.",
+        "Coverage includes passenger vehicles, commercial vehicles, two-wheelers, three-wheelers, tractors, trucks, buses, construction equipment, OEM segment share, EV penetration, and application splits where available.",
     },
     {
       question: "How is a flash report different from a forecast?",
@@ -148,7 +148,7 @@ function FlashReportSeoContent({
             Race Auto Analytics flash reports are built for teams that need a
             fast monthly read on vehicle sales data by country. The overview
             connects market summaries, country data pages, vehicle segment
-            coverage, OEM market share tracking, EV penetration checks, and
+            coverage, OEM segment share tracking, EV penetration checks, and
             application-level views where data is available. Each public country
             page gives a search-friendly summary, while subscribed users can
             open the full dataset and interactive dashboard views.

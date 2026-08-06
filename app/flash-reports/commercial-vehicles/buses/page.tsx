@@ -214,7 +214,7 @@ const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setOemError("Failed to load bus OEM market share data");
+          setOemError("Failed to load bus OEM segment share data");
           setOemRaw([]);
         }
       } finally {
@@ -341,8 +341,8 @@ useEffect(() => {
     buildLeadershipGrowthSummary({
       rows: oemComputed?.chartData ?? [],
       compareMode: oemCompare,
-      emptyMessage: "No bus OEM market share data available for the selected period.",
-      metricLabel: "market share",
+      emptyMessage: "No bus OEM segment share data available for the selected period.",
+      metricLabel: "segment share",
     }),
   [oemComputed, oemCompare],
 );
@@ -785,7 +785,7 @@ const showApplicationChartSection =
       <p className="text-sm text-destructive">{oemError}</p>
     ) : oemLoading ? (
       <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
-        Loading bus OEM market share…
+        Loading bus OEM segment share…
       </div>
     ) : oemChartData.length ? (
       oemHasMeaningfulData ? (
@@ -807,7 +807,7 @@ const showApplicationChartSection =
         <div className="flex h-[350px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
           <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
           <div className="text-xs text-muted-foreground text-center max-w-md px-4">
-            OEM market share data is not yet available for this period and country.
+            OEM segment share data is not yet available for this period and country.
           </div>
         </div>
       )

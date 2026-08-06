@@ -578,7 +578,7 @@ export default function TrialRequestForm({ onSuccess, onBack }: Props) {
             <li className="flex items-start gap-1.5">
               <span className="text-emerald-300 mt-[1px]">✓</span>
               <span>
-                Browse the OEM leaderboard and segment market share for the
+                Browse the OEM leaderboard and segment share for the
                 latest published month
               </span>
             </li>

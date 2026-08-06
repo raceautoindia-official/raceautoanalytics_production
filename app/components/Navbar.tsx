@@ -137,12 +137,6 @@ export default function NavBar() {
             <nav id="site-nav" className="hidden items-center gap-16 md:flex">
               <Link
                 className="text-sm font-extrabold tracking-wide text-white hover:text-white"
-                href="https://raceautoindia.com/"
-              >
-                NEWS
-              </Link>
-              <Link
-                className="text-sm font-extrabold tracking-wide text-white hover:text-white"
                 href="/insights"
               >
                 INSIGHTS
@@ -224,13 +218,6 @@ export default function NavBar() {
           {mobileOpen && (
             <div className="md:hidden border-t border-white/10 pb-3 pt-2">
               <nav className="flex flex-col gap-2 text-sm font-semibold text-white">
-                <Link
-                  href="https://raceautoindia.com/"
-                  className="rounded-lg px-2 py-1.5 hover:bg-white/10"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  NEWS
-                </Link>
                 <Link
                   href="/insights"
                   className="rounded-lg px-2 py-1.5 hover:bg-white/10"

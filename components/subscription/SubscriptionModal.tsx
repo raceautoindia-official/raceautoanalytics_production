@@ -1606,12 +1606,15 @@ export default function SubscriptionModal({ mode = "modal" }: SubscriptionModalP
                               }
                             }}
                             className={[
-                              "h-11 w-full rounded-xl px-4 font-semibold transition",
+                              "h-11 w-full rounded-xl px-4 font-semibold transition duration-200",
                               ctaDisabled
                                 ? "cursor-not-allowed border border-white/20 bg-white/5 text-slate-300"
                                 : isUpgrade
-                                ? "bg-[#4F67FF] text-white shadow-[0_12px_30px_rgba(79,103,255,0.25)] hover:bg-[#3B55FF]"
-                                : "bg-[#111827] text-white hover:bg-[#0b1228]",
+                                ? "bg-[#4F67FF] text-white shadow-[0_12px_30px_rgba(79,103,255,0.25)] hover:-translate-y-0.5 hover:bg-[#3B55FF] hover:shadow-[0_16px_36px_rgba(79,103,255,0.42)] active:translate-y-0"
+                                : // Buy Now was bg-[#111827] — near-black on a
+                                  // dark card, so it read as disabled. Give it
+                                  // a real CTA treatment.
+                                  "cursor-pointer bg-gradient-to-r from-[#4F67FF] to-[#7C3AED] text-white shadow-[0_12px_30px_rgba(79,103,255,0.30)] ring-1 ring-inset ring-white/15 hover:-translate-y-0.5 hover:from-[#3B55FF] hover:to-[#6D28D9] hover:shadow-[0_16px_36px_rgba(79,103,255,0.45)] active:translate-y-0",
                             ].join(" ")}
                           >
                             {isPayingThisPlan ? "Processing..." : ctaLabel}
