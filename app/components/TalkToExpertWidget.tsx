@@ -304,13 +304,20 @@ export default function TalkToExpertWidget() {
 
                     {/* Footer actions */}
                     <div className="flex flex-col-reverse items-stretch gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                      <a
-                        href="/subscription"
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      {/* Real <button>, not <a>: globals.css forces
+                          `a { color: inherit !important }`, which on this dark
+                          site turns anchor text white → invisible on the white
+                          modal. A button keeps the intended color. */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = "/subscription";
+                        }}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
                       >
                         <CalendarClock className="h-4 w-4" />
                         Become a Subscriber
-                      </a>
+                      </button>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"

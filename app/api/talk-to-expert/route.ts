@@ -10,6 +10,38 @@ export const dynamic = "force-dynamic";
 
 const EMAIL_REGEX = /^\S+@\S+\.\S+$/;
 
+// Base URL for the approve/decline action links in the admin email.
+// The link MUST point back to the same server that stored the lead, otherwise
+// the click lands on a server whose DB has no matching row.
+//  - Production: always the canonical site URL.
+//  - Local/dev: this server's actual origin + scheme (so a local test email
+//    links to http://localhost:<port>, not prod, and the lead is found).
+function getActionBase(req: Request): string {
+  if (process.env.NODE_ENV === "production") {
+    return String(SITE_URL || "").replace(/\/+$/, "");
+  }
+  try {
+    const url = new URL(req.url);
+    const host = (
+      req.headers.get("x-forwarded-host") ||
+      req.headers.get("host") ||
+      url.host
+    )
+      .split(",")[0]
+      .trim();
+    const proto = (
+      req.headers.get("x-forwarded-proto") ||
+      url.protocol.replace(":", "")
+    )
+      .split(",")[0]
+      .trim();
+    if (host) return `${proto || "http"}://${host}`.replace(/\/+$/, "");
+  } catch {
+    /* fall through to canonical */
+  }
+  return String(SITE_URL || "").replace(/\/+$/, "");
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -47,7 +79,7 @@ export async function POST(req: Request) {
       );
       const id = result?.insertId;
       if (id) {
-        const base = String(SITE_URL || "").replace(/\/+$/, "");
+        const base = getActionBase(req);
         const link = (action: string) =>
           `${base}/api/talk-to-expert/action?id=${id}&token=${token}&action=${action}`;
         actionLinks = { approveUrl: link("approve"), rejectUrl: link("reject") };
