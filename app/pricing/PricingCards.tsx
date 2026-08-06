@@ -4,19 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import type { PricingPlan } from "@/lib/pricing";
-
-// Inlined (not imported from lib/pricing) so this client bundle never pulls in
-// the DB module chain.
-function formatInr(value: number): string {
-  return `₹${Math.round(value).toLocaleString("en-IN")}`;
-}
-
-// Indicative USD conversion. Billing is processed in INR; USD is shown for
-// international buyers. Adjust the rate as needed.
-const USD_RATE = 85;
-function formatUsd(inr: number): string {
-  return `$${Math.max(1, Math.round(inr / USD_RATE)).toLocaleString("en-US")}`;
-}
+// Shared currency helpers (no DB deps) so /pricing and the subscription modal
+// always show the SAME amount for a plan — same USD rate, same rounding.
+import { formatUsdFromInr, formatInrCurrency } from "@/lib/currency";
 
 const RECOMMENDED: PricingPlan["key"] = "silver";
 
@@ -64,7 +54,8 @@ export default function PricingCards({ plans }: { plans: PricingPlan[] }) {
   const [annual, setAnnual] = useState(true);
   const [usd, setUsd] = useState(false);
 
-  const money = (inr: number) => (usd ? formatUsd(inr) : formatInr(inr));
+  const money = (inr: number) =>
+    usd ? formatUsdFromInr(inr) : formatInrCurrency(inr);
 
   return (
     <div>

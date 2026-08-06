@@ -8,6 +8,8 @@ import { useSubscriptionModal } from "@/utils/SubscriptionModalContext";
 import transformPricing from "./transformPricing";
 import { formatPlanLabelOrFallback } from "@/lib/planLabels";
 import { notifySubscriptionChanged } from "@/lib/subscriptionEvents";
+// Shared with the public /pricing page so both show the SAME USD amount.
+import { USD_RATE } from "@/lib/currency";
 
 type BillingCycle = "monthly" | "annual";
 type PlanKey = "bronze" | "silver" | "gold" | "platinum";
@@ -33,7 +35,6 @@ declare global {
   }
 }
 
-const USD_RATE = 90.2;
 let razorpayScriptPromise: Promise<void> | null = null;
 
 function loadRazorpaySdk() {
