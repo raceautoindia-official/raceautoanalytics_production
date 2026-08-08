@@ -494,19 +494,26 @@ function FlipInfoCard({
 }
 
 function RegionBadge({ region }: { region: RegionItem }) {
+  // Same interactive treatment as the flash-report region tiles. These were
+  // static divs that read as dull, inert labels; they now navigate to the
+  // forecast tool, so the hover affordance reflects real behaviour.
   return (
-    <div
-      className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-xl border border-indigo-400/25 bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-transparent px-2 py-1.5 text-white/90 shadow-[0_2px_10px_rgba(0,0,0,0.25)] sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1.5"
-      title={region.name}
-      aria-label={region.name}
+    <a
+      href="/forecast"
+      className="group relative inline-flex h-10 w-full min-w-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-indigo-400/25 bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-transparent px-2 py-1.5 text-white shadow-[0_2px_10px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-0.5 hover:border-indigo-300/60 hover:from-indigo-500/30 hover:via-violet-500/20 hover:shadow-[0_10px_24px_rgba(99,102,241,0.30)] focus:outline-none focus:ring-2 focus:ring-indigo-400/60 sm:h-auto sm:w-auto sm:justify-start sm:gap-2 sm:px-3 sm:py-1.5"
+      title={`${region.name} — ${region.description}`}
+      aria-label={`${region.name} forecast coverage`}
     >
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-xs ring-1 ring-inset ring-white/10">
+      {/* Sheen on hover — reinforces affordance. */}
+      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs ring-1 ring-inset ring-white/10">
         {region.icon}
       </span>
-      <span className="ml-2 hidden text-xs font-semibold sm:inline">
+      <span className="ml-2 hidden truncate text-xs font-semibold sm:inline">
         {region.name}
       </span>
-    </div>
+      <ChevronRight className="ml-auto hidden h-3.5 w-3.5 shrink-0 text-indigo-200/70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-indigo-100 sm:block" />
+    </a>
   );
 }
 
@@ -731,13 +738,8 @@ export default function QuickGuidesSection({
                 backSubtitle="Quick steps and video guide for flash reports"
                 extraFront={
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-medium text-white/75">
-                        Supported markets by region
-                      </div>
-                      <span className="hidden shrink-0 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-200 ring-1 ring-inset ring-blue-400/30 sm:inline">
-                        Clickable
-                      </span>
+                    <div className="text-xs font-medium text-white/75">
+                      Supported markets by region
                     </div>
 
                     {/* Prompt sits directly above the buttons so the tiles read
@@ -800,6 +802,11 @@ export default function QuickGuidesSection({
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3 mt-3">
                     <div className="text-xs font-medium text-white/75">
                       Forecast regions covered
+                    </div>
+
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-indigo-200/90">
+                      <ChevronRight className="h-3 w-3 shrink-0" />
+                      Click a region to open the forecast tool
                     </div>
 
                     <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-3">

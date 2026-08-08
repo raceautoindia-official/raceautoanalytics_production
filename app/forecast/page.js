@@ -594,6 +594,35 @@ export default function ForecastPage() {
     });
   }, [graphs, volumeDataMap, selectedCountriesList, selectedRegionId]);
 
+  // ─── Node ids that actually have a forecast dataset behind them ───────────
+  // A dataset's `stream` is the comma-joined ancestor id path, so a country id
+  // only appears here if some graph's data really sits under that country.
+  // Country nodes are per-category children, so this is category-specific.
+  // Used to tell "has data" from "no data" in the region dropdown, which
+  // previously rendered both identically.
+  const nodeIdsWithData = useMemo(() => {
+    const ids = new Set();
+    for (const g of graphs) {
+      const dsIds = Array.isArray(g.dataset_ids)
+        ? g.dataset_ids
+        : [g.dataset_ids];
+      for (const dsId of dsIds) {
+        const ds = volumeDataMap[dsId];
+        if (!ds?.stream) continue;
+        for (const part of String(ds.stream).split(",")) {
+          const n = parseInt(part, 10);
+          if (Number.isFinite(n)) ids.add(n);
+        }
+      }
+    }
+    return ids;
+  }, [graphs, volumeDataMap]);
+
+  // Name of the current region/country, for the empty/no-data messaging.
+  const selectedRegionName = selectedRegionId
+    ? hierarchyMap[selectedRegionId] || "this selection"
+    : "";
+
   // Default selection on first load — ALL user types land on "All Regions":
   //   - Free users: old All Regions behavior preserved
   //   - Paid (direct/shared) users: also default to All Regions; region restrictions
@@ -601,6 +630,12 @@ export default function ForecastPage() {
   useEffect(() => {
     if (selectedRegionId) {
       setSelectedGraphId(availableGraphs[0]?.id);
+    } else {
+      // Deselecting the region/country must also drop the graph. chartData is
+      // derived from selectedGraphId alone, so leaving it set kept rendering
+      // the previously selected country's chart (e.g. Chile) even though the
+      // filter had been cleared back to "Regions".
+      setSelectedGraphId(null);
     }
     if (selectedCategoryId != null) return;
     if (!contentHierarchyNodes.length || !graphs.length) return;
@@ -1311,6 +1346,7 @@ export default function ForecastPage() {
                         onChange={() => {
                           if (selectedRegionId === allRegionsNode.id) {
                             setSelectedRegionId(null);
+                            setSelectedGraphId(null); // else the old chart lingers
                             setRegionSelectionMemory({
                               kind: null,
                               countryName: "",
@@ -1385,15 +1421,27 @@ export default function ForecastPage() {
                                 // When a region is accessible, all countries
                                 // within it are selectable (no per-country lock).
                                 const disabled = false;
+                                // Countries with no forecast dataset used to
+                                // look identical to ones with data. Still
+                                // selectable, so the chart area can explain
+                                // that the market isn't published yet.
+                                const hasData = nodeIdsWithData.has(cn.id);
 
                                 return (
                                   <label
                                     key={cn.id}
+                                    title={
+                                      hasData
+                                        ? `${cn.name} — forecast data available`
+                                        : `${cn.name} — no forecast data yet`
+                                    }
                                     className={[
                                       "mt-1 flex items-center gap-2 rounded-md px-2 py-1",
                                       disabled
                                         ? "cursor-not-allowed text-white/40"
-                                        : "cursor-pointer text-white hover:bg-white/5",
+                                        : hasData
+                                          ? "cursor-pointer text-white hover:bg-white/5"
+                                          : "cursor-pointer text-white/45 hover:bg-white/5",
                                     ].join(" ")}
                                   >
                                     <input
@@ -1409,6 +1457,7 @@ export default function ForecastPage() {
 
                                         if (isSameCountry) {
                                           setSelectedRegionId(null);
+                                          setSelectedGraphId(null); // else the old chart lingers
                                           setRegionSelectionMemory({
                                             kind: null,
                                             countryName: "",
@@ -1425,7 +1474,19 @@ export default function ForecastPage() {
                                         setOpenRegion(false);
                                       }}
                                     />
-                                    {cn.name}
+                                    <span className="min-w-0 flex-1 truncate">
+                                      {cn.name}
+                                    </span>
+                                    {hasData ? (
+                                      <span
+                                        aria-label="Forecast data available"
+                                        className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400"
+                                      />
+                                    ) : (
+                                      <span className="ml-auto shrink-0 rounded-full border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/50">
+                                        No data
+                                      </span>
+                                    )}
                                   </label>
                                 );
                               })}
@@ -1544,8 +1605,12 @@ export default function ForecastPage() {
                     setOpenRegion(false);
                   }}
                 >
-                  {availableGraphs.find((g) => g.id === selectedGraphId)
-                    ?.name || "Select a graph"}
+                  {availableGraphs.find((g) => g.id === selectedGraphId)?.name ||
+                    (!selectedRegionId
+                      ? "Select a graph"
+                      : availableGraphs.length === 0
+                        ? "No graphs available"
+                        : "Select a graph")}
                   <span
                     className={`transition ${openGraph ? "rotate-180" : ""}`}
                   >
@@ -1563,6 +1628,13 @@ export default function ForecastPage() {
                   ].join(" ")}
                 >
                   <div className="max-h-[420px] overflow-auto">
+                    {availableGraphs.length === 0 && (
+                      <div className="px-3 py-4 text-center text-xs text-white/50">
+                        {selectedRegionId
+                          ? `No graphs published for ${selectedRegionName} in this category yet.`
+                          : "Select a region or country first."}
+                      </div>
+                    )}
                     {availableGraphs.map((opt) => (
                       <button
                         key={opt.id}
@@ -1620,11 +1692,58 @@ export default function ForecastPage() {
             </div>
           ) : loading ? (
             <div className="h-[450px] w-full animate-pulse rounded-xl bg-white/5" />
+          ) : !selectedRegionId ? (
+            // Nothing selected yet — a genuine prompt.
+            <div className="flex h-[320px] items-center justify-center rounded-xl border border-white/10 bg-[#0D1630] px-6 text-center">
+              <div className="max-w-md">
+                <div className="mb-2 text-base font-semibold text-[#EAF0FF]">
+                  Select a region or country
+                </div>
+                <p className="text-sm text-[#EAF0FF]/60">
+                  Choose a region, a country, or &quot;All Regions&quot; from the
+                  filter above to load the forecast.
+                </p>
+              </div>
+            </div>
+          ) : availableGraphs.length === 0 ? (
+            // A market IS selected but nothing is published for it. This used
+            // to fall through to "…then pick a graph", telling the user to pick
+            // from an empty dropdown after they had already chosen a country.
+            <div className="flex h-[320px] items-center justify-center rounded-xl border border-white/10 bg-[#0D1630] px-6 text-center">
+              <div className="max-w-md">
+                <div className="mb-2 text-base font-semibold text-[#EAF0FF]">
+                  No forecast data for {selectedRegionName} yet
+                </div>
+                <p className="text-sm text-[#EAF0FF]/60">
+                  This market isn&apos;t published for the selected category.
+                  Try another country, another category, or &quot;All
+                  Regions&quot;.
+                </p>
+                <p className="mt-3 text-xs text-[#EAF0FF]/45">
+                  Need it sooner? Contact{" "}
+                  <a
+                    href="mailto:info@raceautoanalytics.com"
+                    className="text-[#7B93FF] hover:underline"
+                  >
+                    info@raceautoanalytics.com
+                  </a>
+                </p>
+              </div>
+            </div>
           ) : !selectedGraphId ? (
-            <p className="text-center text-white/80">
-              Please choose a category, select a region/country or &quot;All
-              Regions,&quot; then pick a graph.
-            </p>
+            <div className="flex h-[320px] items-center justify-center rounded-xl border border-white/10 bg-[#0D1630] px-6 text-center">
+              <div className="max-w-md">
+                <div className="mb-2 text-base font-semibold text-[#EAF0FF]">
+                  Pick a graph
+                </div>
+                <p className="text-sm text-[#EAF0FF]/60">
+                  {availableGraphs.length}{" "}
+                  {availableGraphs.length === 1 ? "graph is" : "graphs are"}{" "}
+                  available for {selectedRegionName}. Choose one from the
+                  &quot;Select a graph&quot; menu above.
+                </p>
+              </div>
+            </div>
           ) : chartData.length === 0 ? (
             <div className="flex h-[320px] items-center justify-center rounded-xl bg-[#0D1630] border border-white/8">
               <div className="text-center px-6 max-w-sm">
