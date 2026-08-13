@@ -17,6 +17,7 @@ import { formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
+import StaleMonthNotice, { monthKeyFromYyyyMm } from "@/components/flash-reports/StaleMonthNotice";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -539,6 +540,20 @@ useEffect(() => {
     return arr;
   }, [segmentRows, month]);
 
+  // Which month the donut actually rendered. It falls back to the newest
+  // available row when the selected month is missing, so surface that
+  // rather than letting an older month sit under the current label.
+  const segmentShownMonth = useMemo(() => {
+    if (!segmentRows.length) return "";
+    const wantedLabel = toMonthLabel(month);
+    const sorted = [...segmentRows].sort((a, b) =>
+      sortMonthLabels(a.month, b.month),
+    );
+    const picked =
+      sorted.find((r) => r.month === wantedLabel) ?? sorted[sorted.length - 1];
+    return picked?.month || "";
+  }, [segmentRows, month]);
+
   const segmentTotal = segmentDonutData.reduce(
     (sum, item) => sum + item.value,
     0,
@@ -838,6 +853,10 @@ const showApplicationChartSection =
                 : "No bus segment distribution data available."
           }
         >
+          <StaleMonthNotice
+            requestedKey={toMonthLabel(month)}
+            shownKey={segmentShownMonth}
+          />
           {segmentError ? (
             <p className="text-sm text-destructive">{segmentError}</p>
           ) : segmentLoading ? (
@@ -872,6 +891,12 @@ const showApplicationChartSection =
       : "No application distribution data available."
 }
         >
+          {/* Chart falls back to the newest month it has; say so instead of
+              silently mislabelling older data as the selected month. */}
+          <StaleMonthNotice
+            requestedKey={monthKeyFromYyyyMm(month)}
+            shownKey={appMonth}
+          />
           {appError ? (
             <p className="text-sm text-destructive">{appError}</p>
           ) : appLoading ? (

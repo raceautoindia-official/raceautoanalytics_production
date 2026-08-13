@@ -22,6 +22,7 @@ import { ChartSummary } from "@/components/charts/ChartSummary";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
+import StaleMonthNotice, { monthKeyFromYyyyMm } from "@/components/flash-reports/StaleMonthNotice";
 
 const MONTHS_SHORT = [
   "jan",
@@ -1021,6 +1022,12 @@ const showApplicationChartSection =
       : "No passenger vehicle application distribution data available."
 }
     >
+      {/* Chart falls back to the newest month it has; say so instead of
+          silently mislabelling older data as the selected month. */}
+      <StaleMonthNotice
+        requestedKey={monthKeyFromYyyyMm(month)}
+        shownKey={appMonth}
+      />
       {appError ? (
         <p className="text-sm text-destructive">{appError}</p>
       ) : appLoading ? (
