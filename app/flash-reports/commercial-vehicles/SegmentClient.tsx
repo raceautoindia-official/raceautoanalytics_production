@@ -1,0 +1,919 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { withCountry } from "@/lib/withCountry";
+import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
+import { ChartWrapper } from "@/components/charts/ChartWrapper";
+import { LineChart } from "@/components/charts/LineChart";
+import { BarChart } from "@/components/charts/BarChart";
+import { DonutChart } from "@/components/charts/DonutChart";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { RegionSelector } from "@/components/ui/RegionSelector";
+import { MonthSelector } from "@/components/ui/MonthSelector";
+import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
+import { CompareToggle } from "@/components/ui/CompareToggle";
+import { useAppContext } from "@/components/providers/Providers";
+import { useFlashEntitlementContext } from "@/app/flash-reports/context/FlashEntitlementContext";
+import { formatNumber } from "@/lib/mockData";
+import { Truck, Bus, ChevronRight } from "lucide-react";
+import { DataAvailabilityHint } from "@/components/ui/DataAvailabilityHint";
+import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
+
+const SUB_CATEGORIES = [
+  {
+    id: "trucks",
+    title: "Trucks",
+    description: "Light, medium, and heavy commercial trucks",
+    icon: Truck,
+    color: "text-blue-400",
+    bgColor: "bg-blue-400/10",
+  },
+  {
+    id: "buses",
+    title: "Buses",
+    description: "Public transport, school, and commercial buses",
+    icon: Bus,
+    color: "text-green-400",
+    bgColor: "bg-green-400/10",
+  },
+];
+
+const MONTHS_SHORT = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+];
+
+type MarketBackendRow = {
+  name: string;
+  [key: string]: string | number;
+};
+
+type CompareRow = {
+  name: string;
+  current: number;
+  previous: number;
+  symbol: "" | "▲" | "▼";
+  deltaPct: number | null;
+};
+
+type SegmentDonutPoint = {
+  name: string;
+  value: number;
+};
+
+type CvSegmentRow = {
+  month: string; // e.g. "Apr 2025"
+  lcv?: number;
+  mcv?: number;
+  hcv?: number;
+  [key: string]: string | number | undefined;
+};
+
+// Helper: "YYYY-MM" → "jan" etc.
+function getShortMonthFromYyyyMm(yyyymm: string): string {
+  const parts = yyyymm.split("-");
+  if (parts.length !== 2) {
+    const now = new Date();
+    return MONTHS_SHORT[now.getMonth()];
+  }
+  const idx = parseInt(parts[1], 10) - 1;
+  return MONTHS_SHORT[idx] ?? MONTHS_SHORT[0];
+}
+
+// Sort labels like "Apr 2025" chronologically
+function sortMonthLabels(a: string, b: string): number {
+  const [ma, ya] = a.split(" ");
+  const [mb, yb] = b.split(" ");
+  const maIdx = MONTHS_SHORT.indexOf(ma.toLowerCase());
+  const mbIdx = MONTHS_SHORT.indexOf(mb.toLowerCase());
+
+  const da = new Date(`${ya}-${String(maIdx + 1).padStart(2, "0")}-01`);
+  const db = new Date(`${yb}-${String(mbIdx + 1).padStart(2, "0")}-01`);
+  return da.getTime() - db.getTime();
+}
+
+const MONTHS_TITLE = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function toMonthLabel(yyyymm: string) {
+  const [y, m] = yyyymm.split("-");
+  const mi = Number(m) - 1;
+  return `${MONTHS_TITLE[mi]} ${y}`;
+}
+
+export default function CommercialVehiclesPage() {
+  const { region, month, maxMonth } = useAppContext();
+  const flashEntitlement = useFlashEntitlementContext();
+  // Admin override (role OR passkey) bypasses the free-user collapse so admins
+  // see the full forecast chart + Application Chart even on a free plan.
+  const isFreeUser =
+    !flashEntitlement?.isAdmin &&
+    (!flashEntitlement?.entitlement?.isSubscribed ||
+      flashEntitlement?.entitlement?.effectiveStatus !== "active");
+  const suffix = useMemo(() => {
+  const qs = new URLSearchParams();
+  if (region) qs.set("country", region);
+  if (month) qs.set("month", month);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}, [region, month]);
+
+  const [mounted, setMounted] = useState(false);
+
+  // ---- OEM chart (market share) ----
+  const [oemCompare, setOemCompare] = useState<"mom" | "yoy">("mom");
+  const [oemCurrentMonth, setOemCurrentMonth] = useState(month);
+  const [oemRaw, setOemRaw] = useState<MarketBackendRow[]>([]);
+  const [oemLoading, setOemLoading] = useState(false);
+  const [oemError, setOemError] = useState<string | null>(null);
+
+  // ---- Forecast line chart data (overall timeseries; CV series) ----
+  const [overallData, setOverallData] = useState<any[]>([]);
+  const [overallLoading, setOverallLoading] = useState(false);
+
+  // Keep the loading UI until loading truly settles (before mount, while
+  // entitlement resolves — the fetch effect waits on it — and during the
+  // fetch). Prevents the chart's empty state from flashing while data loads.
+  const overallChartLoading =
+    !mounted || !!flashEntitlement?.loading || overallLoading;
+  const [overallError, setOverallError] = useState<string | null>(null);
+  const [overallMeta, setOverallMeta] = useState<any>(null);
+  const [altFuelSummaryData, setAltFuelSummaryData] = useState<Record<string, Record<string, number>> | null>(null);
+
+  // ---- Segment donut (REAL backend via /api/fetchCVSegmentSplit) ----
+  const [segmentData, setSegmentData] = useState<SegmentDonutPoint[]>([]);
+  const [segmentLoading, setSegmentLoading] = useState(false);
+  const [segmentError, setSegmentError] = useState<string | null>(null);
+  const [segmentMonthLabel, setSegmentMonthLabel] = useState<string | null>(
+    null,
+  );
+
+  const [graphId, setGraphId] = useState<number | null>(null);
+      const [segmentText, setSegmentText] = useState<any>(null);
+const [segmentTextLoading, setSegmentTextLoading] = useState(false);
+const [segmentTextError, setSegmentTextError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setOemCurrentMonth(month);
+  }, [month, region]);
+
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // ---------- FETCH OEM DATA (commercial vehicle, market share) ----------
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOemData() {
+      try {
+        setOemLoading(true);
+        setOemError(null);
+
+        const effectiveMonth = oemCurrentMonth || month;
+        const shortMonth = getShortMonthFromYyyyMm(effectiveMonth);
+        const segmentName = "commercial vehicle";
+
+        const res = await fetch(
+          withCountry(
+            `/api/fetchMarketData?segmentName=${encodeURIComponent(
+              segmentName,
+            )}&segmentType=market share&mode=${oemCompare}&baseMonth=${encodeURIComponent(
+              effectiveMonth,
+            )}&selectedMonth=${shortMonth}`,
+            region,
+          ),
+        );
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch CV OEM data: ${res.status}`);
+        }
+
+        const json = (await res.json()) as MarketBackendRow[];
+        if (!cancelled) {
+          setOemRaw(json || []);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setOemError(
+            "Failed to load commercial vehicle OEM segment share data",
+          );
+          setOemRaw([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setOemLoading(false);
+        }
+      }
+    }
+
+    loadOemData();
+    return () => {
+      cancelled = true;
+    };
+  }, [oemCompare, oemCurrentMonth, month, region]);
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadSegmentText() {
+    try {
+      setSegmentTextLoading(true);
+      setSegmentTextError(null);
+
+      const res = await fetch(withCountry("/api/flash-reports/text", region), {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load segment text: ${res.status}`);
+      }
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setSegmentText(json || {});
+      }
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setSegmentTextError("Failed to load segment text");
+        setSegmentText({});
+      }
+    } finally {
+      if (!cancelled) {
+        setSegmentTextLoading(false);
+      }
+    }
+  }
+
+  loadSegmentText();
+
+  return () => {
+    cancelled = true;
+  };
+}, [region]);
+
+  // ---------- PROCESS OEM DATA ----------
+  const oemComputed = useMemo(() => {
+    if (!oemRaw.length) return null;
+
+    const effectiveMonth = oemCurrentMonth || month; // expected "YYYY-MM"
+    const [yStr, mStr] = effectiveMonth.split("-");
+    const baseYear = Number(yStr);
+    const baseMonthIndex = Number(mStr) - 1; // 0..11
+
+    const shortMonth = MONTHS_SHORT[baseMonthIndex] ?? "jan";
+
+    // Previous month (with year rollover)
+    const prevMonthIndex = (baseMonthIndex + 11) % 12;
+    const prevMonthShort = MONTHS_SHORT[prevMonthIndex];
+    const prevMonthYear = baseMonthIndex === 0 ? baseYear - 1 : baseYear;
+
+    const currKey = `${shortMonth} ${baseYear}`;
+    const prevKey =
+      oemCompare === "mom"
+        ? `${prevMonthShort} ${prevMonthYear}` // ✅ handles Jan -> Dec prev year
+        : `${shortMonth} ${baseYear - 1}`; // ✅ YoY
+
+    let rows: CompareRow[] = oemRaw
+      .map((item) => {
+        const prev = parseFloat(String(item[prevKey] ?? "0")) || 0;
+        const curr = parseFloat(String(item[currKey] ?? "0")) || 0;
+
+        let symbol: "" | "▲" | "▼" = "";
+        if (curr > prev) symbol = "▲";
+        else if (curr < prev) symbol = "▼";
+
+        const deltaPct = curr - prev;
+
+        return {
+          name: item.name,
+          current: curr,
+          previous: prev,
+          symbol,
+          deltaPct,
+        };
+      })
+      .sort((a, b) => b.current - a.current);
+
+    // Merge any "Others"-like rows (handles admin-renamed variants like
+    // "Others[tata, mahindra]") into a single bucket pinned to the end.
+    rows = mergeOthersRows(rows);
+
+    return {
+      chartData: rows,
+      totalCurrent: rows.reduce((s, r) => s + r.current, 0),
+      totalPrev: rows.reduce((s, r) => s + r.previous, 0),
+      prevKey,
+      currKey,
+    };
+  }, [oemRaw, oemCurrentMonth, oemCompare, month]);
+
+const oemSummary = useMemo(
+  () =>
+    buildLeadershipGrowthSummary({
+      rows: oemComputed?.chartData ?? [],
+      compareMode: oemCompare,
+      emptyMessage:
+        "No commercial vehicle OEM segment share data available for the selected period.",
+      metricLabel: "segment share",
+    }),
+  [oemComputed, oemCompare],
+);
+
+  useEffect(() => {
+  setSegmentData([]);
+  setSegmentMonthLabel(null);
+  setSegmentError(null);
+}, [region]);
+
+  const renderOemTooltip = (props: any) => {
+    const { active, payload } = props;
+    if (!active || !payload || !payload.length || !oemComputed) return null;
+
+    const row = payload[0].payload as CompareRow;
+    const delta = row.deltaPct ?? 0;
+    const symbol = row.symbol || (delta > 0 ? "▲" : delta < 0 ? "▼" : "•");
+
+    const colorClass =
+      delta > 0
+        ? "text-emerald-400"
+        : delta < 0
+          ? "text-rose-400"
+          : "text-muted-foreground";
+
+    return (
+      <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg px-4 py-3 shadow-xl">
+        <p className={`text-sm font-semibold mb-2 ${isOthersLike(row.name) ? "text-amber-400" : ""}`}>{row.name}</p>
+        <div className="space-y-1 text-xs">
+          <div className="flex items-baseline gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground" />
+            <span className="font-medium">
+              {oemComputed.prevKey.toUpperCase()}:
+            </span>
+            <span className="font-semibold">{row.previous.toFixed(1)}%</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-primary" />
+            <span className="font-medium">
+              {oemComputed.currKey.toUpperCase()}:
+            </span>
+            <span className="font-semibold">{row.current.toFixed(1)}%</span>
+          </div>
+          <div className={`flex items-baseline gap-2 ${colorClass}`}>
+            <span className="font-bold">{symbol}</span>
+            <span className="font-medium">Change:</span>
+            <span className="font-semibold">
+              {delta == null || Number.isNaN(delta)
+                ? "–"
+                : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- FETCH OVERALL TIMESERIES FOR FORECAST (CV series) ----------
+  // ---------- FETCH FORECAST GRAPH CONFIG (ONCE on mount, India-default) ----------
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfig() {
+      try {
+        const res = await fetch("/api/flash-reports/config?country=india", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const cfg = await res.json();
+        if (!cancelled) setGraphId(cfg?.cv ?? null);
+      } catch (err) {
+        console.error("Failed to load flash chart config", err);
+      }
+    }
+    loadConfig();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    // Wait for entitlement to settle (race-condition fix — see two-wheeler).
+    if (flashEntitlement?.loading) return;
+
+    let cancelled = false;
+
+    async function loadOverall() {
+      try {
+        setOverallLoading(true);
+        setOverallError(null);
+
+        const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
+        const collapseToHistorical = isHistoricalView || isFreeUser;
+        const dataRes = await fetch(
+          withCountry(
+            `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
+              month,
+            )}&horizon=6${collapseToHistorical ? "&forceHistorical=1" : ""}`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
+
+        if (!dataRes.ok) {
+          throw new Error(`Failed to fetch overall chart data: ${dataRes.status}`);
+        }
+
+        const json = await dataRes.json();
+        if (!cancelled) {
+          setOverallData(json?.data || []);
+          setOverallMeta(json?.meta || null);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setOverallError("Failed to load commercial vehicle timeseries data");
+          setOverallData([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setOverallLoading(false);
+        }
+      }
+    }
+
+    loadOverall();
+    return () => {
+      cancelled = true;
+    };
+    // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
+  }, [month, region, flashEntitlement?.loading, isFreeUser]);
+
+  // ---------- FETCH SEGMENT SPLIT (REAL backend via /api/fetchCVSegmentSplit) ----------
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSegmentData() {
+      try {
+        setSegmentLoading(true);
+        setSegmentError(null);
+
+        const segmentName = "commercial vehicle";
+
+        const res = await fetch(
+          withCountry(
+            `/api/fetchCVSegmentSplit?segmentName=${encodeURIComponent(
+              segmentName,
+            )}&baseMonth=${encodeURIComponent(month)}`,
+            region,
+          ),
+          { cache: "no-store" },
+        );
+
+        if (!res.ok) {
+          throw new Error(
+            `Failed to fetch commercial vehicle segment split: ${res.status}`,
+          );
+        }
+
+        const rows = (await res.json()) as CvSegmentRow[];
+        if (cancelled) return;
+
+        if (!rows || !rows.length) {
+          setSegmentData([]);
+          setSegmentMonthLabel(null);
+          return;
+        }
+
+        // Sort by month label "Apr 2025", "May 2025", etc.
+        const sortedRows = [...rows].sort((a, b) =>
+          sortMonthLabels(a.month, b.month),
+        );
+
+        const wantedLabel = toMonthLabel(month);
+        const picked =
+          sortedRows.find((r) => r.month === wantedLabel) ??
+          sortedRows[sortedRows.length - 1]; // fallback
+
+        const pickedLabel = picked.month;
+
+        const donut: SegmentDonutPoint[] = [
+          { name: "LCV", value: Number(picked.lcv ?? 0) || 0 },
+          { name: "MCV", value: Number(picked.mcv ?? 0) || 0 },
+          { name: "HCV + Others", value: Number(picked.hcv ?? 0) || 0 },
+        ].filter((x) => x.value > 0);
+
+        setSegmentData(donut);
+        setSegmentMonthLabel(pickedLabel);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setSegmentError(
+            "Failed to load commercial vehicle segment split data",
+          );
+          setSegmentData([]);
+          setSegmentMonthLabel(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setSegmentLoading(false);
+        }
+      }
+    }
+
+    loadSegmentData();
+    return () => {
+      cancelled = true;
+    };
+  }, [month, region]);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadAltFuelSummary() {
+    try {
+      const res = await fetch(
+        withCountry(
+          `/api/fetchMarketBarData?segmentName=alternative%20fuel&baseMonth=${encodeURIComponent(
+            month,
+          )}`,
+          region,
+        ),
+        { cache: "no-store" },
+      );
+
+      const json = await res.json();
+
+      if (!cancelled) {
+        setAltFuelSummaryData(json && Object.keys(json).length ? json : null);
+      }
+    } catch (err) {
+      console.error("Failed to load alternate fuel summary", err);
+      if (!cancelled) {
+        setAltFuelSummaryData(null);
+      }
+    }
+  }
+
+  loadAltFuelSummary();
+
+  return () => {
+    cancelled = true;
+  };
+}, [month, region]);
+
+
+  // ---------- SUMMARY METRICS (CV volumes + segment split) ----------
+  const summaryBaseMonth = overallMeta?.baseMonth ?? month;
+
+  const baseIdx = overallData.findIndex((p) => p?.month === summaryBaseMonth);
+  const basePoint = baseIdx >= 0 ? overallData[baseIdx] : null;
+  const prevPoint = baseIdx > 0 ? overallData[baseIdx - 1] : null;
+  const prevYearMonthKey = `${String(summaryBaseMonth || month).slice(0, 4) - 1}-${String(summaryBaseMonth || month).slice(5, 7)}`;
+  const prevYearPoint = overallData.find((p) => p?.month === prevYearMonthKey) ?? null;
+  const prevYearBaseData = overallMeta?.prevYearBaseData ?? null;
+
+const toNum = (v: any) => {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+const latestCV = toNum(basePoint?.data?.["CV"]);
+const prevCV = toNum(prevPoint?.data?.["CV"]);
+
+  const growthSummary = formatGrowthWithYoY(latestCV, prevCV, toNum(prevYearBaseData?.["CV"] ?? prevYearPoint?.data?.["CV"]));
+
+  const altFuelHeaderLabel = formatAltFuelHeaderLabel(altFuelSummaryData, "CV", month);
+
+  const pageMonthLabel = new Date(`${month}-01`).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const leadingSegment = segmentData[0];
+
+  const segmentSummary = useMemo(() => {
+    if (!segmentData.length) {
+      return "No commercial vehicle segment split data available for the latest period.";
+    }
+
+
+
+    const top = segmentData[0];
+    const total = segmentData.reduce((sum, r) => sum + (r.value || 0), 0);
+    const share = total > 0 ? Math.round((top.value / total) * 100) : 0;
+    const labelSuffix = segmentMonthLabel ? ` in ${segmentMonthLabel}` : "";
+
+    return `${top.name} dominates commercial vehicle volumes with ~${share}% share${labelSuffix}.`;
+  }, [segmentData, segmentMonthLabel]);
+
+
+
+
+  if (!mounted) {
+    return <PageSkeleton />;
+  }
+
+  const oemChartData = oemComputed?.chartData ?? [];
+
+    const showSegmentChartSection =
+  segmentLoading || !!segmentError || segmentData.length > 0;
+
+const showOemChartSection =
+  oemLoading || !!oemError || oemChartData.length > 0;
+const oemHasMeaningfulData = oemChartData.some((r) => r.current !== 0);
+
+  
+
+  return (
+    <div className="min-h-screen py-0">
+      <div className="mx-auto w-[95vw] xl:w-[93vw] 2xl:w-[90vw] max-w-none px-2 sm:px-3 lg:px-4">
+        {/* Header */}
+        <div className="mb-8">
+          <Breadcrumbs
+            items={[
+              { label: "Flash Reports", href: `/flash-reports${suffix}` },
+              { label: "Commercial Vehicles" },
+            ]}
+            className="mb-4"
+          />
+
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Commercial Vehicles</h1>
+              <p className="text-muted-foreground">
+                Trucks, buses, and commercial transportation market analysis
+              </p>
+            </div>
+
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center space-x-4">
+                <RegionSelector />
+                <MonthSelector />
+              </div>
+              <LastPublishedHint />
+            </div>
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="flash-summary-block mb-8 p-6 bg-card/30 rounded-lg border border-border/50">
+          <h2 className="text-lg font-semibold mb-3">
+            Market Summary - {pageMonthLabel}
+          </h2>
+          <div className="grid md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">Total CV Sales:</span>
+              <span className="ml-2 font-medium">
+                {formatNumber(latestCV || 0)} units
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">CV Growth Rate:</span>
+              <span
+                className={`ml-2 font-medium ${
+                  growthSummary.mom != null && growthSummary.mom >= 0
+                    ? "text-success"
+                    : "text-destructive"
+                }`}
+              >
+                {growthSummary.text}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
+              {/* Audit I-7: tooltip explains a bare "—" (data not yet available
+                  for the selected month/country) instead of leaving the user
+                  guessing whether it's missing, gated, or N/A. */}
+              <span
+                className="ml-2 font-medium text-primary"
+                title={
+                  altFuelHeaderLabel === "—"
+                    ? "Alternate fuel share is not yet available for the selected month and country."
+                    : undefined
+                }
+              >
+                {altFuelHeaderLabel}
+              </span>
+            </div>
+          </div>
+        </div>
+
+
+
+        {/* Sub-categories (Truck / Bus) */}
+        <div className="mb-12">
+          <h2 className="text-xl font-semibold mb-6">
+            Commercial Vehicle Categories
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {SUB_CATEGORIES.map((category, index) => {
+              const Icon = category.icon;
+              return (
+                <Link
+                  key={category.id}
+                  href={`/flash-reports/commercial-vehicles/${category.id}?country=${encodeURIComponent(
+  region,
+)}&month=${encodeURIComponent(month)}`}
+                  className="group block animate-fade-in hover-lift"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className="bg-card border border-border rounded-lg p-5 h-full min-h-[100px] hover:bg-card/80 transition-all duration-200">
+  <div className="flex items-start justify-between gap-4 h-full">
+    <div className="flex items-start gap-4">
+      <div className={`p-3 rounded-lg shrink-0 ${category.bgColor}`}>
+        <Icon className={`w-6 h-6 ${category.color}`} />
+      </div>
+
+      <div>
+        <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">
+          {category.title}
+        </h3>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {category.description}
+        </p>
+      </div>
+    </div>
+
+    <ChevronRight className="w-5 h-5 mt-1 shrink-0 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
+  </div>
+</div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Charts */}
+        <div className="space-y-8">
+          <ChartWrapper
+            title="Commercial Vehicles Sales Forecast"
+            summary={
+              overallError
+                ? overallError
+                : "Forecast based on recent commercial vehicle volume trends across trucks and buses."
+            }
+          >
+            {overallChartLoading ? (
+              <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+                Loading commercial vehicle timeseries…
+              </div>
+            ) : (
+              <LineChart
+                overallData={overallData}
+                category="CV"
+                height={350}
+                allowForecast={!!overallMeta?.allowForecast}
+                country={region}
+                baseMonth={overallMeta?.baseMonth}
+                horizon={overallMeta?.horizon}
+                graphId={graphId}
+              />
+            )}
+            {/* <DataAvailabilityHint points={overallData || []} /> */}
+          </ChartWrapper>
+          {/* 2) Segmental split (backend → donut) + 3) Forecast (backend timeseries) */}
+          <div className="grid lg:grid-cols-3 gap-8">
+          {showSegmentChartSection && (
+  <div className="lg:col-span-1">
+    <ChartWrapper
+      title="Commercial Vehicles Segmental Split"
+      summary={segmentSummary}
+    >
+      {segmentError ? (
+        <p className="text-sm text-destructive">{segmentError}</p>
+      ) : segmentLoading ? (
+        <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+          Loading segment split…
+        </div>
+      ) : segmentData.length ? (
+        <DonutChart
+          data={segmentData}
+          height={300}
+          showLegend={true}
+        />
+      ) : null}
+    </ChartWrapper>
+  </div>
+)}
+           {showOemChartSection && (
+  <div className="lg:col-span-2">
+    <ChartWrapper
+      title="Commercial Vehicle OEM Segment Share"
+      summary={oemHasMeaningfulData ? oemSummary : undefined}
+      controls={
+        <div className="flex items-center space-x-3">
+          <CompareToggle
+            value={oemCompare}
+            onChange={setOemCompare}
+          />
+          <MonthSelector
+            value={oemCurrentMonth}
+            onChange={setOemCurrentMonth}
+            label="Current Month"
+          />
+        </div>
+      }
+    >
+      {oemError ? (
+        <p className="text-sm text-destructive">{oemError}</p>
+      ) : oemLoading ? (
+        <div className="h-[350px] flex items-center justify-center text-sm text-muted-foreground">
+          Loading commercial vehicle OEM segment share…
+        </div>
+      ) : oemChartData.length ? (
+        oemHasMeaningfulData ? (
+          <BarChart
+            data={oemChartData}
+            bars={[
+              { key: "current", name: "Current Period", color: "#007AFF" },
+              {
+                key: "previous",
+                name: oemCompare === "mom" ? "Previous Month" : "Previous Year",
+                color: "#6B7280",
+              },
+            ]}
+            height={300}
+            layout="horizontal"
+            tooltipRenderer={renderOemTooltip}
+          />
+        ) : (
+          <div className="flex h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20">
+            <div className="mb-2 text-sm font-semibold text-foreground">No data available</div>
+            <div className="text-xs text-muted-foreground text-center max-w-md px-4">
+              OEM segment share data is not yet available for this period and country.
+            </div>
+          </div>
+        )
+      ) : null}
+    </ChartWrapper>
+  </div>
+)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div className="min-h-screen py-0">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <div className="w-64 h-6 bg-muted rounded shimmer mb-4"></div>
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="w-80 h-8 bg-muted rounded shimmer mb-2"></div>
+              <div className="w-96 h-5 bg-muted rounded shimmer"></div>
+            </div>
+            <div className="flex gap-4">
+              <div className="w-32 h-10 bg-muted rounded shimmer"></div>
+              <div className="w-40 h-10 bg-muted rounded shimmer"></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div
+                key={i}
+                className="w-full h-32 bg-muted rounded-lg shimmer"
+              ></div>
+            ))}
+          </div>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="w-full h-96 bg-muted rounded-lg shimmer"
+            ></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
