@@ -75,6 +75,53 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
     if (!isOpen) setQuery("");
   }, [isOpen]);
 
+  // Countries that actually have data for THIS segment.
+  //
+  // Every country node in the CMS is created with the full set of segment
+  // children, so a country appearing in /api/flash-reports/countries does not
+  // mean the segment you are looking at has data for it. Switching to such a
+  // country used to leave the page reading "0 units" with every metric dashed
+  // out. Those countries are simply not offered here.
+  //
+  // null = unknown/not applicable (hub pages, or the lookup failed) -> show all.
+  const [segmentCountries, setSegmentCountries] = useState<string[] | null>(
+    null,
+  );
+
+  useEffect(() => {
+    // Derive the segment from the route, so segment pages need no changes.
+    const m =
+      typeof window !== "undefined"
+        ? window.location.pathname.match(/^\/flash-reports\/(.+?)\/?$/)
+        : null;
+    const segment = m?.[1];
+    if (!segment) {
+      setSegmentCountries(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/flash-reports/segment-countries?segment=${encodeURIComponent(
+            segment,
+          )}`,
+        );
+        if (!res.ok) return; // unknown segment -> leave selector open
+        const json = await res.json();
+        if (cancelled) return;
+        // `countries: null` is the API's fail-open signal.
+        if (Array.isArray(json?.countries)) setSegmentCountries(json.countries);
+      } catch {
+        // leave the selector fully open rather than hiding everything
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const current = useMemo(() => {
     return (
       options.find((o) => o.value === region) ||
@@ -82,16 +129,29 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
     );
   }, [options, region]);
 
+  // Drop countries with no data for this segment before anything else, so they
+  // never appear in the list or the search results.
+  const selectable = useMemo(() => {
+    if (!segmentCountries) return options;
+    const allowed = new Set(segmentCountries);
+    // Never strip the country currently being viewed — that would leave the
+    // trigger label pointing at an option the list no longer contains.
+    const kept = options.filter(
+      (o) => allowed.has(o.value) || o.value === region,
+    );
+    return kept.length ? kept : options;
+  }, [options, segmentCountries, region]);
+
   // Filter by search, then group by region (registry order), "Other" last.
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = q
-      ? options.filter(
+      ? selectable.filter(
           (o) =>
             o.label.toLowerCase().includes(q) ||
             o.value.toLowerCase().includes(q),
         )
-      : options;
+      : selectable;
 
     const byRegion = new Map<string, CountryOpt[]>();
     for (const o of filtered) {
@@ -109,11 +169,11 @@ export function RegionSelector({ className, lockedToCountries: lockedProp }: Reg
     const other = byRegion.get("other");
     if (other && other.length) ordered.push({ key: "other", label: "Other", items: other });
     return ordered;
-  }, [options, query]);
+  }, [selectable, query]);
 
   // Only show region headers once there is more than one group to organize.
   const showHeaders = groups.length > 1;
-  const showSearch = options.length > 8;
+  const showSearch = selectable.length > 8;
 
   const renderOption = (opt: CountryOpt) => {
     const isLocked =

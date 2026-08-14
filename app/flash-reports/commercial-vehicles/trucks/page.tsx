@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getSegmentSeo } from "@/lib/flashSegmentSeo";
 import { SITE_URL } from "@/lib/seoRoutes";
+import SegmentAvailabilityGuard from "@/components/flash-reports/SegmentAvailabilityGuard";
 import SegmentClient from "./SegmentClient";
 
 // Server wrapper around the interactive report.
@@ -78,6 +79,7 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      <SegmentAvailabilityGuard segment={seo.path} />
       <SegmentClient />
     </>
   );
