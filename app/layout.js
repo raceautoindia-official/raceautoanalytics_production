@@ -16,8 +16,7 @@ import { SubscriptionModalProvider } from "@/utils/SubscriptionModalContext";
 // (home, /pricing, /about, …) to full client-side rendering, so crawlers were
 // served an empty <body>. ScrollToTopButton is a "use client" button that only
 // touches window/document inside its click handler, so it SSRs safely.
-import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
-import TalkToExpertWidget from "@/app/components/TalkToExpertWidget";
+import FloatingSiteWidgets from "@/components/ui/FloatingSiteWidgets";
 
 
 const inter = Inter({
@@ -135,8 +134,8 @@ export default function RootLayout({ children }) {
           </>
         ) : null}
 
-        <ScrollToTopButton />
-        <TalkToExpertWidget />
+        {/* Hidden on /admin — see FloatingSiteWidgets. */}
+        <FloatingSiteWidgets />
         <Suspense fallback={null}>
           <Providers>
             {/* <BootstrapClient /> */}
