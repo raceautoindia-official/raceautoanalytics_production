@@ -513,9 +513,15 @@ const oemSummary = useMemo(
         );
 
         const wantedLabel = toMonthLabel(month);
-        const picked =
-          sortedRows.find((r) => r.month === wantedLabel) ??
-          sortedRows[sortedRows.length - 1]; // fallback
+        // Only the selected month. No fallback: if it is not published, clear
+        // the donut so its section hides rather than showing an older month
+        // under the current label.
+        const picked = sortedRows.find((r) => r.month === wantedLabel);
+        if (!picked) {
+          setSegmentData([]);
+          setSegmentMonthLabel(null);
+          return;
+        }
 
         const pickedLabel = picked.month;
 

@@ -19,7 +19,6 @@ import TractorTrailerForecast from "@/components/charts/TractorTrailorTable";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
-import StaleMonthNotice, { monthKeyFromYyyyMm } from "@/components/flash-reports/StaleMonthNotice";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -566,9 +565,10 @@ useEffect(() => {
       sortMonthLabels(a.month, b.month),
     );
 
-    // pick selected month if present; otherwise fallback to last available
-    const picked =
-      sorted.find((r) => r.month === wantedLabel) ?? sorted[sorted.length - 1];
+    // Only the selected month. No fallback: if it is not published the
+    // donut renders nothing and its section hides.
+    const picked = sorted.find((r) => r.month === wantedLabel);
+    if (!picked) return [];
 
     const arr = [
       { name: "LCV", value: Number(picked.lcv ?? 0) || 0 },
@@ -581,19 +581,6 @@ useEffect(() => {
     return arr;
   }, [segmentRows, month]);
 
-  // Which month the donut actually rendered. It falls back to the newest
-  // available row when the selected month is missing, so surface that
-  // rather than letting an older month sit under the current label.
-  const segmentShownMonth = useMemo(() => {
-    if (!segmentRows.length) return "";
-    const wantedLabel = toMonthLabel(month);
-    const sorted = [...segmentRows].sort((a, b) =>
-      sortMonthLabels(a.month, b.month),
-    );
-    const picked =
-      sorted.find((r) => r.month === wantedLabel) ?? sorted[sorted.length - 1];
-    return picked?.month || "";
-  }, [segmentRows, month]);
 
   const segmentTotal = segmentDonutData.reduce(
     (sum, item) => sum + item.value,
@@ -679,12 +666,10 @@ useEffect(() => {
     const key =
       year && idx >= 0 && idx <= 11 ? `${MONTHS_SHORT[idx]} ${year}` : "";
 
-    const fallback =
-      key && appAvailableMonths.includes(key)
-        ? key
-        : appAvailableMonths[appAvailableMonths.length - 1];
-
-    setAppMonth(fallback);
+          // Show ONLY the month the user asked for. If it is not published,
+      // leave this empty so the section hides — an older month must never
+      // be presented as the selected one.
+    setAppMonth(key && appAvailableMonths.includes(key) ? key : "");
   }, [month, appAvailableMonths, region]);
 
   const appChartData = useMemo(() => {
@@ -895,10 +880,6 @@ const showApplicationChartSection =
                 : "No truck segment distribution data available."
           }
         >
-          <StaleMonthNotice
-            requestedKey={toMonthLabel(month)}
-            shownKey={segmentShownMonth}
-          />
           {segmentError ? (
             <p className="text-sm text-destructive">{segmentError}</p>
           ) : segmentLoading ? (
@@ -933,12 +914,6 @@ const showApplicationChartSection =
       : "No application distribution data available."
 }
         >
-          {/* Chart falls back to the newest month it has; say so instead of
-              silently mislabelling older data as the selected month. */}
-          <StaleMonthNotice
-            requestedKey={monthKeyFromYyyyMm(month)}
-            shownKey={appMonth}
-          />
           {appError ? (
             <p className="text-sm text-destructive">{appError}</p>
           ) : appLoading ? (

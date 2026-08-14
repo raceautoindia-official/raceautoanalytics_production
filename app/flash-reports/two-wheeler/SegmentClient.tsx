@@ -17,7 +17,6 @@ import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 import { BrandModelsChart } from "@/components/flash-reports/BrandModelsChart";
-import StaleMonthNotice, { monthKeyFromYyyyMm } from "@/components/flash-reports/StaleMonthNotice";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -751,11 +750,10 @@ const res = await fetch(
           const short = getShortMonthFromYyyyMm(baseMonth);
           const candidate = `${short} ${yearStr}`;
 
-          const fallback = sorted.includes(candidate)
-            ? candidate
-            : sorted[sorted.length - 1];
-
-          setAppSelectedKey(fallback);
+                // Show ONLY the month the user asked for. If it is not published,
+      // leave this empty so the section hides — an older month must never
+      // be presented as the selected one.
+          setAppSelectedKey(sorted.includes(candidate) ? candidate : null);
         }
       } catch (err) {
         console.error(err);
@@ -787,11 +785,10 @@ const res = await fetch(
     const short = getShortMonthFromYyyyMm(baseMonth);
     const candidate = `${short} ${yearStr}`;
 
-    const fallback = appAvailableMonths.includes(candidate)
-      ? candidate
-      : appAvailableMonths[appAvailableMonths.length - 1];
-
-    setAppSelectedKey(fallback);
+          // Show ONLY the month the user asked for. If it is not published,
+      // leave this empty so the section hides — an older month must never
+      // be presented as the selected one.
+    setAppSelectedKey(appAvailableMonths.includes(candidate) ? candidate : null);
   }, [appMonth, month, appAvailableMonths]);
 
   const appBarData = useMemo(() => {
@@ -1096,12 +1093,6 @@ const showApplicationChartSection =
         />
       }
     >
-      {/* Chart falls back to the newest month it has; say so instead of
-          silently mislabelling older data as the selected month. */}
-      <StaleMonthNotice
-        requestedKey={monthKeyFromYyyyMm(appMonth || month)}
-        shownKey={appSelectedKey}
-      />
       {appError ? (
         <p className="text-sm text-destructive">{appError}</p>
       ) : appLoading ? (

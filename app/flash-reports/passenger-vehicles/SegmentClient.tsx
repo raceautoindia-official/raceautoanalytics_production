@@ -22,7 +22,6 @@ import { ChartSummary } from "@/components/charts/ChartSummary";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
-import StaleMonthNotice, { monthKeyFromYyyyMm } from "@/components/flash-reports/StaleMonthNotice";
 
 const MONTHS_SHORT = [
   "jan",
@@ -659,12 +658,10 @@ useEffect(() => {
     const key =
       year && idx >= 0 && idx <= 11 ? `${MONTHS_SHORT[idx]} ${year}` : "";
 
-    const fallback =
-      key && appAvailableMonths.includes(key)
-        ? key
-        : appAvailableMonths[appAvailableMonths.length - 1];
-
-    setAppMonth(fallback);
+          // Show ONLY the month the user asked for. If it is not published,
+      // leave this empty so the section hides — an older month must never
+      // be presented as the selected one.
+    setAppMonth(key && appAvailableMonths.includes(key) ? key : "");
   }, [month, appAvailableMonths, region]);
 
   const appChartData = useMemo(() => {
@@ -1022,12 +1019,6 @@ const showApplicationChartSection =
       : "No passenger vehicle application distribution data available."
 }
     >
-      {/* Chart falls back to the newest month it has; say so instead of
-          silently mislabelling older data as the selected month. */}
-      <StaleMonthNotice
-        requestedKey={monthKeyFromYyyyMm(month)}
-        shownKey={appMonth}
-      />
       {appError ? (
         <p className="text-sm text-destructive">{appError}</p>
       ) : appLoading ? (
