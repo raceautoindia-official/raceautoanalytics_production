@@ -7,6 +7,7 @@ import {
 } from "@/lib/flashReportRegistry";
 import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
 import { CountryFlag } from "@/components/ui/CountryFlag";
+import { SITE_URL } from "@/lib/seoRoutes";
 
 // Refresh hourly so a market added in the CMS appears without a rebuild.
 export const revalidate = 3600;
@@ -45,8 +46,54 @@ export default async function CountryDataIndexPage() {
   const regionGroups = groupCountriesByRegion(countries);
   const totalMarkets = countries.length;
 
+  // This hub had no structured data at all, so an AI crawler had to infer the
+  // market list from link text. Enumerating the countries as CollectionPage
+  // parts makes the coverage machine-readable and keeps it in step with the
+  // live CMS list above.
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Country Flash Report Data Coverage",
+    url: `${SITE_URL}/flash-reports/country-data`,
+    description: `Automotive flash report coverage across ${totalMarkets} markets — vehicle sales data, OEM segment share, EV trends, and application splits.`,
+    isPartOf: { "@type": "WebSite", name: "Race Auto Analytics", url: SITE_URL },
+    hasPart: countries.map((c) => ({
+      "@type": "WebPage",
+      name: `${c.name} automotive flash report`,
+      url: `${SITE_URL}/flash-reports/country-data/${c.slug}`,
+    })),
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Flash Reports",
+        item: `${SITE_URL}/flash-reports/overview`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: "Country Data Coverage",
+        item: `${SITE_URL}/flash-reports/country-data`,
+      },
+    ],
+  };
+
   return (
     <section className="min-h-screen bg-slate-950 text-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <div className="mx-auto w-[95vw] max-w-none px-2 pb-20 pt-14 sm:px-3 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
         {/* Hero */}
         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0b141f]/80 shadow-[0_18px_60px_rgba(0,0,0,.55)]">
