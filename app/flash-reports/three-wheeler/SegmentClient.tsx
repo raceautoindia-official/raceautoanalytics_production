@@ -17,6 +17,7 @@ import { generateSegmentData, formatNumber } from "@/lib/mockData";
 import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
+import MarketSummary from "@/components/flash-reports/MarketSummary";
 
 const MONTHS_SHORT = [
   "jan",
@@ -831,47 +832,31 @@ const showApplicationChartSection =
         </div>
 
         {/* Summary */}
-        <div className="flash-summary-block mb-8 p-6 bg-card/30 rounded-lg border border-border/50">
-          <h2 className="text-lg font-semibold mb-3">
-            Market Summary - {pageMonthLabel}
-          </h2>
-          <div className="grid md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Total 3W Sales:</span>
-              <span className="ml-2 font-medium">
-                {formatNumber(latest3W || 0)} units
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">3W Growth Rate:</span>
-              <span
-                className={`ml-2 font-medium ${
-                  growthSummary.mom != null && growthSummary.mom >= 0
-                    ? "text-success"
-                    : "text-destructive"
-                }`}
-              >
-                {growthSummary.text}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
-              {/* Audit I-7: tooltip explains a bare "—" (data not yet available
-                  for the selected month/country) instead of leaving the user
-                  guessing whether it's missing, gated, or N/A. */}
-              <span
-                className="ml-2 font-medium text-primary"
-                title={
-                  altFuelHeaderLabel === "—"
-                    ? "Alternate fuel share is not yet available for the selected month and country."
-                    : undefined
-                }
-              >
-{altFuelHeaderLabel}
-              </span>
-            </div>
-          </div>
-        </div>
+        <MarketSummary
+          monthLabel={pageMonthLabel}
+          cells={[
+            {
+              label: "Total 3W Sales",
+              value: latest3W ? `${formatNumber(latest3W)} units` : null,
+            },
+            {
+              label: "3W Growth Rate",
+              value: growthSummary.text,
+              tone: "growth",
+              growth: growthSummary.mom,
+            },
+            {
+              label: "Alternate Fuel Adoption",
+              value: altFuelHeaderLabel,
+              tone: "primary",
+            },
+            {
+              label: "Leading OEM",
+              value: formatLeadingOemLabel(oemComputed?.chartData ?? []),
+              tone: "primary",
+            },
+          ]}
+        />
 
 
 

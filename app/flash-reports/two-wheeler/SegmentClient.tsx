@@ -17,6 +17,7 @@ import { withCountry } from "@/lib/withCountry";
 import { buildLeadershipGrowthSummary, formatAltFuelHeaderLabel, formatGrowthWithYoY, formatLeadingOemLabel, isOthersLike, mergeOthersRows } from "@/lib/flashReportSummary";
 import { SegmentCmsText } from "@/components/flash-reports/SegmentCmsText";
 import { BrandModelsChart } from "@/components/flash-reports/BrandModelsChart";
+import MarketSummary from "@/components/flash-reports/MarketSummary";
 const MONTHS_SHORT = [
   "jan",
   "feb",
@@ -900,46 +901,31 @@ const showApplicationChartSection =
         </div>
 
         {/* Summary */}
-        <div className="flash-summary-block mb-8 p-6 bg-card/30 rounded-lg border border-border/50">
-          <h2 className="text-lg font-semibold mb-3">
-            Market Summary - {pageMonthLabel}
-          </h2>
-          <div className="grid md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Total 2W Sales:</span>
-              <span className="ml-2 font-medium">
-                {formatNumber(latest2W || 0)} units
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">2W Growth Rate:</span>
-              <span
-                className={`ml-2 font-medium ${
-                  growthSummary.mom != null && growthSummary.mom >= 0
-                    ? "text-success"
-                    : "text-destructive"
-                }`}
-              >
-                {growthSummary.text}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Alternate Fuel Adoption:</span>
-              {/* Audit I-7: explain a bare "—" so the user doesn't wonder
-                  whether data is missing, gated, or N/A. */}
-              <span
-                className="ml-2 font-medium text-primary"
-                title={
-                  altFuelHeaderLabel === "—"
-                    ? "Alternate fuel share is not yet available for the selected month and country."
-                    : undefined
-                }
-              >
-{altFuelHeaderLabel}
-              </span>
-            </div>
-          </div>
-        </div>
+        <MarketSummary
+          monthLabel={pageMonthLabel}
+          cells={[
+            {
+              label: "Total 2W Sales",
+              value: latest2W ? `${formatNumber(latest2W)} units` : null,
+            },
+            {
+              label: "2W Growth Rate",
+              value: growthSummary.text,
+              tone: "growth",
+              growth: growthSummary.mom,
+            },
+            {
+              label: "Alternate Fuel Adoption",
+              value: altFuelHeaderLabel,
+              tone: "primary",
+            },
+            {
+              label: "Leading OEM",
+              value: formatLeadingOemLabel(oemComputed?.chartData ?? []),
+              tone: "primary",
+            },
+          ]}
+        />
 
 
         {/* Charts */}
