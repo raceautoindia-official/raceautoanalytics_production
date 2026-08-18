@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
-import { LineChart } from "@/components/charts/LineChart";
+import {
+  hasMeaningfulLineSeriesData,
+  LineChart,
+} from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
 import { BrandModelsChart } from "@/components/flash-reports/BrandModelsChart";
 import { DonutChart } from "@/components/charts/DonutChart";
@@ -497,17 +500,17 @@ useEffect(() => {
     // Race-condition fix: re-fire when entitlement settles or isFreeUser flips.
   }, [month, region, flashEntitlement?.loading, isFreeUser]);
 
-  // Tipper / Tractor-Trailer availability for the selected country: do any
-  // overall-chart-data points carry a "Tipper" / "Trailer" value? This drives
-  // whether the whole section (chart AND passcode/lock UI) renders — so a user
-  // never sees a lock for data that doesn't exist for their country.
+  // Use the same meaningful-data rule as LineChart: a category is available
+  // only when at least one dated point contains a finite, non-zero value. This
+  // gates the whole section (chart AND passcode/lock UI), so a user never sees
+  // a lock for data that doesn't exist for their country.
   const hasTipperData = useMemo(
-    () => (overallData || []).some((p: any) => p?.data?.Tipper != null),
+    () => hasMeaningfulLineSeriesData(overallData, "Tipper"),
     [overallData],
   );
 
   const hasTrailerData = useMemo(
-    () => (overallData || []).some((p: any) => p?.data?.Trailer != null),
+    () => hasMeaningfulLineSeriesData(overallData, "Trailer"),
     [overallData],
   );
 

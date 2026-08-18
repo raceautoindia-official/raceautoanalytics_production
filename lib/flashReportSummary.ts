@@ -31,15 +31,6 @@ function formatDelta(delta: number) {
   return `${numeric >= 0 ? "+" : ""}${cleaned}%`;
 }
 
-function isOthers(name: string) {
-  return name.trim().toLowerCase() === "others";
-}
-
-function isOtherLike(name: string) {
-  const normalized = name.trim().toLowerCase();
-  return normalized === "others" || normalized === "other";
-}
-
 /**
  * Permissive "Others" detector — matches the bare "Others" label AND any
  * customized variant the admin may have authored in the CMS, e.g.:
@@ -153,8 +144,7 @@ export function buildLeadershipGrowthSummary({
     (row) =>
       row &&
       row.name &&
-      !isOthers(row.name) &&
-      !isOtherLike(row.name) &&
+      !isOthersLike(row.name) &&
       Number.isFinite(row.current),
   );
 

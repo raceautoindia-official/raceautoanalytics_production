@@ -127,6 +127,24 @@ type AnyRow = {
   [k: string]: any;
 };
 
+export function hasMeaningfulLineSeriesData(
+  overallData: AnyRow[] | null | undefined,
+  category: string,
+) {
+  const rows = Array.isArray(overallData) ? overallData : [];
+
+  return rows.some((row) => {
+    if (!isYYYYMM(String(row?.month || ""))) return false;
+
+    const nestedData =
+      row?.data && typeof row.data === "object" ? row.data : {};
+    const rawValue = nestedData[category] ?? row?.[category];
+    const value = rawValue == null ? null : Number(rawValue);
+
+    return value != null && Number.isFinite(value) && value !== 0;
+  });
+}
+
 interface LineChartProps {
   overallData: AnyRow[];
   category: string;
@@ -210,12 +228,8 @@ export function LineChart({
   // selected category. Used purely for render-gating (show placeholder vs chart).
   // Intentionally separate from allowForecastByData — see note below.
   const hasMeaningfulData = useMemo(
-    () =>
-      normalized.some((p) => {
-        const val = p.data?.[selectedCat];
-        return val != null && Number.isFinite(Number(val)) && Number(val) !== 0;
-      }),
-    [normalized, selectedCat],
+    () => hasMeaningfulLineSeriesData(overallData, selectedCat),
+    [overallData, selectedCat],
   );
 
   // Do not gate on normalized.some(…) here: that check flips false while overallData
