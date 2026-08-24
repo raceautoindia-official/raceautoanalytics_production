@@ -4,6 +4,9 @@ import { normalizeCountryKey } from "@/lib/flashReportCountry";
 
 export const dynamic = "force-dynamic";
 
+// Market whose graph mapping is used when a country has none of its own.
+const DEFAULT_MAPPING_COUNTRY = "india";
+
 // Columns that have always existed on flash_reports_text.
 const CORE_COLUMNS = [
   "overall_graph_id",
@@ -72,7 +75,40 @@ export async function GET(req: Request) {
 
     const row = await getCountryRow(countryKey);
 
-    const safeRow: MappingRow = row || {};
+    let safeRow: MappingRow = row || {};
+
+    // Tipper / Tractor-Trailer fall back to the default market's graph mapping.
+    //
+    // These two columns were added late and only india was ever filled in, yet
+    // the forecast VALUES are stored per country against the same graph id
+    // (flash_graph_forecasts.graph_id + .country) — exactly how truck reuses
+    // graph 167 across markets. So Austria and Germany had real Tractor-Trailer
+    // forecasts sitting in the table that could never render, because graphId
+    // resolved to null and the chart disabled its forecast lines.
+    //
+    // Falling back is safe: the id is still validated against real flash graphs
+    // below, and a country with no forecast row for that graph simply gets an
+    // empty result, i.e. historical-only — the behaviour it already had.
+    if (
+      countryKey !== DEFAULT_MAPPING_COUNTRY &&
+      (safeRow.tipper_graph_id == null || safeRow.trailer_graph_id == null)
+    ) {
+      try {
+        const fallback = await getCountryRow(DEFAULT_MAPPING_COUNTRY);
+        if (fallback) {
+          safeRow = {
+            ...safeRow,
+            tipper_graph_id:
+              safeRow.tipper_graph_id ?? fallback.tipper_graph_id ?? null,
+            trailer_graph_id:
+              safeRow.trailer_graph_id ?? fallback.trailer_graph_id ?? null,
+          };
+        }
+      } catch (e) {
+        // Never let the fallback break the rest of the mapping.
+        console.error("config: tipper/trailer fallback failed:", e);
+      }
+    }
 
     // Validate mapping IDs against real Flash graphs to avoid sending stale/non-existent IDs.
     const requested = [
