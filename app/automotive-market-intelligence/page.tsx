@@ -3,6 +3,12 @@ import { ArrowRight, BarChart3, CheckCircle2, LineChart } from "lucide-react";
 import Footer from "@/app/components/Footer";
 import NavBar from "@/app/components/Navbar";
 import LeadCaptureForm from "./LeadCaptureForm";
+import FaqSection from "@/components/seo/FaqSection";
+import { getAutomotiveFaqs } from "@/lib/automotiveFaq";
+import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
+
+// Hourly, so the FAQ market count tracks the CMS.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title:
@@ -72,7 +78,16 @@ const choosePoints = [
   "Designed for fast executive-level reporting",
 ];
 
-export default function AutomotiveMarketIntelligencePage() {
+export default async function AutomotiveMarketIntelligencePage() {
+  // Live market count so the FAQ answers cannot drift as markets are added.
+  let countryCount = 0;
+  try {
+    countryCount = (await getLiveFlashCountrySlugs()).length;
+  } catch {
+    countryCount = 0; // answers fall back to "global markets"
+  }
+  const faqs = getAutomotiveFaqs(countryCount);
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <NavBar />
@@ -245,6 +260,12 @@ export default function AutomotiveMarketIntelligencePage() {
             </div>
           </div>
         </section>
+
+        <FaqSection
+          items={faqs}
+          heading="Automotive market intelligence: frequently asked questions"
+          intro="Common questions about coverage, how the monthly data is published, how the six-month forecasts are built, and how subscriptions work."
+        />
 
         <section className="bg-slate-950 pb-12 pt-4 text-white md:pb-16">
           <div className="mx-auto w-[95vw] max-w-none px-2 sm:px-3 lg:px-4 xl:w-[93vw] 2xl:w-[90vw]">
