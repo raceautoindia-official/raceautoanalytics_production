@@ -194,6 +194,16 @@ export default function Footer() {
               Methodology
             </Link>
             <span className="mx-2 select-none text-white/35">•</span>
+            {/* Was reachable only via the sitemap: an orphan page gets no
+                internal link equity, which held back the keyword landing page
+                it is meant to be. */}
+            <Link
+              href="/automotive-market-intelligence"
+              className="hover:text-white"
+            >
+              Market Intelligence
+            </Link>
+            <span className="mx-2 select-none text-white/35">•</span>
             <Link href="/terms-conditions" className="hover:text-white">
               Terms &amp; Conditions
             </Link>

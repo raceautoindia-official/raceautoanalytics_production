@@ -1,4 +1,19 @@
-export type FaqItem = { q: string; a: string };
+export type FaqLink = {
+  /** Exact phrase inside `a` to turn into a link (first match only). */
+  match: string;
+  href: string;
+};
+
+export type FaqItem = {
+  q: string;
+  a: string;
+  /**
+   * Internal links rendered inside the answer. `a` itself stays plain text so
+   * the FAQPage schema never contains markup — the linking happens only in the
+   * visible render.
+   */
+  links?: FaqLink[];
+};
 
 /**
  * FAQ for /automotive-market-intelligence.
@@ -33,6 +48,9 @@ export function getAutomotiveFaqs(countryCount: number): FaqItem[] {
     {
       q: "Which countries does Race Auto Analytics cover?",
       a: `Coverage currently spans ${markets} across Asia-Pacific, Europe, Latin America, and the Middle East & Africa, and grows as new markets are published. Depth varies by market — not every segment is available everywhere. The country data coverage page lists every market currently live and the segments each one carries.`,
+      links: [
+        { match: "country data coverage page", href: "/flash-reports/country-data" },
+      ],
     },
     {
       q: "Which vehicle segments are covered?",
@@ -41,6 +59,9 @@ export function getAutomotiveFaqs(countryCount: number): FaqItem[] {
     {
       q: "How often is the automotive sales data updated?",
       a: "Flash reports are monthly. Each report covers one data month and is published the following month, once that month's figures are available and normalised. Forecasts refresh alongside the underlying data, so the six-month outlook always runs from the latest published month.",
+      links: [
+        { match: "Flash reports", href: "/flash-reports/overview" },
+      ],
     },
     {
       q: "Why does the latest report show the previous month?",
@@ -61,6 +82,9 @@ export function getAutomotiveFaqs(countryCount: number): FaqItem[] {
     {
       q: "What is a six-month vehicle sales forecast?",
       a: "A projection of sales volumes for the six months following the latest published data month, anchored to that month's actuals. It is built for planning cycles — production, inventory, procurement and budgeting — where the useful horizon is the next two quarters rather than several years out.",
+      links: [
+        { match: "six months", href: "/forecast/overview" },
+      ],
     },
     {
       q: "Which forecast methods can I compare?",
@@ -73,6 +97,9 @@ export function getAutomotiveFaqs(countryCount: number): FaqItem[] {
     {
       q: "How reliable are the sales forecasts?",
       a: "No forecast is certain, which is precisely why several methods are shown side by side instead of one headline figure. Historical actuals are always plotted alongside the projections, so a forecast can be judged against the trend it came from. The full modelling approach and assumptions are set out on the methodology page.",
+      links: [
+        { match: "methodology page", href: "/methodology" },
+      ],
     },
     {
       q: "What does it mean when a country or month shows no data?",
@@ -93,6 +120,9 @@ export function getAutomotiveFaqs(countryCount: number): FaqItem[] {
     {
       q: "How many countries does each subscription include?",
       a: "Plans are structured around how many markets you track. The entry plan covers one country, the next covers four, and the business tiers extend to five and eleven country slots, so you pay for the markets you actually follow. Current pricing for each tier is listed on the pricing page.",
+      links: [
+        { match: "pricing page", href: "/pricing" },
+      ],
     },
     {
       q: "How does billing work, and is GST included?",
@@ -101,6 +131,9 @@ export function getAutomotiveFaqs(countryCount: number): FaqItem[] {
     {
       q: "Can I see the data before subscribing?",
       a: "Yes. Public pages carry the market scope, segment coverage, definitions and summary for each country, so you can confirm the data fits before paying. Full datasets and the interactive charts are for subscribers, and you can request a sample report or speak to an analyst about a specific market or custom requirement.",
+      links: [
+        { match: "request a sample report", href: "/automotive-market-intelligence#sample-report-form" },
+      ],
     },
   ];
 }

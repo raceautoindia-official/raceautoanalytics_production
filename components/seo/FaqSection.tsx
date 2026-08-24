@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { FaqItem } from "@/lib/automotiveFaq";
 
 /**
@@ -18,6 +19,54 @@ import type { FaqItem } from "@/lib/automotiveFaq";
  * page, deepens topical coverage for the page's target keywords, and gives
  * AI answer engines clean question/answer pairs to quote.
  */
+
+/**
+ * Render an answer, turning any declared phrases into internal links.
+ *
+ * Only the VISIBLE output is linked — the schema below uses the raw `a` string,
+ * so the structured data stays plain text (markup inside acceptedAnswer.text
+ * is not valid). Each phrase is linked on its first occurrence only.
+ */
+function renderAnswer(item: FaqItem) {
+  const links = item.links ?? [];
+  if (!links.length) return item.a;
+
+  // Walk the answer once, splitting on the earliest remaining match.
+  let rest = item.a;
+  const out: React.ReactNode[] = [];
+  const pending = [...links];
+  let key = 0;
+
+  while (pending.length) {
+    let bestIdx = -1;
+    let bestPos = Infinity;
+    pending.forEach((l, i) => {
+      const pos = rest.indexOf(l.match);
+      if (pos !== -1 && pos < bestPos) {
+        bestPos = pos;
+        bestIdx = i;
+      }
+    });
+    if (bestIdx === -1) break;
+
+    const [link] = pending.splice(bestIdx, 1);
+    out.push(rest.slice(0, bestPos));
+    out.push(
+      <Link
+        key={`l-${key++}`}
+        href={link.href}
+        className="text-blue-300 underline decoration-blue-300/40 underline-offset-2 transition hover:text-blue-200 hover:decoration-blue-200"
+      >
+        {link.match}
+      </Link>,
+    );
+    rest = rest.slice(bestPos + link.match.length);
+  }
+
+  out.push(rest);
+  return out;
+}
+
 export default function FaqSection({
   items,
   heading = "Frequently asked questions",
@@ -93,7 +142,7 @@ export default function FaqSection({
                       </span>
                     </summary>
                     <div className="px-4 pb-4 text-sm leading-7 text-white/70">
-                      {item.a}
+                      {renderAnswer(item)}
                     </div>
                   </details>
                 ))}

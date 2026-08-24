@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import NavBar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import FaqSection from "@/components/seo/FaqSection";
+import { SUPPORT_FAQS } from "@/lib/supportFaq";
 import { Mail, Phone, MapPin } from "lucide-react";
 import { SITE_URL } from "@/lib/seoRoutes";
 import ContactForm from "./ContactForm";
@@ -110,6 +112,16 @@ export default function ContactPage() {
             </div>
           </div>
         </section>
+
+        {/* Support FAQ: operational questions for people already using the
+            product. Distinct from the informational FAQ on
+            /automotive-market-intelligence, so the two do not compete. */}
+        <FaqSection
+          items={SUPPORT_FAQS}
+          id="support-faq"
+          heading="Help &amp; support"
+          intro="Answers to the questions we are asked most about access, plans, coverage and billing. If yours is not here, send us a message above."
+        />
       </main>
       <Footer />
     </>
