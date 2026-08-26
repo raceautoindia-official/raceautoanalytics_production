@@ -17,6 +17,12 @@ interface DonutChartProps {
     name: string;
     value: number;
     color?: string;
+    /**
+     * Expanded label shown in the hover tooltip only. Slice labels and the
+     * legend keep the short `name`, so an abbreviation like "LCV" can be
+     * spelled out on hover without crowding the chart.
+     */
+    fullName?: string;
   }>;
   height?: number;
   className?: string;
@@ -67,7 +73,9 @@ export function DonutChart({
 
       return (
         <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg px-4 py-3 shadow-xl animate-fade-in">
-          <p className="text-sm font-semibold mb-1">{item.name}</p>
+          <p className="text-sm font-semibold mb-1">
+            {item.payload?.fullName || item.name}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">
             {percentage}% of total
           </p>

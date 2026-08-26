@@ -71,6 +71,8 @@ type CompareRow = {
 type SegmentDonutPoint = {
   name: string;
   value: number;
+  /** Expanded label used by the chart tooltip only (e.g. "LCV – Light …"). */
+  fullName?: string;
 };
 
 type CvSegmentRow = {
@@ -527,9 +529,9 @@ const oemSummary = useMemo(
         const pickedLabel = picked.month;
 
         const donut: SegmentDonutPoint[] = [
-          { name: "LCV", value: Number(picked.lcv ?? 0) || 0 },
-          { name: "MCV", value: Number(picked.mcv ?? 0) || 0 },
-          { name: "HCV + Others", value: Number(picked.hcv ?? 0) || 0 },
+          { name: "LCV", fullName: "LCV – Light Commercial Vehicle", value: Number(picked.lcv ?? 0) || 0 },
+          { name: "MCV", fullName: "MCV – Medium Commercial Vehicle", value: Number(picked.mcv ?? 0) || 0 },
+          { name: "HCV + Others", fullName: "HCV – Heavy Commercial Vehicle (and others)", value: Number(picked.hcv ?? 0) || 0 },
         ].filter((x) => x.value > 0);
 
         setSegmentData(donut);
@@ -801,11 +803,18 @@ const oemHasMeaningfulData = oemChartData.some((r) => r.current !== 0);
           Loading segment split…
         </div>
       ) : segmentData.length ? (
-        <DonutChart
-          data={segmentData}
-          height={300}
-          showLegend={true}
-        />
+        <>
+          <DonutChart
+            data={segmentData}
+            height={300}
+            showLegend={true}
+          />
+          {/* Spell out the abbreviations used by the slices. */}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Note: LCV – Light Commercial Vehicle, MCV – Medium Commercial
+            Vehicle, HCV – Heavy Commercial Vehicle.
+          </p>
+        </>
       ) : null}
     </ChartWrapper>
   </div>

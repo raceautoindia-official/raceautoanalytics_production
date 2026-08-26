@@ -528,10 +528,11 @@ useEffect(() => {
     if (!picked) return [];
 
     const arr = [
-      { name: "LCV", value: Number(picked.lcv ?? 0) || 0, color: "#22C55E" },
-      { name: "MCV", value: Number(picked.mcv ?? 0) || 0, color: "#0EA5E9" },
+      { name: "LCV", fullName: "LCV – Light Commercial Vehicle", value: Number(picked.lcv ?? 0) || 0, color: "#22C55E" },
+      { name: "MCV", fullName: "MCV – Medium Commercial Vehicle", value: Number(picked.mcv ?? 0) || 0, color: "#0EA5E9" },
       {
         name: "HCV + Others",
+        fullName: "HCV – Heavy Commercial Vehicle (and others)",
         value: Number(picked.hcv ?? 0) || 0,
         color: "#F97316",
       },
@@ -836,11 +837,18 @@ const showApplicationChartSection =
               Loading bus segment split…
             </div>
           ) : segmentDonutData.length ? (
-            <DonutChart
-              data={segmentDonutData}
-              height={300}
-              showLegend={true}
-            />
+            <>
+              <DonutChart
+                data={segmentDonutData}
+                height={300}
+                showLegend={true}
+              />
+              {/* Spell out the abbreviations used by the slices. */}
+              <p className="mt-3 text-xs text-muted-foreground">
+                Note: LCV – Light Commercial Vehicle, MCV – Medium Commercial
+                Vehicle, HCV – Heavy Commercial Vehicle.
+              </p>
+            </>
           ) : null}
         </ChartWrapper>
       </div>
