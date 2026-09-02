@@ -84,6 +84,32 @@ const extractCountryFromReturnTo = (returnTo) => {
   }
 };
 
+
+/**
+ * True when the signed-in user already has an active subscription, so the
+ * post-submit "Subscribe to see BYF data" card should be skipped.
+ *
+ * Fails CLOSED (returns false) on any error: showing the subscribe card to a
+ * subscriber is a small annoyance, but silently redirecting a free user past
+ * the upsell would lose the conversion.
+ */
+async function hasByfAccess() {
+  try {
+    const res = await fetch("/api/subscription/flash-entitlement", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return (
+      !!data?.isSubscribed &&
+      String(data?.effectiveStatus || "").toLowerCase() === "active"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export default function ScoreCard() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -456,12 +482,27 @@ export default function ScoreCard() {
           duration: 3,
         });
 
-        // Replace silent redirect with the unified success card so logged-in
-        // users see the same "Subscribe to see BYF data" CTA as post-login
-        // anonymous users. The Back button on the card preserves returnTo.
         try {
           sessionStorage.removeItem(PENDING_BYF_KEY);
         } catch {}
+
+        // Subscribers already have BYF access, so asking them to subscribe
+        // after they have just filled in every question is wrong. Send them
+        // straight back to the chart instead; only unsubscribed users see the
+        // "Subscribe to see BYF data" card.
+        //
+        // Hard reload rather than router.push, so the chart refetches and shows
+        // the score just submitted (a soft navigation serves the cached,
+        // pre-submit chart).
+        if (await hasByfAccess()) {
+          const target =
+            (pendingPayloadInfo && pendingPayloadInfo.returnTo) ||
+            returnToParam ||
+            "/flash-reports/overview";
+          window.location.assign(target);
+          return;
+        }
+
         setAutoFlowState("success-submitted");
         return;
       } else {
