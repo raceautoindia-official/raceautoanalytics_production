@@ -83,7 +83,33 @@ export async function POST(req) {
         )
       : 0;
 
-    const levelAt = (i) => last * Math.pow(1 + drift, i + 1);
+    // Deseasonalise the anchor before projecting. `last` is an actual, so it
+    // already carries its own month's seasonal effect; multiplying the seasonal
+    // index back on top of it would count that effect twice (the same mistake
+    // the model makes unprompted).
+    const lastMonth = series[series.length - 1].month;
+    const lastCm = monthOf(lastMonth);
+    const anchorFactor = idx && lastCm ? idx[lastCm] : 1;
+    const lastDeseasoned =
+      Number.isFinite(anchorFactor) && anchorFactor > 0
+        ? last / anchorFactor
+        : last;
+
+    // Drift measured on the deseasonalised series, so a festive month at the
+    // end of the history is not mistaken for underlying growth.
+    const deseasonedSteps = [];
+    for (let i = 1; i < series.length; i++) {
+      const f0 = idx ? idx[monthOf(series[i - 1].month)] || 1 : 1;
+      const f1 = idx ? idx[monthOf(series[i].month)] || 1 : 1;
+      const a = series[i - 1].value / f0;
+      const b = series[i].value / f1;
+      if (a) deseasonedSteps.push((b - a) / a);
+    }
+    const trendDrift = deseasonedSteps.length
+      ? deseasonedSteps.reduce((a, b) => a + b, 0) / deseasonedSteps.length
+      : drift;
+
+    const levelAt = (i) => lastDeseasoned * Math.pow(1 + trendDrift, i + 1);
     const fallback = () => applySeasonality(periods, levelAt, idx);
 
     const instructions = `
@@ -157,9 +183,26 @@ ${questions.map((q) => `- (${q.type}) ${q.text} (Weight: ${q.weight})`).join("\n
       }
     }
 
+    // Plausibility band from the market's own recent history. The model tends
+    // to DOUBLE-COUNT seasonality: it anchors on a last actual that already
+    // contains the seasonal effect, then multiplies by the index again. On
+    // India 2W that produced 2.85M against a historical range of ~1.3-1.9M.
+    // Anything outside the band is not credible, so the deterministic
+    // seasonal path is used instead.
+    const recent = series.slice(-24).map((p) => p.value);
+    const loBand = Math.min(...recent) * 0.7;
+    const hiBand = Math.max(...recent) * 1.3;
+    const implausible = (vals) =>
+      vals.some((v) => !Number.isFinite(v) || v < loBand || v > hiBand);
+
     let repaired = false;
     if (Object.keys(out).length !== periods.length) {
       // Incomplete or unusable response.
+      out = fallback();
+      repaired = true;
+    } else if (implausible(periods.map((p) => out[p]))) {
+      // Outside what this market has ever done — discard and use the
+      // deterministic seasonal projection built from the actuals.
       out = fallback();
       repaired = true;
     } else if (isEffectivelyLinear(periods.map((p) => out[p]))) {
