@@ -356,6 +356,31 @@ export function LineChart({
     enabledTypes,
   ]);
 
+  // Scroll-window range for the Brush.
+  //
+  // These were previously passed as props recomputed on EVERY render, which
+  // made the brush uncontrollable: any re-render (a mouse move over the chart
+  // updates hover state) re-applied the default window, so a drag snapped
+  // straight back. Holding the range in state and updating it from onChange
+  // lets a drag stick.
+  const [brushRange, setBrushRange] = useState<{
+    startIndex: number;
+    endIndex: number;
+  } | null>(null);
+
+  // Re-seed the window when the underlying series changes (country/month/
+  // segment switch), but not on unrelated re-renders.
+  useEffect(() => {
+    if (!chartData.length) {
+      setBrushRange(null);
+      return;
+    }
+    setBrushRange({
+      startIndex: Math.max(0, chartData.length - DEFAULT_VISIBLE_POINTS),
+      endIndex: chartData.length - 1,
+    });
+  }, [chartData.length]);
+
   const baseMonthLabel = useMemo(() => {
     if (!isYYYYMM(baseMonth)) return null;
     const date = new Date(`${baseMonth}-01`);
@@ -859,11 +884,23 @@ const yAxisDomain = useMemo(() => {
               stroke="hsl(var(--border))"
               fill="hsl(var(--background))"
               travellerWidth={8}
-              startIndex={Math.max(
-                0,
-                chartData.length - DEFAULT_VISIBLE_POINTS,
-              )}
-              endIndex={Math.max(chartData.length - 1, 0)}
+              startIndex={brushRange?.startIndex}
+              endIndex={brushRange?.endIndex}
+              onChange={(range: any) => {
+                // Persist the user's drag; without this the window resets on
+                // the next render.
+                if (
+                  range &&
+                  typeof range.startIndex === "number" &&
+                  typeof range.endIndex === "number" &&
+                  range.startIndex <= range.endIndex
+                ) {
+                  setBrushRange({
+                    startIndex: range.startIndex,
+                    endIndex: range.endIndex,
+                  });
+                }
+              }}
             />
 
             {lines.map((line, index) => {
