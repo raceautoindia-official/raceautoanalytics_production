@@ -19,6 +19,7 @@ import { BarChart } from "@/components/charts/BarChart";
 import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
+import { SegmentSelector } from "@/components/ui/SegmentSelector";
 import { MonthSelector } from "@/components/ui/MonthSelector";
 import { LastPublishedHint } from "@/components/ui/LastPublishedHint";
 import { VehicleCategoryCard } from "@/components/ui/VehicleCategoryCard";
@@ -1117,6 +1118,7 @@ export default function FlashReportsPage() {
 
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center space-x-4">
+                <SegmentSelector />
                 <RegionSelector />
                 <MonthSelector />
               </div>

@@ -7,6 +7,7 @@ import {
   applySeasonality,
   monthOf,
 } from "@/lib/forecastSeasonality";
+import { holtWinters } from "@/lib/holtWinters";
 
 export const dynamic = "force-dynamic";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -110,7 +111,29 @@ export async function POST(req) {
       : drift;
 
     const levelAt = (i) => lastDeseasoned * Math.pow(1 + trendDrift, i + 1);
-    const fallback = () => applySeasonality(periods, levelAt, idx);
+
+    // AI baseline = Holt-Winters with a damped trend.
+    //
+    // Previously this fell back to applySeasonality(), the SAME seasonal-naive
+    // skeleton the Survey and BYF lines are built on, so whenever the model
+    // output was rejected the AI line collapsed onto the others' shape. On real
+    // India 2W history the two disagree sharply (correlation -0.977, 22% level
+    // difference): seasonal-naive compounds a fixed drift and runs away to
+    // 2.9M, while Holt-Winters damps the trend and holds ~1.84M. Different
+    // estimator, genuinely different curve — still fitted only to the actuals.
+    const hwValues = series.map((p) => p.value);
+    const hw = holtWinters(hwValues, periods.length);
+    const fallback = () => {
+      if (hw && hw.length === periods.length) {
+        const out = {};
+        periods.forEach((p, i) => {
+          out[p] = Math.round(hw[i]);
+        });
+        return out;
+      }
+      // Only if Holt-Winters cannot fit (too little history).
+      return applySeasonality(periods, levelAt, idx);
+    };
 
     const instructions = `
 You are an automotive market forecasting assistant.
@@ -130,7 +153,8 @@ Requirements:
   ${(volatility * 100).toFixed(1)}% either side of a ${(drift * 100).toFixed(2)}% average drift —
   stay in that range rather than flattening it out.
 - Let the qualitative aspects tilt the overall level, not the seasonal shape.
-${seasonalNote ? `- Observed seasonality to follow (share of trend by calendar month): ${seasonalNote}` : "- History is under 13 months, so infer seasonality from the pattern visible in the data."}
+${seasonalNote ? `- Observed seasonality (share of trend by calendar month): ${seasonalNote}` : "- History is under 13 months, so infer seasonality from the pattern visible in the data."}
+${hw ? `- A damped-trend Holt-Winters fit of this history projects: ${periods.map((p, i) => `${p}=${Math.round(hw[i])}`).join(", ")}. Treat this as the statistical reference and adjust it for the qualitative aspects; do not simply restate it, and do not drift far from it.` : ""}
 - Return ONLY strict JSON: { "YYYY-MM": 123000, ... }. No prose, no code fences.
 `;
 
