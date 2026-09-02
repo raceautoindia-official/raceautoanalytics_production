@@ -253,11 +253,14 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
   }, [graph?.forecast_types]);
 
   // Historical values and future months extracted from overallData
-  const { histValues, futureMonths } = useMemo(() => {
+  const { histValues, histMonths, futureMonths } = useMemo(() => {
     const base = isYYYYMM(baseMonth) ? String(baseMonth) : null;
     const points = Array.isArray(overallData) ? overallData : [];
 
     const hist: number[] = [];
+    // Month label for each historical value, so the BYF trend can be
+    // deseasonalised and re-seasonalised by calendar month.
+    const histM: string[] = [];
     const fut: string[] = [];
 
     points.forEach((p) => {
@@ -271,19 +274,29 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
         valRaw == null || Number.isNaN(Number(valRaw)) ? null : Number(valRaw);
 
       if (!base) {
-        if (val != null) hist.push(val);
+        if (val != null) {
+          hist.push(val);
+          histM.push(m);
+        }
         return;
       }
 
       if (m <= base) {
-        if (val != null) hist.push(val);
+        if (val != null) {
+          hist.push(val);
+          histM.push(m);
+        }
       } else {
         fut.push(m);
       }
     });
 
     const h = Number.isFinite(horizon as any) ? Number(horizon) : 6;
-    return { histValues: hist, futureMonths: fut.slice(0, Math.max(0, h)) };
+    return {
+      histValues: hist,
+      histMonths: histM,
+      futureMonths: fut.slice(0, Math.max(0, h)),
+    };
   }, [overallData, baseMonth, horizon, category]);
 
   useEffect(() => {
@@ -468,7 +481,12 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
     histValues,
     surveyAvgScores as any,
   );
-  const byofForecastData = useForecastGrowth(histValues, byofAvgScores as any);
+  // yearNames are the forecast month keys the BYF result is mapped onto below,
+  // so they are the correct calendar months to re-seasonalise against.
+  const byofForecastData = useForecastGrowth(histValues, byofAvgScores as any, {
+    histMonths,
+    forecastMonths: yearNames,
+  });
 
   const forecastByMonth = useMemo(() => {
     const ai = safeJson(aiOverride) || {};
