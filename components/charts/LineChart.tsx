@@ -145,6 +145,12 @@ export function hasMeaningfulLineSeriesData(
   });
 }
 
+// Default visible span of the scroll window. Previously the API returned ~10
+// months so the whole series fitted on screen; it now returns ~28 so there is
+// something to scroll back through. Showing the last N points keeps the initial
+// view the same size it has always been.
+const DEFAULT_VISIBLE_POINTS = 11;
+
 interface LineChartProps {
   overallData: AnyRow[];
   category: string;
@@ -840,11 +846,24 @@ const yAxisDomain = useMemo(() => {
   }}
 />
 
+            {/* Scrollable window over the series.
+                The chart now loads ~28 months of history (needed so BYF can
+                observe month-of-year seasonality), but the DEFAULT view stays
+                the approved one: the most recent months plus the forecast.
+                Drag either handle to reach further back — scrolling left
+                reveals more history and pushes the forecast out of view,
+                which is the behaviour that was asked for. */}
             <Brush
               dataKey="month"
-              height={isMobile ? 12 : 16}
+              height={isMobile ? 14 : 18}
               stroke="hsl(var(--border))"
               fill="hsl(var(--background))"
+              travellerWidth={8}
+              startIndex={Math.max(
+                0,
+                chartData.length - DEFAULT_VISIBLE_POINTS,
+              )}
+              endIndex={Math.max(chartData.length - 1, 0)}
             />
 
             {lines.map((line, index) => {

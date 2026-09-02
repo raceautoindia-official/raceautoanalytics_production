@@ -466,7 +466,7 @@ useEffect(() => {
           withCountry(
             `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(
               month,
-            )}&horizon=6${collapseToHistorical ? "&forceHistorical=1" : ""}`,
+            )}&horizon=6&lookback=27${collapseToHistorical ? "&forceHistorical=1" : ""}`,
             region,
           ),
           { cache: "no-store" },
