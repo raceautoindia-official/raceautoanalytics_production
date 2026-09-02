@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAverageYearlyScores } from "@/app/hooks/useAverageYearlyScores";
 import { useForecastGrowth } from "@/app/hooks/useForecastGrowth";
+import { useByfScenario } from "@/app/hooks/useByfScenario";
 
 type OverallPoint = {
   month: string; // YYYY-MM
@@ -483,7 +484,11 @@ export function useFlashForecastStack(args: FlashForecastStackArgs) {
   );
   // yearNames are the forecast month keys the BYF result is mapped onto below,
   // so they are the correct calendar months to re-seasonalise against.
-  const byofForecastData = useForecastGrowth(histValues, byofAvgScores as any, {
+  // BYF uses a SCENARIO model, not the survey's consensus-drift model. Running
+  // both through useForecastGrowth made the two lines identical whenever the
+  // score sets were close (both showed -0.6% MoM on the overall chart), which
+  // presented one method as two.
+  const byofForecastData = useByfScenario(histValues, byofAvgScores as any, {
     histMonths,
     forecastMonths: yearNames,
   });

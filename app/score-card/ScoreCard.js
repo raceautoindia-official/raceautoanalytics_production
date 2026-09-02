@@ -552,6 +552,21 @@ export default function ScoreCard() {
       try {
         sessionStorage.removeItem(PENDING_BYF_KEY);
       } catch {}
+
+      // Same rule as the direct submit path: a subscriber has BYF access
+      // already, so never show them the "Subscribe to see BYF data" card.
+      // This is the auto-flow / post-login path — it was missed the first
+      // time, which is why subscribers still saw the upsell.
+      if (await hasByfAccess()) {
+        const target =
+          stash?.returnTo ||
+          (pendingPayloadInfo && pendingPayloadInfo.returnTo) ||
+          returnToParam ||
+          "/flash-reports/overview";
+        window.location.assign(target);
+        return;
+      }
+
       setAutoFlowState("success-submitted");
     } catch (err) {
       console.error(err);
