@@ -12,6 +12,14 @@ export async function GET(req: Request) {
     const horizonRaw = searchParams.get("horizon");
     const horizon = horizonRaw ? Number(horizonRaw) : undefined;
 
+    // Optional deeper history. Used by the CMS AI forecast generator, which
+    // needs more than a year to observe seasonality. Capped so a stray value
+    // cannot make the upstream scan unbounded.
+    const lookbackRaw = searchParams.get("lookback");
+    const lookback = lookbackRaw
+      ? Math.min(Math.max(Number(lookbackRaw) || 0, 0), 48)
+      : undefined;
+
     const forceHistorical =
       searchParams.get("forceHistorical") === "1" ||
       searchParams.get("forceHistorical") === "true";
@@ -21,6 +29,7 @@ export async function GET(req: Request) {
     const result = await getOverallChartDataWithMeta({
       baseMonth: month,
       horizon,
+      lookback,
       forceHistorical,
       country,
       // ✅ no debug in production

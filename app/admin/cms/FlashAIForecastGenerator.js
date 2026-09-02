@@ -135,7 +135,11 @@ export default function FlashAIForecastGenerator() {
           cache: "no-store",
         }),
         fetch(
-          `/api/flash-reports/overall-chart-data?month=${baseMonth}&horizon=6&country=${encodeURIComponent(
+          // lookback=27 gives ~28 months of history. Seasonality is a month-of-year
+          // effect, so it cannot be observed inside a single year — the old
+          // ~10-month window was the reason the AI forecast could only ever
+          // return a straight line.
+          `/api/flash-reports/overall-chart-data?month=${baseMonth}&horizon=6&lookback=27&country=${encodeURIComponent(
             selectedCountry
           )}`,
           { cache: "no-store" }

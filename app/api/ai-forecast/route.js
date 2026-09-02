@@ -1,12 +1,34 @@
 import OpenAI from "openai";
+import {
+  toSeries,
+  seasonalIndices,
+  describeSeasonality,
+  isEffectivelyLinear,
+  applySeasonality,
+  monthOf,
+} from "@/lib/forecastSeasonality";
 
 export const dynamic = "force-dynamic";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+/**
+ * Flash AI forecast generator (called from the CMS).
+ *
+ * Previously the prompt told the model that values "must not fluctuate
+ * erratically" and should follow a "smooth, plausible trend". The model
+ * complied literally and returned evenly-spaced ramps — 160 of 173 stored
+ * series had a constant month-to-month step, which is why the AI line rendered
+ * as a straight diagonal while the analyst (Race) line looked realistic.
+ *
+ * Now: the real month-of-year seasonality is computed from the supplied
+ * history and given to the model as an explicit target, the smoothness demand
+ * is gone, and a post-check repairs the output if it still comes back linear.
+ * Seasonality is always derived from the market's own actuals — nothing is
+ * invented.
+ */
 export async function POST(req) {
   try {
     const {
-      graphId,
       categoryName,
       categoryDefinition,
       graphName,
@@ -27,84 +49,140 @@ export async function POST(req) {
     ) {
       return new Response(
         JSON.stringify({ error: "Missing one or more required fields" }),
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    console.log(
-      `${Object.entries(volumeData.data)
-        .map(([year, value]) => `${year}: ${value}`)
-        .join("\n")}`
-    );
+    const series = toSeries(volumeData.data);
+    const periods = (Array.isArray(years) ? years : []).filter(monthOf);
+
+    if (!series.length || !periods.length) {
+      return new Response(
+        JSON.stringify({ error: "No usable history or forecast periods" }),
+        { status: 400 },
+      );
+    }
+
+    const idx = seasonalIndices(series);
+    const seasonalNote = describeSeasonality(idx);
+    const last = series[series.length - 1].value;
+
+    // Average month-on-month drift from the actuals — used for the fallback
+    // level and to tell the model what "normal" movement looks like here.
+    const steps = [];
+    for (let i = 1; i < series.length; i++) {
+      const a = series[i - 1].value;
+      if (a) steps.push((series[i].value - a) / a);
+    }
+    const drift = steps.length
+      ? steps.reduce((a, b) => a + b, 0) / steps.length
+      : 0;
+    const volatility = steps.length
+      ? Math.sqrt(
+          steps.reduce((a, b) => a + (b - drift) ** 2, 0) / steps.length,
+        )
+      : 0;
+
+    const levelAt = (i) => last * Math.pow(1 + drift, i + 1);
+    const fallback = () => applySeasonality(periods, levelAt, idx);
 
     const instructions = `
 You are an automotive market forecasting assistant.
 
-Your task is to generate realistic, period-by-period volume forecasts based on historical sales data and weighted qualitative aspects.
+Produce a month-by-month volume forecast that behaves like a real vehicle
+market, not a straight line.
 
-⚠️ Important constraints:
-- The first forecasted period must begin near the last known historical value.!!IMPORTANT
-- Forecast values must **not fluctuate erratically**. Ensure a **smooth, plausible trend**.
-- Incorporate the provided aspects to influence the growth/decline conservatively.
-- Return only the output in strict JSON format: { "YYYY-MM": 123000, "YYYY-MM": 126500, ... } or { "2025": 123000, "2026": 126500, ... }.
-- DO NOT add any text, explanation, or formatting outside the JSON.
-
-Be concise, data-aligned, and assume no external sources.
+Requirements:
+- Anchor the first forecast period near the last known actual (${Math.round(last).toLocaleString()}).
+- REPRODUCE THE SEASONAL SHAPE of this market. Vehicle sales are strongly
+  month-dependent (festive peaks, monsoon or winter troughs, quarter- and
+  year-end effects). Two consecutive months should rarely move by the same
+  amount.
+- Do NOT return evenly-spaced values. A constant month-to-month increment is
+  not a forecast and will be rejected.
+- Typical month-on-month movement in this history is about
+  ${(volatility * 100).toFixed(1)}% either side of a ${(drift * 100).toFixed(2)}% average drift —
+  stay in that range rather than flattening it out.
+- Let the qualitative aspects tilt the overall level, not the seasonal shape.
+${seasonalNote ? `- Observed seasonality to follow (share of trend by calendar month): ${seasonalNote}` : "- History is under 13 months, so infer seasonality from the pattern visible in the data."}
+- Return ONLY strict JSON: { "YYYY-MM": 123000, ... }. No prose, no code fences.
 `;
 
-    const prompt = `
-${instructions}
+    const prompt = `${instructions}
 
 Category: ${categoryName}
 Definition: ${categoryDefinition}
 Region: ${region}
 Graph Name: ${graphName}
 
-Historical Volume Data:
-${Object.entries(volumeData.data)
-  .map(([year, value]) => `${year}: ${value}`)
-  .join("\n")}
+Historical Volume Data (${series.length} months):
+${series.map((p) => `${p.month}: ${p.value}`).join("\n")}
 
 Forecast Periods:
-${years.join(", ")}
+${periods.join(", ")}
 
 Aspects to Consider:
-${questions
-  .map((q) => `- (${q.type}) ${q.text} (Weight: ${q.weight})`)
-  .join("\n")}
-
-Please provide only the forecast volumes for the years mentioned.
+${questions.map((q) => `- (${q.type}) ${q.text} (Weight: ${q.weight})`).join("\n")}
 `;
 
-    const chat = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an AI model that returns numeric forecasts based on structured prompts.",
-        },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.4,
-    });
-
-    const textResponse = chat.choices[0].message.content;
-    const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
-      throw new Error("Response does not contain valid JSON");
+    let parsed = null;
+    try {
+      const chat = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You return numeric forecasts as strict JSON. You never return a series with a constant increment between periods.",
+          },
+          { role: "user", content: prompt },
+        ],
+        // Raised from 0.4: at low temperature the model collapses onto the
+        // safest possible answer, which is a flat ramp.
+        temperature: 0.7,
+      });
+      const text = chat.choices?.[0]?.message?.content || "";
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+    } catch (e) {
+      console.error("ai-forecast: model call failed, using seasonal fallback:", e);
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    return new Response(JSON.stringify(parsed), {
+    // Keep only the requested periods, as finite numbers.
+    let out = {};
+    if (parsed && typeof parsed === "object") {
+      for (const p of periods) {
+        const n = Number(parsed[p]);
+        if (Number.isFinite(n) && n > 0) out[p] = Math.round(n);
+      }
+    }
+
+    let repaired = false;
+    if (Object.keys(out).length !== periods.length) {
+      // Incomplete or unusable response.
+      out = fallback();
+      repaired = true;
+    } else if (isEffectivelyLinear(periods.map((p) => out[p]))) {
+      // The model ignored the instruction and returned a ramp anyway. Keep its
+      // level and direction, but re-impose the market's real seasonal shape.
+      const vals = periods.map((p) => out[p]);
+      const first = vals[0];
+      const stepAvg = (vals[vals.length - 1] - first) / (vals.length - 1 || 1);
+      out = applySeasonality(periods, (i) => first + stepAvg * i, idx);
+      repaired = true;
+    }
+
+    return new Response(JSON.stringify(out), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Surfaced for CMS debugging; harmless to clients that ignore it.
+        "x-forecast-repaired": repaired ? "1" : "0",
+        "x-forecast-seasonality": idx ? "observed" : "insufficient-history",
+      },
     });
   } catch (err) {
     console.error("AI forecast error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-    });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }

@@ -135,13 +135,25 @@ function buildWindowMonths(
   baseMonth: string,
   horizon: number,
   allowForecast: boolean,
+  // Months of history to include. Defaults preserve the original window
+  // (3 back with forecast, 9 back without). The AI forecast generator asks for
+  // a longer reach because month-of-year seasonality cannot be observed inside
+  // a single year — with only ~10 months it could never produce anything but a
+  // straight line.
+  lookback?: number,
 ): string[] {
   if (allowForecast) {
-    const start = addMonths(baseMonth, -3);
+    const back = Number.isFinite(lookback as number)
+      ? Math.max(3, Number(lookback))
+      : 3;
+    const start = addMonths(baseMonth, -back);
     const end = addMonths(baseMonth, horizon);
     return monthsInclusive(start, end);
   }
-  const start = addMonths(baseMonth, -9);
+  const back = Number.isFinite(lookback as number)
+    ? Math.max(9, Number(lookback))
+    : 9;
+  const start = addMonths(baseMonth, -back);
   const end = baseMonth;
   return monthsInclusive(start, end);
 }
@@ -201,6 +213,8 @@ export async function getOverallChartDataWithMeta(opts?: {
   segmentName?: string;
   country?: string;
   debug?: boolean;
+  /** Months of history to include; omit to keep the default window. */
+  lookback?: number;
 }): Promise<OverallChartResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
   if (!baseUrl) throw new Error("NEXT_PUBLIC_BACKEND_URL is not set");
@@ -213,6 +227,9 @@ export async function getOverallChartDataWithMeta(opts?: {
   };
 
   const horizon = Number.isFinite(opts?.horizon) ? Number(opts?.horizon) : 6;
+  const lookback = Number.isFinite(opts?.lookback)
+    ? Number(opts?.lookback)
+    : undefined;
 
   const prevMonthIST = getPrevMonthIST();
   const baseMonth = isYYYYMM(opts?.baseMonth)
@@ -221,7 +238,7 @@ export async function getOverallChartDataWithMeta(opts?: {
   const prevYearBaseMonth = `${String(baseMonth).slice(0, 4) - 1}-${String(baseMonth).slice(5, 7)}`;
 
   const forceHistorical = !!opts?.forceHistorical;
-  const windowMonths = buildWindowMonths(baseMonth, horizon, false);
+  const windowMonths = buildWindowMonths(baseMonth, horizon, false, lookback);
 
   // ✅ country flags (India behavior unchanged)
   const countryKey = normalizeCountryKey(opts?.country);
@@ -475,7 +492,7 @@ export async function getOverallChartDataWithMeta(opts?: {
 
     // When forecast is allowed, expand the window to include future forecast months
     const effectiveWindow = allowForecast
-      ? buildWindowMonths(baseMonth, horizon, true)
+      ? buildWindowMonths(baseMonth, horizon, true, lookback)
       : windowMonths;
 
     if (allowForecast) {
