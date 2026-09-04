@@ -4,7 +4,6 @@ import {
   seasonalIndices,
   describeSeasonality,
   isEffectivelyLinear,
-  applySeasonality,
   monthOf,
 } from "@/lib/forecastSeasonality";
 import { holtWinters } from "@/lib/holtWinters";
@@ -14,6 +13,16 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
  * Flash AI forecast generator (called from the CMS).
+ *
+ * The AI line is a QUESTION-DRIVEN prediction. The CMS holds a set of weighted
+ * BYF questions per graph and country ("Are EU/government policies currently
+ * supportive of LCV sales?", weight 0.15, positive). The model reads those,
+ * judges each one for the market, and moves the forecast accordingly. History
+ * supplies the level, scale and seasonal shape it has to stay consistent with.
+ *
+ * If a graph/country has no questions there is nothing to predict from, so NO
+ * forecast is produced and the caller gets 422. Substituting a statistical
+ * projection there is exactly what made the line look invented.
  *
  * Previously the prompt told the model that values "must not fluctuate
  * erratically" and should follow a "smooth, plausible trend". The model
@@ -51,6 +60,27 @@ export async function POST(req) {
       return new Response(
         JSON.stringify({ error: "Missing one or more required fields" }),
         { status: 400 },
+      );
+    }
+
+    // Questions are the input the forecast is derived from. Empty, or present
+    // but with no readable text, means there is nothing to predict from.
+    const usableQuestions = (Array.isArray(questions) ? questions : [])
+      .map((q) => ({
+        text: String(q?.text ?? "").trim(),
+        type: String(q?.type ?? "").trim().toLowerCase() || "positive",
+        weight: Number(q?.weight),
+      }))
+      .filter((q) => q.text.length > 0);
+
+    if (!usableQuestions.length) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "No BYF questions configured for this graph and country. The AI forecast is derived from those questions, so none can be generated.",
+          code: "NO_QUESTIONS",
+        }),
+        { status: 422, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -110,51 +140,50 @@ export async function POST(req) {
       ? deseasonedSteps.reduce((a, b) => a + b, 0) / deseasonedSteps.length
       : drift;
 
-    const levelAt = (i) => lastDeseasoned * Math.pow(1 + trendDrift, i + 1);
-
-    // AI baseline = Holt-Winters with a damped trend.
-    //
-    // Previously this fell back to applySeasonality(), the SAME seasonal-naive
-    // skeleton the Survey and BYF lines are built on, so whenever the model
-    // output was rejected the AI line collapsed onto the others' shape. On real
-    // India 2W history the two disagree sharply (correlation -0.977, 22% level
-    // difference): seasonal-naive compounds a fixed drift and runs away to
-    // 2.9M, while Holt-Winters damps the trend and holds ~1.84M. Different
-    // estimator, genuinely different curve — still fitted only to the actuals.
+    // Holt-Winters is kept ONLY as scale context inside the prompt. It is no
+    // longer used as a fallback: if the question-derived prediction fails, the
+    // endpoint returns nothing rather than substituting a statistical curve.
     const hwValues = series.map((p) => p.value);
     const hw = holtWinters(hwValues, periods.length);
-    const fallback = () => {
-      if (hw && hw.length === periods.length) {
-        const out = {};
-        periods.forEach((p, i) => {
-          out[p] = Math.round(hw[i]);
-        });
-        return out;
-      }
-      // Only if Holt-Winters cannot fit (too little history).
-      return applySeasonality(periods, levelAt, idx);
-    };
+
+    const posQ = usableQuestions.filter((q) => q.type !== "negative");
+    const negQ = usableQuestions.filter((q) => q.type === "negative");
+    const wsum = usableQuestions.reduce(
+      (a, q) => a + (Number.isFinite(q.weight) ? Math.abs(q.weight) : 0),
+      0,
+    );
+
+    const qBlock = usableQuestions
+      .map(
+        (q, i) =>
+          `${i + 1}. [${q.type}] (weight ${
+            Number.isFinite(q.weight) ? q.weight : "unweighted"
+          }) ${q.text}`,
+      )
+      .join("
+");
 
     const instructions = `
-You are an automotive market forecasting assistant.
+You are an automotive market analyst producing a monthly volume forecast.
 
-Produce a month-by-month volume forecast that behaves like a real vehicle
-market, not a straight line.
+THE FORECAST MUST BE DERIVED FROM THE DRIVER QUESTIONS BELOW.
+Work through them one at a time: judge whether each is currently true for this
+market, how strongly, and in which direction (a "positive" driver supports
+volume, a "negative" driver suppresses it). Weight each judgement by its stated
+weight. The net of those judgements decides how far, and which way, the forecast
+departs from the recent run-rate. That reasoning is the forecast — do not
+produce a number first and justify it afterwards.
 
-Requirements:
-- Anchor the first forecast period near the last known actual (${Math.round(last).toLocaleString()}).
-- REPRODUCE THE SEASONAL SHAPE of this market. Vehicle sales are strongly
-  month-dependent (festive peaks, monsoon or winter troughs, quarter- and
-  year-end effects). Two consecutive months should rarely move by the same
-  amount.
-- Do NOT return evenly-spaced values. A constant month-to-month increment is
-  not a forecast and will be rejected.
-- Typical month-on-month movement in this history is about
-  ${(volatility * 100).toFixed(1)}% either side of a ${(drift * 100).toFixed(2)}% average drift —
-  stay in that range rather than flattening it out.
-- Let the qualitative aspects tilt the overall level, not the seasonal shape.
-${seasonalNote ? `- Observed seasonality (share of trend by calendar month): ${seasonalNote}` : "- History is under 13 months, so infer seasonality from the pattern visible in the data."}
-${hw ? `- A damped-trend Holt-Winters fit of this history projects: ${periods.map((p, i) => `${p}=${Math.round(hw[i])}`).join(", ")}. Treat this as the statistical reference and adjust it for the qualitative aspects; do not simply restate it, and do not drift far from it.` : ""}
+There are ${usableQuestions.length} drivers (${posQ.length} positive, ${negQ.length} negative, total weight ${wsum.toFixed(2)}).
+
+Constraints on the output:
+- Stay on the scale of this market. The last actual was ${Math.round(last).toLocaleString()}.
+- Keep the seasonal shape: vehicle sales are month-dependent (festive peaks,
+  monsoon or winter troughs, quarter- and year-end effects). Consecutive months
+  should rarely move by the same amount, and a constant increment is rejected.
+- Normal month-on-month movement here is about ${(volatility * 100).toFixed(1)}% around a ${(drift * 100).toFixed(2)}% drift.
+${seasonalNote ? `- Observed seasonality (share of trend by calendar month): ${seasonalNote}` : "- History is under 13 months; infer seasonality from the data shown."}
+${hw ? `- For scale only, a damped-trend statistical fit of this history gives: ${periods.map((p, i) => `${p}=${Math.round(hw[i])}`).join(", ")}. Your answer should differ from it wherever the drivers justify it — that difference is the value the drivers add.` : ""}
 - Return ONLY strict JSON: { "YYYY-MM": 123000, ... }. No prose, no code fences.
 `;
 
@@ -165,78 +194,89 @@ Definition: ${categoryDefinition}
 Region: ${region}
 Graph Name: ${graphName}
 
-Historical Volume Data (${series.length} months):
-${series.map((p) => `${p.month}: ${p.value}`).join("\n")}
+DRIVER QUESTIONS (the basis of this forecast):
+${qBlock}
+
+Historical Volume Data (${series.length} months) — context for level and seasonality:
+${series.map((p) => `${p.month}: ${p.value}`).join("
+")}
 
 Forecast Periods:
 ${periods.join(", ")}
-
-Aspects to Consider:
-${questions.map((q) => `- (${q.type}) ${q.text} (Weight: ${q.weight})`).join("\n")}
 `;
 
-    let parsed = null;
-    try {
+    // Ask the model, retrying once with a firmer instruction if the first
+    // answer is unusable. Two attempts, then give up — a failed prediction
+    // must yield NOTHING rather than a substituted statistical curve, which is
+    // what previously made this line look invented.
+    const recent = series.slice(-24).map((p) => p.value);
+    const loBand = Math.min(...recent) * 0.7;
+    const hiBand = Math.max(...recent) * 1.3;
+
+    const askModel = async (extra) => {
       const chat = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
             role: "system",
             content:
-              "You return numeric forecasts as strict JSON. You never return a series with a constant increment between periods.",
+              "You are an automotive analyst. You derive forecasts from the supplied driver questions and return strict JSON. You never return a series with a constant increment between periods.",
           },
-          { role: "user", content: prompt },
+          { role: "user", content: extra ? `${prompt}
+${extra}` : prompt },
         ],
-        // Raised from 0.4: at low temperature the model collapses onto the
-        // safest possible answer, which is a flat ramp.
+        // Low temperature collapses onto the blandest answer (a flat ramp).
         temperature: 0.7,
       });
       const text = chat.choices?.[0]?.message?.content || "";
       const match = text.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
-    } catch (e) {
-      console.error("ai-forecast: model call failed, using seasonal fallback:", e);
-    }
+      if (!match) return null;
 
-    // Keep only the requested periods, as finite numbers.
-    let out = {};
-    if (parsed && typeof parsed === "object") {
-      for (const p of periods) {
-        const n = Number(parsed[p]);
-        if (Number.isFinite(n) && n > 0) out[p] = Math.round(n);
+      let obj;
+      try {
+        obj = JSON.parse(match[0]);
+      } catch {
+        return null;
       }
+
+      const vals = {};
+      for (const p of periods) {
+        const n = Number(obj?.[p]);
+        if (Number.isFinite(n) && n > 0) vals[p] = Math.round(n);
+      }
+      if (Object.keys(vals).length !== periods.length) return null;
+
+      const arr = periods.map((p) => vals[p]);
+      if (arr.some((v) => v < loBand || v > hiBand)) return null; // off-scale
+      if (isEffectivelyLinear(arr)) return null; // a ramp is not a forecast
+      return vals;
+    };
+
+    let out = null;
+    let attempts = 0;
+    try {
+      attempts = 1;
+      out = await askModel(null);
+      if (!out) {
+        attempts = 2;
+        out = await askModel(
+          `Your previous answer was rejected. It was either off the scale of this market (stay between ${Math.round(loBand).toLocaleString()} and ${Math.round(hiBand).toLocaleString()}), evenly spaced, or incomplete. Re-derive the forecast from the driver questions and return all ${periods.length} periods.`,
+        );
+      }
+    } catch (e) {
+      console.error("ai-forecast: model call failed:", e);
     }
 
-    // Plausibility band from the market's own recent history. The model tends
-    // to DOUBLE-COUNT seasonality: it anchors on a last actual that already
-    // contains the seasonal effect, then multiplies by the index again. On
-    // India 2W that produced 2.85M against a historical range of ~1.3-1.9M.
-    // Anything outside the band is not credible, so the deterministic
-    // seasonal path is used instead.
-    const recent = series.slice(-24).map((p) => p.value);
-    const loBand = Math.min(...recent) * 0.7;
-    const hiBand = Math.max(...recent) * 1.3;
-    const implausible = (vals) =>
-      vals.some((v) => !Number.isFinite(v) || v < loBand || v > hiBand);
-
-    let repaired = false;
-    if (Object.keys(out).length !== periods.length) {
-      // Incomplete or unusable response.
-      out = fallback();
-      repaired = true;
-    } else if (implausible(periods.map((p) => out[p]))) {
-      // Outside what this market has ever done — discard and use the
-      // deterministic seasonal projection built from the actuals.
-      out = fallback();
-      repaired = true;
-    } else if (isEffectivelyLinear(periods.map((p) => out[p]))) {
-      // The model ignored the instruction and returned a ramp anyway. Keep its
-      // level and direction, but re-impose the market's real seasonal shape.
-      const vals = periods.map((p) => out[p]);
-      const first = vals[0];
-      const stepAvg = (vals[vals.length - 1] - first) / (vals.length - 1 || 1);
-      out = applySeasonality(periods, (i) => first + stepAvg * i, idx);
-      repaired = true;
+    if (!out) {
+      // No usable prediction. Return nothing rather than fabricate one.
+      return new Response(
+        JSON.stringify({
+          error:
+            "The model did not return a usable question-derived forecast for this market.",
+          code: "NO_PREDICTION",
+        }),
+        { status: 502, headers: { "Content-Type": "application/json" } },
+      );
     }
 
     return new Response(JSON.stringify(out), {
@@ -244,7 +284,8 @@ ${questions.map((q) => `- (${q.type}) ${q.text} (Weight: ${q.weight})`).join("\n
       headers: {
         "Content-Type": "application/json",
         // Surfaced for CMS debugging; harmless to clients that ignore it.
-        "x-forecast-repaired": repaired ? "1" : "0",
+        "x-forecast-drivers": String(usableQuestions.length),
+        "x-forecast-attempts": String(attempts),
         "x-forecast-seasonality": idx ? "observed" : "insufficient-history",
       },
     });
