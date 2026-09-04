@@ -108,6 +108,7 @@ export async function POST(req) {
       volumeData,
       years,
       questions,
+      raceForecast,
     } = await req.json();
 
     if (
@@ -153,6 +154,22 @@ export async function POST(req) {
         { status: 400 },
       );
     }
+
+    // The analyst's own (Race) forecast for the same months, when the caller
+    // supplies it. The AI line is held within MAX_RACE_GAP of it: the two lines
+    // sit side by side on one chart, and a 2-3x divergence reads as a fault in
+    // the AI whatever the history says. 35% still leaves the AI visibly its own
+    // line -- it can differ by a third in either direction -- while removing
+    // the gaps that prompted this.
+    const MAX_RACE_GAP = 0.35;
+    const raceMap = {};
+    if (raceForecast && typeof raceForecast === "object") {
+      for (const p of periods) {
+        const n = Number(raceForecast[p]);
+        if (Number.isFinite(n) && n > 0) raceMap[p] = n;
+      }
+    }
+    const racedMonths = periods.filter((p) => raceMap[p] > 0);
 
     const byMonth = Object.fromEntries(series.map((p) => [p.month, p.value]));
     const values = series.map((p) => p.value);
@@ -290,6 +307,17 @@ How to build the forecast:
       ...values,
     ).toLocaleString()} to ${Math.max(...values).toLocaleString()}.
 - Consecutive months must not move by a constant increment.
+${
+  racedMonths.length
+    ? `- The client's analyst has published their own forecast for these months: ${racedMonths
+        .map((p) => `${p} ${raceMap[p].toLocaleString()}`)
+        .join(
+          ", ",
+        )}. Your forecast is shown on the same chart beside it, so stay within ${Math.round(
+        MAX_RACE_GAP * 100,
+      )}% of those figures. Differ from them where the research and drivers justify it — that difference is the value you add — but do not diverge by a multiple.`
+    : ""
+}
 
 Return ONLY a JSON object with exactly these ${
       periods.length
@@ -407,6 +435,18 @@ Return ONLY a JSON object with exactly these ${
       );
     }
 
+    // Final guarantee. The prompt asks the model to stay near the analyst line;
+    // this makes sure of it, since a prompt instruction is not a constraint.
+    let clamped = 0;
+    for (const p of racedMonths) {
+      const lo = raceMap[p] * (1 - MAX_RACE_GAP);
+      const hi = raceMap[p] * (1 + MAX_RACE_GAP);
+      if (out[p] < lo || out[p] > hi) {
+        out[p] = Math.round(Math.min(Math.max(out[p], lo), hi));
+        clamped++;
+      }
+    }
+
     return new Response(JSON.stringify(out), {
       status: 200,
       headers: {
@@ -414,6 +454,7 @@ Return ONLY a JSON object with exactly these ${
         // Surfaced for CMS debugging; harmless to clients that ignore them.
         "x-forecast-drivers": String(usableQuestions.length),
         "x-forecast-attempts": String(attempts),
+        "x-forecast-race-clamped": `${clamped}/${racedMonths.length}`,
         "x-forecast-research": researchState,
         "x-forecast-sources": sources.join(" | ").slice(0, 1800),
         "x-forecast-why": why.replace(/[^\x20-\x7e]/g, "").slice(0, 300),

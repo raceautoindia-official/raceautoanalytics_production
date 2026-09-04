@@ -363,8 +363,6 @@ export default function AIForecast() {
 
       try {
         const formatted = await formatGraphForAI(graphId);
-        const result = await generateForecast(formatted);
-        setForecastResult(result);
 
         // 🟢 Step 1: Get the full graph object from your graphs list
         const graphToUpdate = graphs.find((g) => g.id === graphId);
@@ -372,6 +370,14 @@ export default function AIForecast() {
           console.warn("Graph not found in memory:", graphId);
           continue;
         }
+
+        // Pass the analyst (Race) forecast so the API can keep the AI line
+        // within a sensible distance of it — both are drawn on one chart.
+        const result = await generateForecast({
+          ...formatted,
+          raceForecast: graphToUpdate.race_forecast,
+        });
+        setForecastResult(result);
 
         // 🟢 Step 2: Send updated ai_forecast to your API
         const response = await fetch("/api/graphs?context=forecast", {

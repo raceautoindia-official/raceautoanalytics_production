@@ -16,6 +16,10 @@ export function useAIForecast() {
     volumeData,
     years,
     questions,
+    // The analyst's own forecast for the same months. Supplied so the API can
+    // hold the AI line within a sensible distance of it — the two are drawn on
+    // the same chart, and a multiple-fold gap reads as an AI fault.
+    raceForecast,
   }) => {
     setLoading(true);
     setError(null);
@@ -37,6 +41,7 @@ export function useAIForecast() {
           volumeData,
           years,
           questions,
+          raceForecast,
         }),
       });
 
