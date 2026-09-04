@@ -147,6 +147,23 @@ export async function POST(req) {
     const hwValues = series.map((p) => p.value);
     const hw = holtWinters(hwValues, periods.length);
 
+    // Per-month expectation from the market's own level and (shrunk)
+    // seasonality. The drivers are allowed to move the answer around this by
+    // +/- TOLERANCE — enough for the qualitative view to matter, not enough to
+    // invent a month the data cannot support.
+    //
+    // The previous check was a single global band (0.7x min .. 1.3x max of all
+    // history). On India 2W that permitted anything up to ~4.1M, so a model
+    // overshoot of 3.18M sailed through against an expectation of 2.38M.
+    const TOLERANCE = 0.25;
+    const level = baselineLevel(series, idx);
+    const expected = {};
+    periods.forEach((p) => {
+      const cm = monthOf(p);
+      const f = idx && cm ? idx[cm] : 1;
+      expected[p] = level * (Number.isFinite(f) && f > 0 ? f : 1);
+    });
+
     const posQ = usableQuestions.filter((q) => q.type !== "negative");
     const negQ = usableQuestions.filter((q) => q.type === "negative");
     const wsum = usableQuestions.reduce(
@@ -209,23 +226,6 @@ ${periods.join(", ")}
     // answer is unusable. Two attempts, then give up — a failed prediction
     // must yield NOTHING rather than a substituted statistical curve, which is
     // what previously made this line look invented.
-    // Per-month expectation from the market's own level and (shrunk)
-    // seasonality. The drivers are allowed to move the answer around this by
-    // +/- TOLERANCE — enough for the qualitative view to matter, not enough to
-    // invent a month the data cannot support.
-    //
-    // The previous check was a single global band (0.7x min .. 1.3x max of all
-    // history). On India 2W that permitted anything up to ~4.1M, so a model
-    // overshoot of 3.18M sailed through against an expectation of 2.38M.
-    const TOLERANCE = 0.25;
-    const level = baselineLevel(series, idx);
-    const expected = {};
-    periods.forEach((p) => {
-      const cm = monthOf(p);
-      const f = idx && cm ? idx[cm] : 1;
-      expected[p] = level * (Number.isFinite(f) && f > 0 ? f : 1);
-    });
-
     // Absolute floor/ceiling as a second guard for thin or odd histories.
     const recent = series.slice(-24).map((p) => p.value);
     const loBand = Math.min(...recent) * 0.7;
