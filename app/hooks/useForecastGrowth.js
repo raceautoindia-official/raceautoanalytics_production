@@ -1,5 +1,9 @@
 import { useMemo } from "react";
-import { seasonalIndices, monthOf } from "@/lib/forecastSeasonality";
+import {
+  seasonalIndices,
+  monthOf,
+  baselineLevel,
+} from "@/lib/forecastSeasonality";
 
 /**
  * Exported as BOTH named + default to match existing imports.
@@ -51,11 +55,19 @@ export function useForecastGrowth(volumes, scores, opts) {
       Number.isFinite(v) ? v / (idx ? factorFor(histMonths?.[i]) : 1) : v,
     );
 
-    let last = 0;
-    for (let i = deseasoned.length - 1; i >= 0; i--) {
-      if (Number.isFinite(deseasoned[i])) {
-        last = deseasoned[i];
-        break;
+    // Start from the trailing 12-month mean rather than a single
+    // deseasonalised month: one noisy seasonal index should not set the level
+    // the whole projection is built on.
+    let last = baselineLevel(
+      volumes.map((v, i) => ({ month: histMonths?.[i], value: Number(v) })),
+      idx,
+    );
+    if (!Number.isFinite(last) || last <= 0) {
+      for (let i = deseasoned.length - 1; i >= 0; i--) {
+        if (Number.isFinite(deseasoned[i])) {
+          last = deseasoned[i];
+          break;
+        }
       }
     }
 

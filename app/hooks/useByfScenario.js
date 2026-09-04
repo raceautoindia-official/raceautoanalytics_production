@@ -1,5 +1,9 @@
 import { useMemo } from "react";
-import { seasonalIndices, monthOf } from "@/lib/forecastSeasonality";
+import {
+  seasonalIndices,
+  monthOf,
+  baselineLevel,
+} from "@/lib/forecastSeasonality";
 
 /**
  * Build-Your-Forecast projection — YOUR scenario, not the crowd's.
@@ -69,10 +73,14 @@ export function useByfScenario(volumes, scores, opts) {
     if (lastIdx < 0) return [];
     const lastRaw = volumes[lastIdx];
 
-    // Baseline level = the last actual with its own seasonality removed. The
-    // seasonal factor is re-applied per forecast month below, so the shape
-    // comes from the calendar rather than from the crowd's drift.
-    const baseLevel = lastRaw / factorFor(histMonths?.[lastIdx]);
+    // Baseline level = trailing 12-month mean where available. Dividing the
+    // last actual by its own seasonal index multiplied a single noisy index
+    // straight into the level (on India 2W that inflated the base to ~2.24M
+    // against a normal month of ~1.55M). A full cycle averages seasonality out.
+    const baseLevel = baselineLevel(
+      volumes.map((v, i) => ({ month: histMonths?.[i], value: Number(v) })),
+      idx,
+    );
 
     return scores.map((s, i) => {
       const score = Number(s);
