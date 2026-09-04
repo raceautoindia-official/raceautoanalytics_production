@@ -5,6 +5,7 @@ import {
   describeSeasonality,
   isEffectivelyLinear,
   monthOf,
+  baselineLevel,
 } from "@/lib/forecastSeasonality";
 import { holtWinters } from "@/lib/holtWinters";
 
@@ -182,6 +183,7 @@ Constraints on the output:
   should rarely move by the same amount, and a constant increment is rejected.
 - Normal month-on-month movement here is about ${(volatility * 100).toFixed(1)}% around a ${(drift * 100).toFixed(2)}% drift.
 ${seasonalNote ? `- Observed seasonality (share of trend by calendar month): ${seasonalNote}` : "- History is under 13 months; infer seasonality from the data shown."}
+- Expected range per month from this market's level and seasonality: ${periods.map((p) => `${p} ~${Math.round(expected[p]).toLocaleString()}`).join(", ")}. Your answer should sit within about ${Math.round(TOLERANCE * 100)}% of these — the drivers decide where inside that range, and in which direction.
 ${hw ? `- For scale only, a damped-trend statistical fit of this history gives: ${periods.map((p, i) => `${p}=${Math.round(hw[i])}`).join(", ")}. Your answer should differ from it wherever the drivers justify it — that difference is the value the drivers add.` : ""}
 - Return ONLY strict JSON: { "YYYY-MM": 123000, ... }. No prose, no code fences.
 `;
@@ -207,6 +209,24 @@ ${periods.join(", ")}
     // answer is unusable. Two attempts, then give up — a failed prediction
     // must yield NOTHING rather than a substituted statistical curve, which is
     // what previously made this line look invented.
+    // Per-month expectation from the market's own level and (shrunk)
+    // seasonality. The drivers are allowed to move the answer around this by
+    // +/- TOLERANCE — enough for the qualitative view to matter, not enough to
+    // invent a month the data cannot support.
+    //
+    // The previous check was a single global band (0.7x min .. 1.3x max of all
+    // history). On India 2W that permitted anything up to ~4.1M, so a model
+    // overshoot of 3.18M sailed through against an expectation of 2.38M.
+    const TOLERANCE = 0.25;
+    const level = baselineLevel(series, idx);
+    const expected = {};
+    periods.forEach((p) => {
+      const cm = monthOf(p);
+      const f = idx && cm ? idx[cm] : 1;
+      expected[p] = level * (Number.isFinite(f) && f > 0 ? f : 1);
+    });
+
+    // Absolute floor/ceiling as a second guard for thin or odd histories.
     const recent = series.slice(-24).map((p) => p.value);
     const loBand = Math.min(...recent) * 0.7;
     const hiBand = Math.max(...recent) * 1.3;
@@ -247,6 +267,17 @@ ${extra}` : prompt },
       const arr = periods.map((p) => vals[p]);
       if (arr.some((v) => v < loBand || v > hiBand)) return null; // off-scale
       if (isEffectivelyLinear(arr)) return null; // a ramp is not a forecast
+
+      // Clamp each month to its own expectation. Keeps the driver-led shape
+      // and direction while stopping a single month running away from what the
+      // market's level and seasonality support.
+      for (const p of periods) {
+        const e = expected[p];
+        if (!Number.isFinite(e) || e <= 0) continue;
+        vals[p] = Math.round(
+          Math.min(Math.max(vals[p], e * (1 - TOLERANCE)), e * (1 + TOLERANCE)),
+        );
+      }
       return vals;
     };
 
