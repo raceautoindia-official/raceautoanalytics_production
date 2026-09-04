@@ -160,8 +160,7 @@ export async function POST(req) {
             Number.isFinite(q.weight) ? q.weight : "unweighted"
           }) ${q.text}`,
       )
-      .join("
-");
+      .join("\n");
 
     const instructions = `
 You are an automotive market analyst producing a monthly volume forecast.
@@ -198,8 +197,7 @@ DRIVER QUESTIONS (the basis of this forecast):
 ${qBlock}
 
 Historical Volume Data (${series.length} months) — context for level and seasonality:
-${series.map((p) => `${p.month}: ${p.value}`).join("
-")}
+${series.map((p) => `${p.month}: ${p.value}`).join("\n")}
 
 Forecast Periods:
 ${periods.join(", ")}
