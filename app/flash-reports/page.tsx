@@ -497,7 +497,7 @@ export default function FlashReportsPage() {
         const isHistoricalView = !!maxMonth && !!month && month !== maxMonth;
         const collapseToHistorical = isHistoricalView || isFreeUser;
         const url1 = withCountry(
-          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}${collapseToHistorical ? "&forceHistorical=1" : ""}`,
+          `/api/flash-reports/overall-chart-data?month=${encodeURIComponent(month)}&horizon=${overallForecastHorizon}&lookback=27${collapseToHistorical ? "&forceHistorical=1" : ""}`,
           region,
         );
 
