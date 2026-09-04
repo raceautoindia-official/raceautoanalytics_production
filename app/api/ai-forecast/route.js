@@ -72,6 +72,23 @@ const SEGMENT_HINT = {
   Trailer: "tractor-trailer / articulated truck",
 };
 
+/**
+ * Calendar facts the model must not recall from memory.
+ *
+ * Asked unaided, it got Diwali backwards — "shifted from November to October"
+ * for 2026, when the dates are the reverse — and on a later run left the peak
+ * in October entirely. A movable festival is the one thing a seasonal index
+ * keyed on calendar months can never represent, so it has to be stated.
+ */
+const KNOWN_CALENDAR = {
+  india:
+    "Diwali is the festive peak for Indian vehicle sales and it MOVES each year: 31 Oct/1 Nov 2024 (peak split across October and November), 20 Oct 2025 (peak in OCTOBER), 8 Nov 2026 (peak in NOVEMBER). So October 2026 does NOT repeat October 2025's festive spike — that volume belongs to November 2026.",
+  ireland:
+    "Ireland changes registration plates twice a year: January (new annual plate) and July (second-half plate). January is by far the largest month of the year and December the smallest.",
+  pakistan:
+    "Vehicle demand tracks Ramadan and Eid, which move about 11 days earlier each year: Ramadan began 1 Mar 2025, 18 Feb 2026, and begins about 8 Feb 2027.",
+};
+
 const prevYearOf = (m) => `${Number(m.slice(0, 4)) - 1}${m.slice(4)}`;
 
 const median = (a) => {
@@ -252,6 +269,13 @@ ${
     : ""
 }
 
+${
+  KNOWN_CALENDAR[String(region).toLowerCase()]
+    ? `KNOWN CALENDAR — authoritative, use these dates rather than your own recollection:\n${
+        KNOWN_CALENDAR[String(region).toLowerCase()]
+      }\n`
+    : ""
+}
 MARKET RESEARCH, gathered online just now:
 ${brief || "(unavailable — rely on the history and the driver questions)"}
 
