@@ -59,10 +59,18 @@ const prevYearOf = (m) =>
     ? String(Number(m) - 1)
     : `${Number(m.slice(0, 4)) - 1}${m.slice(4)}`;
 
+/**
+ * Zeros are dropped, not forecast. In this dataset a zero means the month was
+ * not collected yet, not that nothing sold: India Tipper carries nine zero
+ * months before its real series begins, and Spain has no two-wheeler data at
+ * all. Keeping them made a no-data segment "forecast" a flat line at zero.
+ */
 function buildSeries(data) {
   return Object.entries(data || {})
     .map(([k, v]) => ({ month: String(k).trim(), value: Number(v) }))
-    .filter((p) => PERIOD_RE.test(p.month) && Number.isFinite(p.value))
+    .filter(
+      (p) => PERIOD_RE.test(p.month) && Number.isFinite(p.value) && p.value > 0,
+    )
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
