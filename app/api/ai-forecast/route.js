@@ -420,7 +420,7 @@ Return ONLY a JSON object with exactly these ${
       if (Object.keys(vals).length !== periods.length) {
         return {
           vals: null,
-          reason: `it did not contain all ${periods.length} months as positive numbers`,
+          reason: `it did not contain all ${periods.length} ${unit}s as positive numbers`,
         };
       }
 
@@ -430,7 +430,7 @@ Return ONLY a JSON object with exactly these ${
       if (arr.some((v) => v < loBand || v > hiBand)) {
         return {
           vals: null,
-          reason: `the values were off the scale of this market — every month must be between ${Math.round(
+          reason: `the values were off the scale of this market — every ${unit} must be between ${Math.round(
             loBand,
           ).toLocaleString()} and ${Math.round(
             hiBand,
@@ -454,7 +454,7 @@ Return ONLY a JSON object with exactly these ${
       if (isEffectivelyLinear(arr)) {
         return {
           vals: null,
-          reason: "the months were evenly spaced — a ramp is not a forecast",
+          reason: `the ${unit}s were evenly spaced — a ramp is not a forecast`,
         };
       }
 
@@ -471,7 +471,7 @@ Return ONLY a JSON object with exactly these ${
         const r = await askModel(
           i === 0
             ? null
-            : `Your previous answer was rejected because ${lastReason}. Correct it and return all ${periods.length} months.`,
+            : `Your previous answer was rejected because ${lastReason}. Correct it and return all ${periods.length} ${unit}s.`,
         );
         if (r.vals) {
           out = r.vals;
