@@ -121,6 +121,9 @@ export default function FlashAIForecastGenerator() {
   const [chartPoints, setChartPoints] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  // Per-graph reasons from the last run. Without these the generator reported
+  // only the first error and gave no way to tell what actually failed.
+  const [failures, setFailures] = useState([]);
 
   const baseMonth = useMemo(() => getPrevMonthIST(), []);
 
@@ -230,6 +233,10 @@ export default function FlashAIForecastGenerator() {
           exists: !!f?.exists,
           source: f?.source || "none",
           aiForecast: f?.aiForecast || null,
+          // Kept so generation can send the analyst line to the API, which
+          // holds the AI forecast within a set distance of it. Without this the
+          // band silently never applies to anything generated from the CMS.
+          raceForecast: f?.raceForecast || null,
         };
       }
       setForecastMap(fMap);
@@ -294,6 +301,11 @@ export default function FlashAIForecastGenerator() {
 
     setGenerating(true);
     setProgress({ current: 0, total: graphIds.length });
+    setFailures([]);
+
+    const failed = [];
+    let done = 0;
+    let aborted = null;
 
     try {
       for (let i = 0; i < graphIds.length; i++) {
@@ -305,10 +317,15 @@ export default function FlashAIForecastGenerator() {
 
         const qs = questionsMap[graphId] || [];
 
-        // ✅ Safety: for non-India, require questions
-        if (String(selectedCountry).toLowerCase() !== "india" && qs.length === 0) {
-          message.warning(
-            `No questions configured for ${selectedCountry.toUpperCase()} for graph #${graphId}. Add them in Flash Questions first.`
+        // The API derives the forecast from these questions and returns 422
+        // when there are none, so a request without them cannot succeed. This
+        // applies to every country: India was previously exempted here, which
+        // only turned a skip into a failed request that aborted the batch.
+        if (qs.length === 0) {
+          failed.push(
+            `#${graphId} ${graph.name} — no questions configured for ${String(
+              selectedCountry,
+            ).toUpperCase()}. Add them in Flash Questions first.`,
           );
           continue;
         }
@@ -334,29 +351,63 @@ export default function FlashAIForecastGenerator() {
             weight: q.weight,
             type: q.type,
           })),
+          // The analyst forecast for the same months. The API keeps the AI line
+          // within a set distance of it; omitting it left CMS-generated values
+          // unbounded while script-generated ones were bounded.
+          raceForecast: forecastMap[graphId]?.raceForecast || null,
         };
 
-        const aiRes = await fetch("/api/ai-forecast", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
-          },
-          body: JSON.stringify(payload),
-        });
+        // One graph failing must not abandon the rest of the batch. Previously
+        // a single error threw out of the loop, so an early failure looked
+        // like the whole generator was broken.
+        try {
+          const aiRes = await fetch("/api/ai-forecast", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.NEXT_PUBLIC_API_SECRET}`,
+            },
+            body: JSON.stringify(payload),
+          });
 
-        const aiJson = await aiRes.json().catch(() => ({}));
-        if (!aiRes.ok) {
-          throw new Error(aiJson?.error || `AI forecast failed for graph #${graphId}`);
+          const aiJson = await aiRes.json().catch(() => ({}));
+          if (!aiRes.ok) {
+            throw new Error(
+              aiJson?.error || `AI forecast failed (HTTP ${aiRes.status})`,
+            );
+          }
+
+          await saveCountryAIForecast(graphId, selectedCountry, aiJson);
+          done++;
+        } catch (e) {
+          const msg = e?.message || "failed";
+          failed.push(`#${graphId} ${graph.name} — ${msg}`);
+
+          // An exhausted or unfunded OpenAI key fails identically for every
+          // graph, so stop rather than repeat the same call 160 times.
+          if (/no credits|quota|billing|429/i.test(msg)) {
+            aborted =
+              "OpenAI API reported no remaining credits. Generation stopped — add credits and run again.";
+            break;
+          }
         }
-
-        await saveCountryAIForecast(graphId, selectedCountry, aiJson);
       }
 
-      message.success("Flash AI forecast generation completed.");
+      setFailures(failed);
+
+      if (aborted) {
+        message.error(aborted);
+      } else if (failed.length) {
+        message.warning(
+          `Generated ${done} of ${graphIds.length}. ${failed.length} could not be generated — see the list below.`,
+        );
+      } else {
+        message.success(
+          `Flash AI forecast generated for ${done} graph${done === 1 ? "" : "s"}.`,
+        );
+      }
+
       await load();
-    } catch (e) {
-      message.error(e?.message || "Flash AI generation failed");
     } finally {
       setGenerating(false);
       setProgress({ current: 0, total: 0 });
@@ -427,8 +478,9 @@ export default function FlashAIForecastGenerator() {
             <div style={{ fontSize: 12 }}>
               <div>1) Ensure <code>OPENAI_API_KEY</code> is set on the server.</div>
               <div>
-                2) Ensure each Flash graph has relevant questions (recommended).
-                For non-India countries, questions are required.
+                2) Ensure each Flash graph has questions for the selected
+                country. The forecast is derived from them, so a graph without
+                questions is skipped.
               </div>
               <div>
                 3) Ensure Flash segment mapping is set; otherwise the segment is guessed from the graph name.
@@ -436,6 +488,25 @@ export default function FlashAIForecastGenerator() {
             </div>
           }
         />
+
+        {failures.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            message={`${failures.length} graph${
+              failures.length === 1 ? "" : "s"
+            } could not be generated`}
+            description={
+              <div style={{ fontSize: 12, maxHeight: 220, overflowY: "auto" }}>
+                {failures.map((f, i) => (
+                  <div key={i}>{f}</div>
+                ))}
+              </div>
+            }
+            closable
+            onClose={() => setFailures([])}
+          />
+        )}
 
         <Divider style={{ margin: "8px 0" }} />
 

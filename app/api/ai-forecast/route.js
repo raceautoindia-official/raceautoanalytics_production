@@ -1,10 +1,8 @@
 import OpenAI from "openai";
 import {
-  toSeries,
   seasonalIndices,
   describeSeasonality,
   isEffectivelyLinear,
-  monthOf,
 } from "@/lib/forecastSeasonality";
 
 export const dynamic = "force-dynamic";
@@ -89,7 +87,27 @@ const KNOWN_CALENDAR = {
     "Vehicle demand tracks Ramadan and Eid, which move about 11 days earlier each year: Ramadan began 1 Mar 2025, 18 Feb 2026, and begins about 8 Feb 2027.",
 };
 
-const prevYearOf = (m) => `${Number(m.slice(0, 4)) - 1}${m.slice(4)}`;
+/**
+ * Two callers use this endpoint with different period shapes:
+ *   - the Flash generator sends months ("2026-09") and { data: {...} }
+ *   - the yearly CMS generator sends years ("2027") and a flat volume map
+ * Both are accepted. Month-of-year machinery (seasonality, festival dates)
+ * only applies to the monthly shape.
+ */
+const PERIOD_RE = /^\d{4}(-\d{2})?$/;
+const isAnnualKey = (k) => /^\d{4}$/.test(String(k).trim());
+
+function buildSeries(data) {
+  return Object.entries(data || {})
+    .map(([k, v]) => ({ month: String(k).trim(), value: Number(v) }))
+    .filter((p) => PERIOD_RE.test(p.month) && Number.isFinite(p.value))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
+
+const prevYearOf = (m) =>
+  isAnnualKey(m)
+    ? String(Number(m) - 1)
+    : `${Number(m.slice(0, 4)) - 1}${m.slice(4)}`;
 
 const median = (a) => {
   const s = [...a].sort((x, y) => x - y);
@@ -145,10 +163,23 @@ export async function POST(req) {
       );
     }
 
-    const series = toSeries(volumeData.data);
-    const periods = (Array.isArray(years) ? years : []).filter(monthOf);
+    // The Flash generator nests the volume map under `data`; the yearly CMS
+    // generator sends it flat. Accept either rather than silently returning an
+    // empty series and a 400.
+    const rawData =
+      volumeData && typeof volumeData.data === "object" && volumeData.data
+        ? volumeData.data
+        : volumeData;
+    const series = buildSeries(rawData);
+    const periods = (Array.isArray(years) ? years : [])
+      .map((y) => String(y).trim())
+      .filter((y) => PERIOD_RE.test(y));
 
-    if (series.length < 8 || !periods.length) {
+    const annual = periods.length > 0 && periods.every(isAnnualKey);
+    // Enough points to see a trend: a year of months, or three annual figures.
+    const minPoints = annual ? 3 : 8;
+
+    if (series.length < minPoints || !periods.length) {
       return new Response(
         JSON.stringify({ error: "No usable history or forecast periods" }),
         { status: 400 },
@@ -190,16 +221,26 @@ export async function POST(req) {
       : 0;
 
     const anchors = {};
-    periods.forEach((p, i) => {
-      const a = byMonth[prevYearOf(p)];
-      if (a > 0) anchors[p] = a * (1 + growth * (1 - 0.06 * i));
-    });
+    if (annual) {
+      // Annual periods have no same-month-last-year to lean on, and only the
+      // first forecast year has a real predecessor in the history. Compound the
+      // trend off the last actual instead.
+      const lastValue = series[series.length - 1].value;
+      periods.forEach((p, i) => {
+        anchors[p] = lastValue * Math.pow(1 + growth, i + 1);
+      });
+    } else {
+      periods.forEach((p, i) => {
+        const a = byMonth[prevYearOf(p)];
+        if (a > 0) anchors[p] = a * (1 + growth * (1 - 0.06 * i));
+      });
+    }
     const anchoredMonths = periods.filter((p) => anchors[p] > 0);
 
-    // Seasonality is only worth stating when there is no YoY anchor already
-    // carrying the shape.
+    // Month-of-year seasonality is meaningless for annual periods, and is only
+    // worth stating when a YoY anchor is not already carrying the shape.
     const seasonalNote =
-      anchoredMonths.length === periods.length
+      annual || anchoredMonths.length === periods.length
         ? null
         : describeSeasonality(seasonalIndices(series));
 
@@ -258,27 +299,38 @@ Be concise and factual. Write NOT FOUND for anything you cannot source. Do not s
       )
       .join("\n");
 
+    const unit = annual ? "year" : "month";
+
     const anchorBlock = anchoredMonths.length
       ? anchoredMonths
-          .map(
-            (p) =>
-              `${p}  <- ${prevYearOf(p)} actual ${byMonth[
-                prevYearOf(p)
-              ].toLocaleString()}  => baseline ${Math.round(
-                anchors[p],
-              ).toLocaleString()}`,
+          .map((p) =>
+            annual
+              ? `${p}  => baseline ${Math.round(anchors[p]).toLocaleString()}`
+              : `${p}  <- ${prevYearOf(p)} actual ${byMonth[
+                  prevYearOf(p)
+                ].toLocaleString()}  => baseline ${Math.round(
+                  anchors[p],
+                ).toLocaleString()}`,
           )
           .join("\n")
       : "(less than a year of history — no same-month-last-year anchor available)";
 
-    const prompt = `You are an automotive market analyst producing a monthly volume forecast for ${place} / ${segHint}.
+    const prompt = `You are an automotive market analyst producing a ${
+      annual ? "yearly" : "monthly"
+    } volume forecast for ${place} / ${segHint}.
 
-ACTUAL MONTHLY HISTORY. This is the client's own dataset. Your forecast must be on exactly this scale and definition — not the units used by any news source.
+ACTUAL ${annual ? "ANNUAL" : "MONTHLY"} HISTORY. This is the client's own dataset. Your forecast must be on exactly this scale and definition — not the units used by any news source.
 ${series.map((p) => `${p.month}: ${p.value.toLocaleString()}`).join("\n")}
 
-YEAR-OVER-YEAR BASELINE. Each forecast month anchored to the same calendar month one year earlier, grown by this market's recent YoY rate of ${(
-      growth * 100
-    ).toFixed(1)}%:
+${
+  annual
+    ? `TREND BASELINE. Each forecast year compounded off the last actual at this market's recent growth rate of ${(
+        growth * 100
+      ).toFixed(1)}%:`
+    : `YEAR-OVER-YEAR BASELINE. Each forecast month anchored to the same calendar month one year earlier, grown by this market's recent YoY rate of ${(
+        growth * 100
+      ).toFixed(1)}%:`
+}
 ${anchorBlock}
 ${
   seasonalNote
@@ -287,7 +339,7 @@ ${
 }
 
 ${
-  KNOWN_CALENDAR[String(region).toLowerCase()]
+  !annual && KNOWN_CALENDAR[String(region).toLowerCase()]
     ? `KNOWN CALENDAR — authoritative, use these dates rather than your own recollection:\n${
         KNOWN_CALENDAR[String(region).toLowerCase()]
       }\n`
@@ -300,13 +352,22 @@ ANALYST DRIVER QUESTIONS from the client's CMS:
 ${qBlock}
 
 How to build the forecast:
-- If the research reports an ALREADY-PUBLISHED actual for one of the forecast months, use it, converted to the scale of the history above.
-- The baseline already carries this market's real seasonal shape. Depart from it only for a reason you can name: a driver question, a policy change, or a calendar shift found in the research.
-- A festive or plate-change peak MOVES between months. If the research says it falls in a different month this year than last, move the volume to the correct month rather than leaving it where it was.
-- Every value must be a realistic monthly volume for THIS dataset. The history runs from ${Math.min(
+- If the research reports an ALREADY-PUBLISHED actual for one of the forecast ${unit}s, use it, converted to the scale of the history above.
+- The baseline already carries this market's real ${
+      annual ? "trend" : "seasonal shape"
+    }. Depart from it only for a reason you can name: a driver question, a policy change, or ${
+      annual
+        ? "a structural change found in the research"
+        : "a calendar shift found in the research"
+    }.${
+      annual
+        ? ""
+        : "\n- A festive or plate-change peak MOVES between months. If the research says it falls in a different month this year than last, move the volume to the correct month rather than leaving it where it was."
+    }
+- Every value must be a realistic ${unit}ly volume for THIS dataset. The history runs from ${Math.min(
       ...values,
     ).toLocaleString()} to ${Math.max(...values).toLocaleString()}.
-- Consecutive months must not move by a constant increment.
+- Consecutive ${unit}s must not move by a constant increment.
 ${
   racedMonths.length
     ? `- The client's analyst has published their own forecast for these months: ${racedMonths
