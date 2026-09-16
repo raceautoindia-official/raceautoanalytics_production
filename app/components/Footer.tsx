@@ -1,10 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Mail, Phone, Facebook, Instagram, Linkedin, Youtube, Twitter } from "lucide-react";
 import Image from "next/image";
 
 export default function Footer() {
+  // Live country count from the CMS. This was hardcoded as "14" and stayed
+  // there while coverage grew. Until the count arrives the copy reads
+  // "multiple countries", which is never wrong, rather than a stale number.
+  const [countryCount, setCountryCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/flash-reports/countries")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const list = Array.isArray(j) ? j : j?.countries;
+        if (!cancelled && Array.isArray(list) && list.length > 0) {
+          setCountryCount(list.length);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <footer className="bg-[#191a1c] text-white">
       {/* Top row */}
@@ -30,8 +52,9 @@ export default function Footer() {
 
             {/* keep the description below with the same spacing as other columns' content */}
             <p className="mt-4 max-w-xl text-[13px] leading-5 text-white/75">
-              Analyst-ready automotive flash reports and forecasts across 14
-              countries and 9 vehicle segments — from two-wheelers and
+              Analyst-ready automotive flash reports and forecasts across{" "}
+              {countryCount ?? "multiple"} countries and 9 vehicle segments —
+              from two-wheelers and
               three-wheelers to trucks, tractors and construction equipment.
             </p>
           </div>

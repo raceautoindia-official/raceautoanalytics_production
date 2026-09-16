@@ -3,33 +3,48 @@ import Link from "next/link";
 import NavBar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { SITE_URL } from "@/lib/seoRoutes";
+import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
+
+// Pick up markets added in the CMS within ~10 minutes, same as /pricing.
+export const revalidate = 600;
 
 const TITLE = "About | Race Auto Analytics";
-const DESCRIPTION =
-  "Race Auto Analytics delivers analyst-ready automotive flash reports and forecasts across 14 countries and 9 vehicle segments — from the team behind Race Auto India, a decade-old automotive media brand.";
 
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: "/about" },
-  robots: { index: true, follow: true },
-  openGraph: {
+// The country count comes from the CMS. It was hardcoded as "14" in three
+// places on this page and stayed that way long after coverage passed 20.
+const buildDescription = (countryCount: number) =>
+  `Race Auto Analytics delivers analyst-ready automotive flash reports and forecasts across ${countryCount} countries and 9 vehicle segments — from the team behind Race Auto India, a decade-old automotive media brand.`;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const DESCRIPTION = buildDescription(
+    (await getLiveFlashCountrySlugs()).length,
+  );
+  return {
     title: TITLE,
     description: DESCRIPTION,
-    url: `${SITE_URL}/about`,
-    type: "website",
-    siteName: "RACE Auto Analytics",
-  },
-};
+    alternates: { canonical: "/about" },
+    robots: { index: true, follow: true },
+    openGraph: {
+      title: TITLE,
+      description: DESCRIPTION,
+      url: `${SITE_URL}/about`,
+      type: "website",
+      siteName: "RACE Auto Analytics",
+    },
+  };
+}
 
-const STATS = [
-  { k: "14", v: "countries covered" },
-  { k: "9", v: "vehicle segments" },
-  { k: "6-month", v: "rolling forecasts" },
-  { k: "Day 3", v: "India release each month" },
-];
+export default async function AboutPage() {
+  const countryCount = (await getLiveFlashCountrySlugs()).length;
+  const DESCRIPTION = buildDescription(countryCount);
 
-export default function AboutPage() {
+  const STATS = [
+    { k: String(countryCount), v: "countries covered" },
+    { k: "9", v: "vehicle segments" },
+    { k: "6-month", v: "rolling forecasts" },
+    { k: "Day 3", v: "India release each month" },
+  ];
+
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -131,8 +146,8 @@ export default function AboutPage() {
                   <p>
                     So we built one — flash reports and forecasts with the
                     segment depth emerging markets actually need, released fast
-                    (India lands on day 3 of the month), across 14 countries and
-                    growing.
+                    (India lands on day 3 of the month), across {countryCount}{" "}
+                    countries and growing.
                   </p>
                 </div>
 

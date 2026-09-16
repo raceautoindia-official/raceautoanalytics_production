@@ -305,7 +305,6 @@ export default function FlashAIForecastGenerator() {
 
     const failed = [];
     let done = 0;
-    let aborted = null;
 
     try {
       for (let i = 0; i < graphIds.length; i++) {
@@ -315,20 +314,10 @@ export default function FlashAIForecastGenerator() {
         const graph = graphs.find((g) => g.id === graphId);
         if (!graph) continue;
 
+        // Questions are no longer required: the forecast is calculated from the
+        // volume history, so a graph without questions is generated like any
+        // other. (They still drive the ML Survey and BYF lines.)
         const qs = questionsMap[graphId] || [];
-
-        // The API derives the forecast from these questions and returns 422
-        // when there are none, so a request without them cannot succeed. This
-        // applies to every country: India was previously exempted here, which
-        // only turned a skip into a failed request that aborted the batch.
-        if (qs.length === 0) {
-          failed.push(
-            `#${graphId} ${graph.name} — no questions configured for ${String(
-              selectedCountry,
-            ).toUpperCase()}. Add them in Flash Questions first.`,
-          );
-          continue;
-        }
 
         const { segment, categoryKey, volumeData } = buildVolumeDataForGraph(graph);
 
@@ -351,10 +340,6 @@ export default function FlashAIForecastGenerator() {
             weight: q.weight,
             type: q.type,
           })),
-          // The analyst forecast for the same months. The API keeps the AI line
-          // within a set distance of it; omitting it left CMS-generated values
-          // unbounded while script-generated ones were bounded.
-          raceForecast: forecastMap[graphId]?.raceForecast || null,
         };
 
         // One graph failing must not abandon the rest of the batch. Previously
@@ -380,24 +365,13 @@ export default function FlashAIForecastGenerator() {
           await saveCountryAIForecast(graphId, selectedCountry, aiJson);
           done++;
         } catch (e) {
-          const msg = e?.message || "failed";
-          failed.push(`#${graphId} ${graph.name} — ${msg}`);
-
-          // An exhausted or unfunded OpenAI key fails identically for every
-          // graph, so stop rather than repeat the same call 160 times.
-          if (/no credits|quota|billing|429/i.test(msg)) {
-            aborted =
-              "OpenAI API reported no remaining credits. Generation stopped — add credits and run again.";
-            break;
-          }
+          failed.push(`#${graphId} ${graph.name} — ${e?.message || "failed"}`);
         }
       }
 
       setFailures(failed);
 
-      if (aborted) {
-        message.error(aborted);
-      } else if (failed.length) {
+      if (failed.length) {
         message.warning(
           `Generated ${done} of ${graphIds.length}. ${failed.length} could not be generated — see the list below.`,
         );
@@ -476,11 +450,13 @@ export default function FlashAIForecastGenerator() {
           message="Requirements"
           description={
             <div style={{ fontSize: 12 }}>
-              <div>1) Ensure <code>OPENAI_API_KEY</code> is set on the server.</div>
               <div>
-                2) Ensure each Flash graph has questions for the selected
-                country. The forecast is derived from them, so a graph without
-                questions is skipped.
+                1) The forecast is calculated from each graph&apos;s own volume
+                history — no API key or credits are used, and re-running gives
+                the same result.
+              </div>
+              <div>
+                2) A graph needs at least 6 months of history to be forecast.
               </div>
               <div>
                 3) Ensure Flash segment mapping is set; otherwise the segment is guessed from the graph name.

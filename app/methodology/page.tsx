@@ -3,6 +3,14 @@ import Link from "next/link";
 import NavBar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
 import { SITE_URL } from "@/lib/seoRoutes";
+import { getLiveFlashCountrySlugs } from "@/lib/flashReportLiveCountries";
+
+// Pick up markets added in the CMS within ~10 minutes, same as /pricing.
+export const revalidate = 600;
+
+// Replaced at render with the live CMS country count. Hardcoding it ("14")
+// left this page stating a number coverage had long since outgrown.
+const COUNTRY_COUNT_TOKEN = "{countryCount}";
 
 const TITLE = "Methodology | Race Auto Analytics";
 const DESCRIPTION =
@@ -47,7 +55,7 @@ const SECTIONS: { h: string; body: string[] }[] = [
   {
     h: "4. Coverage & release calendar",
     body: [
-      "Coverage spans 14 countries and up to 9 vehicle segments, with depth varying by market. India is the deepest dataset and is released early each month (day 3); other markets follow on a staggered schedule.",
+      "Coverage spans {countryCount} countries and up to 9 vehicle segments, with depth varying by market. India is the deepest dataset and is released early each month (day 3); other markets follow on a staggered schedule.",
       "[CONFIRM] Publish the per-country release day and module depth so subscribers know exactly what to expect and when.",
     ],
   },
@@ -66,7 +74,9 @@ const SECTIONS: { h: string; body: string[] }[] = [
   },
 ];
 
-export default function MethodologyPage() {
+export default async function MethodologyPage() {
+  const countryCount = String((await getLiveFlashCountrySlugs()).length);
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -123,7 +133,7 @@ export default function MethodologyPage() {
                             : ""
                         }
                       >
-                        {p}
+                        {p.split(COUNTRY_COUNT_TOKEN).join(countryCount)}
                       </p>
                     ))}
                   </div>

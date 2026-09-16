@@ -1,101 +1,63 @@
-import OpenAI from "openai";
-import {
-  seasonalIndices,
-  describeSeasonality,
-  isEffectivelyLinear,
-} from "@/lib/forecastSeasonality";
+import { seasonalIndices } from "@/lib/forecastSeasonality";
+import { holtWinters } from "@/lib/holtWinters";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
- * Flash AI forecast generator (called from the CMS).
+ * Flash / CMS forecast generator.
  *
- * The AI line is produced in two stages:
+ * This is a DETERMINISTIC calculation. It makes no OpenAI call, costs nothing
+ * to run, and returns the same answer every time for the same history — so a
+ * regeneration can be repeated without spending anything or drifting.
  *
- *   1. RESEARCH. The model is given web search and asked what is actually
- *      happening in this market right now — who publishes the volumes, which
- *      months are already published, the YoY trend, any tax or incentive
- *      change landing inside the forecast window, the festive/plate-change
- *      calendar, and any published industry forecast. Everything must be
- *      sourced; anything unfindable comes back as NOT FOUND.
+ * It is also INDEPENDENT of the analyst (Race) line. Nothing here reads or is
+ * bounded by Race: the two lines are separate opinions drawn on one chart, and
+ * pinning one to the other made the generated line a visual copy of the other.
  *
- *   2. FORECAST. History supplies the scale, definition and seasonal shape;
- *      the research supplies direction and turning points; the CMS driver
- *      questions supply the analyst's own view.
+ * Replacing the model also removed the only failure mode the CMS still had.
+ * The previous version rejected a model answer that broke its guards and gave
+ * up after three tries ("did not return a usable forecast"), which is what
+ * Spain's Passenger Cars and Truck graphs were hitting. A calculation cannot
+ * fail that way: any history long enough to show a trend yields a forecast.
  *
- * Why research rather than pure statistics: the forecast window often starts
- * before the client's own upload has caught up, so the first month or two is
- * already published somewhere. On India 2W the research returned Vahan's
- * actual August 2026 figure (1,714,610) rather than guessing at it. It also
- * knows that a festive peak MOVES — Diwali fell in October 2025 and falls in
- * November 2026 — which no seasonal index keyed on calendar months can express.
+ * METHOD, in order of preference:
  *
- * Guards, in the order of what they catch:
- *   - scale band, from the market's own history. Research quotes figures in
- *     whatever unit the source used and the model sometimes follows it:
- *     Ireland came back as 11, 8, 5, 3, 2, 43 (thousands) against a history in
- *     units. Anything outside 0.4x min .. 1.6x max of history is rejected.
- *   - year-over-year sanity where a same-month-last-year actual exists. Wide
- *     (+/-60%) on purpose: it must still permit a real festive shift between
- *     October and November, which is roughly a 45% move.
- *   - a constant month-to-month increment is a ramp, not a forecast.
+ *  1. Year-over-year anchoring. Each forecast month starts from the SAME
+ *     CALENDAR MONTH one year earlier, grown by the market's own rate. Last
+ *     year's actual already contains the seasonal shape, so nothing has to be
+ *     inferred. This is what makes Ireland's January plate-change peak and
+ *     Finland's winter collapse come out right, where a seasonal index built
+ *     from one or two observations per month flattened them into nonsense.
  *
- * A rejected answer is retried with the specific reason. After three attempts
- * the endpoint returns NOTHING (502). Substituting a statistical curve is what
- * made this line look invented in the first place.
+ *  2. Level x seasonal index, when the history does not cover a full year back
+ *     from every forecast month.
  *
- * A graph/country with no CMS questions still gets 422 and stores no forecast.
+ *  3. Damped-trend Holt-Winters, when there is too little history for either.
+ *
+ * MOVABLE FESTIVALS. A festive peak belongs to an event, not to a calendar
+ * month, and year-over-year anchoring cannot know that: Diwali fell in October
+ * 2025 and falls in November 2026, so anchoring November to November would
+ * carry the wrong month forward. For countries in FESTIVE_MONTHS the festive
+ * uplift is measured against that year's ordinary months and re-applied to
+ * whichever month actually holds the festival this year.
+ *
+ * GROWTH is the trailing-12-month level against the previous 12 months where
+ * the history allows. That is deliberately slower than a recent year-over-year
+ * reading: India's last six YoY figures average about +25%, but every one of
+ * them compares a post-GST-cut month against a pre-cut month, so they overstate
+ * what carries forward once the base period is itself post-cut.
  */
 
-const prettyRegion = (r) =>
-  String(r || "")
-    .replace(/[-_]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
-
-const SEGMENT_HINT = {
-  "2W": "two-wheeler (motorcycle and scooter)",
-  "3W": "three-wheeler",
-  PV: "passenger vehicle / passenger car",
-  CV: "commercial vehicle",
-  TRAC: "agricultural tractor",
-  CE: "construction equipment",
-  Total: "total automotive market (all vehicle types combined)",
-  Truck: "truck",
-  Bus: "bus and coach",
-  Tipper: "tipper truck",
-  Trailer: "tractor-trailer / articulated truck",
-};
-
-/**
- * Calendar facts the model must not recall from memory.
- *
- * Asked unaided, it got Diwali backwards — "shifted from November to October"
- * for 2026, when the dates are the reverse — and on a later run left the peak
- * in October entirely. A movable festival is the one thing a seasonal index
- * keyed on calendar months can never represent, so it has to be stated.
- */
-const KNOWN_CALENDAR = {
-  india:
-    "Diwali is the festive peak for Indian vehicle sales and it MOVES each year: 31 Oct/1 Nov 2024 (peak split across October and November), 20 Oct 2025 (peak in OCTOBER), 8 Nov 2026 (peak in NOVEMBER). So October 2026 does NOT repeat October 2025's festive spike — that volume belongs to November 2026.",
-  ireland:
-    "Ireland changes registration plates twice a year: January (new annual plate) and July (second-half plate). January is by far the largest month of the year and December the smallest.",
-  pakistan:
-    "Vehicle demand tracks Ramadan and Eid, which move about 11 days earlier each year: Ramadan began 1 Mar 2025, 18 Feb 2026, and begins about 8 Feb 2027.",
-};
-
-/**
- * Two callers use this endpoint with different period shapes:
- *   - the Flash generator sends months ("2026-09") and { data: {...} }
- *   - the yearly CMS generator sends years ("2027") and a flat volume map
- * Both are accepted. Month-of-year machinery (seasonality, festival dates)
- * only applies to the monthly shape.
- */
 const PERIOD_RE = /^\d{4}(-\d{2})?$/;
 const isAnnualKey = (k) => /^\d{4}$/.test(String(k).trim());
+const yearOf = (k) => Number(String(k).slice(0, 4));
+const monthNum = (k) =>
+  isAnnualKey(k) ? null : Number(String(k).slice(5, 7)) || null;
+
+const prevYearOf = (m) =>
+  isAnnualKey(m)
+    ? String(Number(m) - 1)
+    : `${Number(m.slice(0, 4)) - 1}${m.slice(4)}`;
 
 function buildSeries(data) {
   return Object.entries(data || {})
@@ -104,10 +66,7 @@ function buildSeries(data) {
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
-const prevYearOf = (m) =>
-  isAnnualKey(m)
-    ? String(Number(m) - 1)
-    : `${Number(m.slice(0, 4)) - 1}${m.slice(4)}`;
+const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
 
 const median = (a) => {
   const s = [...a].sort((x, y) => x - y);
@@ -116,413 +75,221 @@ const median = (a) => {
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[h - 1] + s[h]) / 2;
 };
 
+/**
+ * Months that carry a movable festive peak, by country and year.
+ *
+ * Diwali: 31 Oct/1 Nov 2024 (the peak split across both months), 20 Oct 2025,
+ * 8 Nov 2026, 29 Oct 2027. Without this the forecast repeats last year's
+ * festive month, which is wrong in any year the festival moves.
+ */
+const FESTIVE_MONTHS = {
+  india: { 2024: [10, 11], 2025: [10], 2026: [11], 2027: [10] },
+};
+
+const MAX_GROWTH = 0.35;
+
+/** Trailing-12 vs previous-12 level, falling back to recent year-over-year. */
+function estimateGrowth(series, byKey) {
+  const values = series.map((p) => p.value);
+  if (values.length >= 24) {
+    const last12 = mean(values.slice(-12));
+    const prev12 = mean(values.slice(-24, -12));
+    if (prev12 > 0 && Number.isFinite(last12)) {
+      return Math.max(-MAX_GROWTH, Math.min(MAX_GROWTH, last12 / prev12 - 1));
+    }
+  }
+  const yoy = [];
+  for (const p of series) {
+    const prev = byKey[prevYearOf(p.month)];
+    if (prev > 0) yoy.push(p.value / prev - 1);
+  }
+  if (!yoy.length) return 0;
+  return Math.max(-MAX_GROWTH, Math.min(MAX_GROWTH, median(yoy.slice(-6))));
+}
+
+/**
+ * Ordinary (non-festive) monthly level, and how much a festive month lifts
+ * above it. Both measured from the market's own history.
+ */
+function festiveProfile(series, festiveByYear) {
+  const isFestive = (k) => {
+    const list = festiveByYear?.[yearOf(k)];
+    return Array.isArray(list) && list.includes(monthNum(k));
+  };
+
+  const recent = series.slice(-12);
+  const ordinaryRecent = recent.filter((p) => !isFestive(p.month));
+  const level = mean(
+    (ordinaryRecent.length >= 6 ? ordinaryRecent : recent).map((p) => p.value),
+  );
+
+  // Uplift per year that has both festive and ordinary months on record.
+  const byYear = new Map();
+  for (const p of series) {
+    const y = yearOf(p.month);
+    if (!byYear.has(y)) byYear.set(y, { fest: [], ord: [] });
+    (isFestive(p.month) ? byYear.get(y).fest : byYear.get(y).ord).push(p.value);
+  }
+  const ratios = [];
+  for (const { fest, ord } of byYear.values()) {
+    if (!fest.length || ord.length < 6) continue;
+    const o = mean(ord);
+    if (o > 0) ratios.push(mean(fest) / o);
+  }
+
+  return {
+    isFestive,
+    level,
+    uplift: ratios.length ? median(ratios) : null,
+  };
+}
+
 export async function POST(req) {
   try {
-    const {
-      categoryName,
-      categoryDefinition,
-      graphName,
-      region,
-      volumeData,
-      years,
-      questions,
-      raceForecast,
-    } = await req.json();
+    const { region, volumeData, years } = await req.json();
 
-    if (
-      !categoryName ||
-      !categoryDefinition ||
-      !graphName ||
-      !region ||
-      !volumeData ||
-      !years ||
-      !questions
-    ) {
+    if (!volumeData || !years) {
       return new Response(
-        JSON.stringify({ error: "Missing one or more required fields" }),
+        JSON.stringify({ error: "Missing volumeData or years" }),
         { status: 400 },
       );
     }
 
-    const usableQuestions = (Array.isArray(questions) ? questions : [])
-      .map((q) => ({
-        text: String(q?.text ?? "").trim(),
-        type: String(q?.type ?? "").trim().toLowerCase() || "positive",
-        weight: Number(q?.weight),
-      }))
-      .filter((q) => q.text.length > 0);
-
-    if (!usableQuestions.length) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "No BYF questions configured for this graph and country. The AI forecast is derived from those questions, so none can be generated.",
-          code: "NO_QUESTIONS",
-        }),
-        { status: 422, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
     // The Flash generator nests the volume map under `data`; the yearly CMS
-    // generator sends it flat. Accept either rather than silently returning an
-    // empty series and a 400.
+    // generator sends it flat. Accept either.
     const rawData =
       volumeData && typeof volumeData.data === "object" && volumeData.data
         ? volumeData.data
         : volumeData;
+
     const series = buildSeries(rawData);
     const periods = (Array.isArray(years) ? years : [])
       .map((y) => String(y).trim())
       .filter((y) => PERIOD_RE.test(y));
 
     const annual = periods.length > 0 && periods.every(isAnnualKey);
-    // Enough points to see a trend: a year of months, or three annual figures.
-    const minPoints = annual ? 3 : 8;
+    const minPoints = annual ? 3 : 6;
 
     if (series.length < minPoints || !periods.length) {
       return new Response(
-        JSON.stringify({ error: "No usable history or forecast periods" }),
-        { status: 400 },
+        JSON.stringify({
+          error: `Not enough history to calculate a forecast (${series.length} points, ${minPoints} needed).`,
+          code: "INSUFFICIENT_HISTORY",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    // The analyst's own (Race) forecast for the same months, when the caller
-    // supplies it. The AI line is held within MAX_RACE_GAP of it: the two lines
-    // sit side by side on one chart, and a 2-3x divergence reads as a fault in
-    // the AI whatever the history says. 35% still leaves the AI visibly its own
-    // line -- it can differ by a third in either direction -- while removing
-    // the gaps that prompted this.
-    const MAX_RACE_GAP = 0.35;
-    const raceMap = {};
-    if (raceForecast && typeof raceForecast === "object") {
-      for (const p of periods) {
-        const n = Number(raceForecast[p]);
-        if (Number.isFinite(n) && n > 0) raceMap[p] = n;
-      }
-    }
-    const racedMonths = periods.filter((p) => raceMap[p] > 0);
-
-    const byMonth = Object.fromEntries(series.map((p) => [p.month, p.value]));
+    const byKey = Object.fromEntries(series.map((p) => [p.month, p.value]));
     const values = series.map((p) => p.value);
-    const loBand = Math.min(...values) * 0.4;
-    const hiBand = Math.max(...values) * 1.6;
+    const growth = estimateGrowth(series, byKey);
 
-    // Year-over-year anchor. Each forecast month is compared with the same
-    // calendar month a year earlier, grown by this market's own recent YoY
-    // rate. Given to the model as context and used as a sanity band — not as a
-    // clamp, because a festive month legitimately moves year to year.
-    const yoy = [];
-    for (const p of series) {
-      const prev = byMonth[prevYearOf(p.month)];
-      if (prev > 0) yoy.push(p.value / prev - 1);
-    }
-    const growth = yoy.length
-      ? Math.max(-0.35, Math.min(0.35, median(yoy.slice(-6))))
-      : 0;
+    const out = {};
+    let method;
 
-    const anchors = {};
     if (annual) {
-      // Annual periods have no same-month-last-year to lean on, and only the
-      // first forecast year has a real predecessor in the history. Compound the
-      // trend off the last actual instead.
+      // No seasonality to carry; compound the trend off the last actual.
       const lastValue = series[series.length - 1].value;
       periods.forEach((p, i) => {
-        anchors[p] = lastValue * Math.pow(1 + growth, i + 1);
+        out[p] = lastValue * Math.pow(1 + growth, i + 1);
       });
+      method = "annual-trend";
     } else {
+      const festiveByYear = FESTIVE_MONTHS[String(region || "").toLowerCase()];
+      const profile = festiveByYear
+        ? festiveProfile(series, festiveByYear)
+        : null;
+      const useFestive = !!(profile && profile.uplift && profile.level > 0);
+
+      // Damped so a growth rate is not compounded unchanged across the horizon.
+      const grown = (i) => 1 + growth * (1 - 0.06 * i);
+
+      const idx = seasonalIndices(series);
+      const anchored = periods.every((p) => byKey[prevYearOf(p)] > 0);
+
       periods.forEach((p, i) => {
-        const a = byMonth[prevYearOf(p)];
-        if (a > 0) anchors[p] = a * (1 + growth * (1 - 0.06 * i));
-      });
-    }
-    const anchoredMonths = periods.filter((p) => anchors[p] > 0);
+        const m = monthNum(p);
+        const thisYearFestive =
+          useFestive &&
+          Array.isArray(festiveByYear[yearOf(p)]) &&
+          festiveByYear[yearOf(p)].includes(m);
 
-    // Month-of-year seasonality is meaningless for annual periods, and is only
-    // worth stating when a YoY anchor is not already carrying the shape.
-    const seasonalNote =
-      annual || anchoredMonths.length === periods.length
-        ? null
-        : describeSeasonality(seasonalIndices(series));
-
-    const segHint =
-      SEGMENT_HINT[String(categoryName).replace(/^Flash\s+/i, "").trim()] ||
-      String(categoryName);
-    const place = prettyRegion(region);
-    const now = new Date();
-    const today = `${now.toLocaleString("en-GB", {
-      month: "long",
-    })} ${now.getFullYear()}`;
-    const first = periods[0];
-    const last = periods[periods.length - 1];
-
-    // ---------- Stage 1: online research ----------
-    let brief = "";
-    let sources = [];
-    let researchState = "ok";
-    try {
-      const research = await openai.responses.create({
-        model: "gpt-4o",
-        tools: [{ type: "web_search" }],
-        input: `Research the CURRENT state of the ${segHint} market in ${place}, as of ${today}.
-
-Report ONLY what you can source, naming the source and its date:
-1. Who publishes monthly sales/registration volumes for this market, and which months are already published — INCLUDING any month between ${first} and ${last}. If an actual figure for one of those months has already been published, state it explicitly.
-2. The year-on-year growth trend over the last six months.
-3. Any tax, incentive, emissions or registration change affecting demand between ${first} and ${last}.
-4. Calendar effects in that window, with dates: festivals that move year to year (for example Diwali in India), plate-change months, winter demand collapse.
-5. Any published industry forecast for this market covering that window.
-
-Be concise and factual. Write NOT FOUND for anything you cannot source. Do not speculate.`,
-      });
-      brief = String(research.output_text || "").trim();
-      sources = [
-        ...new Set(
-          (
-            JSON.stringify(research.output || "").match(
-              /https?:\/\/[^"\\\s)]+/g,
-            ) || []
-          ).map((u) => u.replace(/[.,]+$/, "")),
-        ),
-      ].slice(0, 8);
-      if (!brief) researchState = "empty";
-    } catch (e) {
-      console.error("ai-forecast: research stage failed:", e?.message || e);
-      researchState = "failed";
-    }
-
-    const qBlock = usableQuestions
-      .map(
-        (q, i) =>
-          `${i + 1}. [${q.type}] (weight ${
-            Number.isFinite(q.weight) ? q.weight : "unweighted"
-          }) ${q.text}`,
-      )
-      .join("\n");
-
-    const unit = annual ? "year" : "month";
-
-    const anchorBlock = anchoredMonths.length
-      ? anchoredMonths
-          .map((p) =>
-            annual
-              ? `${p}  => baseline ${Math.round(anchors[p]).toLocaleString()}`
-              : `${p}  <- ${prevYearOf(p)} actual ${byMonth[
-                  prevYearOf(p)
-                ].toLocaleString()}  => baseline ${Math.round(
-                  anchors[p],
-                ).toLocaleString()}`,
-          )
-          .join("\n")
-      : "(less than a year of history — no same-month-last-year anchor available)";
-
-    const prompt = `You are an automotive market analyst producing a ${
-      annual ? "yearly" : "monthly"
-    } volume forecast for ${place} / ${segHint}.
-
-ACTUAL ${annual ? "ANNUAL" : "MONTHLY"} HISTORY. This is the client's own dataset. Your forecast must be on exactly this scale and definition — not the units used by any news source.
-${series.map((p) => `${p.month}: ${p.value.toLocaleString()}`).join("\n")}
-
-${
-  annual
-    ? `TREND BASELINE. Each forecast year compounded off the last actual at this market's recent growth rate of ${(
-        growth * 100
-      ).toFixed(1)}%:`
-    : `YEAR-OVER-YEAR BASELINE. Each forecast month anchored to the same calendar month one year earlier, grown by this market's recent YoY rate of ${(
-        growth * 100
-      ).toFixed(1)}%:`
-}
-${anchorBlock}
-${
-  seasonalNote
-    ? `\nObserved seasonality (share of trend by calendar month): ${seasonalNote}`
-    : ""
-}
-
-${
-  !annual && KNOWN_CALENDAR[String(region).toLowerCase()]
-    ? `KNOWN CALENDAR — authoritative, use these dates rather than your own recollection:\n${
-        KNOWN_CALENDAR[String(region).toLowerCase()]
-      }\n`
-    : ""
-}
-MARKET RESEARCH, gathered online just now:
-${brief || "(unavailable — rely on the history and the driver questions)"}
-
-ANALYST DRIVER QUESTIONS from the client's CMS:
-${qBlock}
-
-How to build the forecast:
-- If the research reports an ALREADY-PUBLISHED actual for one of the forecast ${unit}s, use it, converted to the scale of the history above.
-- The baseline already carries this market's real ${
-      annual ? "trend" : "seasonal shape"
-    }. Depart from it only for a reason you can name: a driver question, a policy change, or ${
-      annual
-        ? "a structural change found in the research"
-        : "a calendar shift found in the research"
-    }.${
-      annual
-        ? ""
-        : "\n- A festive or plate-change peak MOVES between months. If the research says it falls in a different month this year than last, move the volume to the correct month rather than leaving it where it was."
-    }
-- Every value must be a realistic ${unit}ly volume for THIS dataset. The history runs from ${Math.min(
-      ...values,
-    ).toLocaleString()} to ${Math.max(...values).toLocaleString()}.
-- Consecutive ${unit}s must not move by a constant increment.
-${
-  racedMonths.length
-    ? `- The client's analyst has published their own forecast for these months: ${racedMonths
-        .map((p) => `${p} ${raceMap[p].toLocaleString()}`)
-        .join(
-          ", ",
-        )}. Your forecast is shown on the same chart beside it, so stay within ${Math.round(
-        MAX_RACE_GAP * 100,
-      )}% of those figures. Differ from them where the research and drivers justify it — that difference is the value you add — but do not diverge by a multiple.`
-    : ""
-}
-
-Return ONLY a JSON object with exactly these ${
-      periods.length
-    } keys as plain integers (no commas, no units): ${periods.join(
-      ", ",
-    )}. Add "_why" with one short sentence.`;
-
-    // ---------- Stage 2: forecast, validated ----------
-    const askModel = async (correction) => {
-      const chat = await openai.chat.completions.create({
-        model: "gpt-4o",
-        temperature: 0.7,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are an automotive market analyst. You ground every forecast in the supplied history, research and driver questions, and return a strict JSON object. You never return a series with a constant increment between periods.",
-          },
-          {
-            role: "user",
-            content: correction ? `${prompt}\n\n${correction}` : prompt,
-          },
-        ],
-      });
-
-      let obj;
-      try {
-        obj = JSON.parse(chat.choices?.[0]?.message?.content || "");
-      } catch {
-        return { vals: null, reason: "the response was not valid JSON" };
-      }
-
-      const vals = {};
-      for (const p of periods) {
-        const n = Number(obj?.[p]);
-        if (Number.isFinite(n) && n > 0) vals[p] = Math.round(n);
-      }
-      if (Object.keys(vals).length !== periods.length) {
-        return {
-          vals: null,
-          reason: `it did not contain all ${periods.length} ${unit}s as positive numbers`,
-        };
-      }
-
-      const arr = periods.map((p) => vals[p]);
-
-      // Scale guard. Catches a model that silently switched units.
-      if (arr.some((v) => v < loBand || v > hiBand)) {
-        return {
-          vals: null,
-          reason: `the values were off the scale of this market — every ${unit} must be between ${Math.round(
-            loBand,
-          ).toLocaleString()} and ${Math.round(
-            hiBand,
-          ).toLocaleString()}, in the same units as the history`,
-        };
-      }
-
-      // Year-over-year sanity, wide enough to allow a genuine festive shift.
-      const wild = anchoredMonths.filter(
-        (p) => Math.abs(vals[p] / anchors[p] - 1) > 0.6,
-      );
-      if (wild.length) {
-        return {
-          vals: null,
-          reason: `${wild.join(
-            ", ",
-          )} departed more than 60% from the year-over-year baseline without support`,
-        };
-      }
-
-      if (isEffectivelyLinear(arr)) {
-        return {
-          vals: null,
-          reason: `the ${unit}s were evenly spaced — a ramp is not a forecast`,
-        };
-      }
-
-      return { vals, why: String(obj?._why || "").slice(0, 300) };
-    };
-
-    let out = null;
-    let why = "";
-    let attempts = 0;
-    let lastReason = "";
-    try {
-      for (let i = 0; i < 3 && !out; i++) {
-        attempts = i + 1;
-        const r = await askModel(
-          i === 0
-            ? null
-            : `Your previous answer was rejected because ${lastReason}. Correct it and return all ${periods.length} ${unit}s.`,
-        );
-        if (r.vals) {
-          out = r.vals;
-          why = r.why || "";
-        } else {
-          lastReason = r.reason;
+        if (useFestive) {
+          // Festive months are rebuilt from the ordinary level and the observed
+          // uplift, so the peak lands on the month that actually holds the
+          // festival this year rather than the one that held it last year.
+          if (thisYearFestive) {
+            out[p] = profile.level * grown(i) * profile.uplift;
+            return;
+          }
+          // A month that was festive LAST year cannot be anchored to itself —
+          // it would carry a peak that has moved away. Use the ordinary level.
+          if (profile.isFestive(prevYearOf(p))) {
+            const f = idx && m ? idx[m] : 1;
+            out[p] = profile.level * grown(i) * (f > 0 ? f : 1);
+            return;
+          }
         }
-      }
-    } catch (e) {
-      console.error("ai-forecast: model call failed:", e);
+
+        const anchor = byKey[prevYearOf(p)];
+        if (anchor > 0) {
+          out[p] = anchor * grown(i);
+          return;
+        }
+
+        if (idx && m) {
+          const level =
+            series.length >= 12
+              ? mean(values.slice(-12))
+              : mean(values.slice(-Math.min(6, values.length)));
+          out[p] = level * (idx[m] > 0 ? idx[m] : 1) * grown(i);
+          return;
+        }
+
+        const hw = holtWinters(values, periods.length);
+        out[p] = Array.isArray(hw) && Number.isFinite(hw[i])
+          ? hw[i]
+          : values[values.length - 1] * grown(i);
+      });
+
+      method = useFestive
+        ? "yoy-anchored+festive"
+        : anchored
+          ? "yoy-anchored"
+          : idx
+            ? "level-x-seasonal"
+            : "holt-winters";
     }
 
-    if (!out) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "The model did not return a usable forecast for this market after three attempts.",
-          code: "NO_PREDICTION",
-          lastReason,
-        }),
-        { status: 502, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    // Final guarantee. The prompt asks the model to stay near the analyst line;
-    // this makes sure of it, since a prompt instruction is not a constraint.
-    let clamped = 0;
-    for (const p of racedMonths) {
-      const lo = raceMap[p] * (1 - MAX_RACE_GAP);
-      const hi = raceMap[p] * (1 + MAX_RACE_GAP);
-      if (out[p] < lo || out[p] > hi) {
-        out[p] = Math.round(Math.min(Math.max(out[p], lo), hi));
-        clamped++;
+    // Sanity bound from the market's own history — NOT from the Race line.
+    // Wide enough to allow a genuine festive peak or a plate-change month,
+    // narrow enough to catch a runaway trend.
+    const lo = Math.min(...values) * 0.4;
+    const hi = Math.max(...values) * 1.6;
+    let bounded = 0;
+    for (const p of periods) {
+      const v = out[p];
+      if (!Number.isFinite(v) || v <= 0) {
+        out[p] = Math.round(mean(values.slice(-3)));
+        continue;
       }
+      const c = Math.min(Math.max(v, lo), hi);
+      if (c !== v) bounded++;
+      out[p] = Math.round(c);
     }
 
     return new Response(JSON.stringify(out), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        // Surfaced for CMS debugging; harmless to clients that ignore them.
-        "x-forecast-drivers": String(usableQuestions.length),
-        "x-forecast-attempts": String(attempts),
-        "x-forecast-race-clamped": `${clamped}/${racedMonths.length}`,
-        "x-forecast-research": researchState,
-        "x-forecast-sources": sources.join(" | ").slice(0, 1800),
-        "x-forecast-why": why.replace(/[^\x20-\x7e]/g, "").slice(0, 300),
+        "x-forecast-method": method,
+        "x-forecast-growth": `${(growth * 100).toFixed(1)}%`,
+        "x-forecast-bounded": `${bounded}/${periods.length}`,
+        "x-forecast-points": String(series.length),
       },
     });
   } catch (err) {
-    console.error("AI forecast error:", err);
+    console.error("Forecast calculation error:", err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }
