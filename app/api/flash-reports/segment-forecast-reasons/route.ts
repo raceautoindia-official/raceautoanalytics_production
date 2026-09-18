@@ -15,15 +15,20 @@ export const dynamic = "force-dynamic";
  * (db/migrations/flash_segment_forecast_reasons.sql)
  */
 
-/** "passenger vehicle" / "Passenger Vehicles" -> "passenger-vehicle" */
+/**
+ * "passenger vehicle" -> "passenger-vehicle".
+ *
+ * Deliberately does NOT singularise: stripping a trailing "s" turns the "bus"
+ * segment into "bu". Both sides (the page and the CMS editor) pass the same
+ * segment strings, so no plural folding is needed.
+ */
 export function normalizeSegmentKey(raw: string | null) {
   return String(raw || "")
     .toLowerCase()
     .trim()
     .replace(/[\s_]+/g, "-")
     .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/s$/, "");
+    .replace(/-+/g, "-");
 }
 
 export async function GET(req: Request) {
