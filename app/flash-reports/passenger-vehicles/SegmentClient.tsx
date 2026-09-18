@@ -907,7 +907,10 @@ const showApplicationChartSection =
           />
 
           {/* Per-OEM reasoning behind the forecast above */}
-          <SegmentForecastReasons segmentName="passenger vehicle" />
+          <SegmentForecastReasons
+            segmentName="passenger vehicle"
+            title="Passenger Vehicle OEM Forecast Rationale"
+          />
 
           {/* Brand → models bar chart (directly below market share) */}
           <BrandModelsChart segmentName="passenger vehicle" title="Passenger Vehicle Brand Models" />

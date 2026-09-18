@@ -38,7 +38,9 @@ const RANK_FALLBACK = "bg-muted text-muted-foreground ring-border";
 
 export function SegmentForecastReasons({
   segmentName,
-  title = "How this forecast was arrived at",
+  // Noun phrase, to sit alongside "… OEM Segment Share" and "… Brand Models"
+  // rather than breaking into a sentence.
+  title = "OEM Forecast Rationale",
 }: SegmentForecastReasonsProps) {
   const { region, month } = useAppContext();
   const [reasons, setReasons] = useState<Reason[]>([]);
@@ -139,8 +141,8 @@ export function SegmentForecastReasons({
             {title}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            The reasoning behind each manufacturer&apos;s projected share, ranked{" "}
-            {scopeLabel}.
+            What drives each manufacturer&apos;s projected share in the chart
+            above, ranked {scopeLabel}.
           </p>
         </div>
 

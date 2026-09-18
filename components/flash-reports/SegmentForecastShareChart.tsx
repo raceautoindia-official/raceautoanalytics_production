@@ -102,6 +102,10 @@ export function SegmentForecastShareChart({
         valueSuffix="%"
         valueDecimals={1}
         maxBarSize={64}
+        // A percentage axis is ambiguous without a title — it could be share,
+        // growth or penetration.
+        xAxisLabel="Forecast month"
+        yAxisLabel="Share of segment (%)"
         // Own legend below — the built-in one puts ten long OEM names on one
         // line and truncates them.
         showLegend={false}

@@ -10,6 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Label,
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -74,6 +75,13 @@ interface BarChartProps {
    * recharts sizing (existing behavior for all other charts).
    */
   maxBarSize?: number;
+
+  /**
+   * Optional axis titles. A percentage axis in particular is ambiguous without
+   * one. Omitted everywhere else, so existing charts are unchanged.
+   */
+  xAxisLabel?: string;
+  yAxisLabel?: string;
 }
 
 export function BarChart({
@@ -89,6 +97,8 @@ export function BarChart({
   valueDecimals,
   xTickMaxChars,
   maxBarSize,
+  xAxisLabel,
+  yAxisLabel,
 }: BarChartProps) {
   const isReducedMotion = useReducedMotion();
   const animationConfig = getAnimationConfig(isReducedMotion);
@@ -239,14 +249,18 @@ export function BarChart({
               ? {
                   top: 4,
                   right: 8,
-                  left: isVertical ? 8 : 4,
-                  bottom: isHorizontal ? horizontalBottomSpace : 5,
+                  left: (isVertical ? 8 : 4) + (yAxisLabel ? 16 : 0),
+                  bottom:
+                    (isHorizontal ? horizontalBottomSpace : 5) +
+                    (xAxisLabel ? 18 : 0),
                 }
               : {
                   top: 0,
                   right: 20,
-                  left: 20,
-                  bottom: isHorizontal ? horizontalBottomSpace : 5,
+                  left: 20 + (yAxisLabel ? 16 : 0),
+                  bottom:
+                    (isHorizontal ? horizontalBottomSpace : 5) +
+                    (xAxisLabel ? 22 : 0),
                 }
           }
           layout={layout}
@@ -333,7 +347,20 @@ export function BarChart({
                 ? `${str.slice(0, resolvedMaxChars)}…`
                 : str;
             }}
-          />
+          >
+            {xAxisLabel && (
+              <Label
+                value={xAxisLabel}
+                position="insideBottom"
+                offset={-4}
+                style={{
+                  fill: "hsl(var(--muted-foreground))",
+                  fontSize: isMobile ? 10 : 12,
+                  fontWeight: 500,
+                }}
+              />
+            )}
+          </XAxis>
 
           <YAxis
             type={isHorizontal ? "number" : "category"}
@@ -354,7 +381,21 @@ export function BarChart({
               const maxChars = isMobile ? 10 : 18;
               return str.length > maxChars ? `${str.slice(0, maxChars)}…` : str;
             }}
-          />
+          >
+            {yAxisLabel && (
+              <Label
+                value={yAxisLabel}
+                angle={-90}
+                position="insideLeft"
+                style={{
+                  fill: "hsl(var(--muted-foreground))",
+                  fontSize: isMobile ? 10 : 12,
+                  fontWeight: 500,
+                  textAnchor: "middle",
+                }}
+              />
+            )}
+          </YAxis>
 
           <Tooltip
             content={tooltipRenderer ? tooltipRenderer : DefaultTooltip}
