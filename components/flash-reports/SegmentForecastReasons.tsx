@@ -49,15 +49,18 @@ export function SegmentForecastReasons({
   // Same cached request the chart above uses.
   const { months } = useSegmentForecastShare(segmentName, region, month);
 
+  // Refetches on month change: an editor can publish different wording per
+  // month, and the API falls back to the default set for months without any.
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
+        const monthParam = selected === ALL ? "" : `&month=${encodeURIComponent(selected)}`;
         const url = withCountry(
           `/api/flash-reports/segment-forecast-reasons?segment=${encodeURIComponent(
             segmentName,
-          )}`,
+          )}${monthParam}`,
           region,
         );
         const res = await fetch(url, { cache: "no-store" });
@@ -76,7 +79,7 @@ export function SegmentForecastReasons({
     return () => {
       cancelled = true;
     };
-  }, [segmentName, region]);
+  }, [segmentName, region, selected]);
 
   // Drop a stale selection if the forecast window moves.
   useEffect(() => {

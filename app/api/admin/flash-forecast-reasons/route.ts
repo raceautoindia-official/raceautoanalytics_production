@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import { normalizeCountryKey } from "@/lib/flashReportCountry";
-import { normalizeSegmentKey } from "@/app/api/flash-reports/segment-forecast-reasons/route";
+import {
+  normalizeSegmentKey,
+  normalizeMonthKey,
+} from "@/app/api/flash-reports/segment-forecast-reasons/route";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +16,11 @@ export const dynamic = "force-dynamic";
  * /api/admin/flash-dynamic/* routes predate that and are unauthenticated; this
  * one is not written that way.
  *
- * GET  ?country=&segment=        -> current rows
- * POST { country, segment, rows } -> replaces the set for that country+segment
+ * GET  ?country=&segment=&month=        -> current rows
+ * POST { country, segment, month, rows } -> replaces that country+segment+month
+ *
+ * `month` is "YYYY-MM", or omitted/blank for the default set used on months
+ * that have no copy of their own.
  */
 
 type IncomingRow = { rank?: unknown; oem?: unknown; description?: unknown };
@@ -24,16 +30,31 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const country = normalizeCountryKey(searchParams.get("country")) || "india";
     const segment = normalizeSegmentKey(searchParams.get("segment"));
+    const month = normalizeMonthKey(searchParams.get("month"));
 
     const [rows] = await db.query(
       `SELECT id, rank_index, oem_name, description, updated_at
          FROM flash_segment_forecast_reasons
-        WHERE country_key = ? AND segment_key = ?
+        WHERE country_key = ? AND segment_key = ? AND month_key = ?
         ORDER BY rank_index ASC, oem_name ASC`,
+      [country, segment, month],
+    );
+
+    // Editors need to know whether a month is blank because nothing is written
+    // for it yet, in which case the site falls back to the default set.
+    const [def] = await db.query(
+      `SELECT COUNT(*) n FROM flash_segment_forecast_reasons
+        WHERE country_key = ? AND segment_key = ? AND month_key = ''`,
       [country, segment],
     );
 
-    return NextResponse.json({ country, segment, rows: rows || [] });
+    return NextResponse.json({
+      country,
+      segment,
+      month,
+      rows: rows || [],
+      defaultCount: Number((def as any)?.[0]?.n) || 0,
+    });
   } catch (e: any) {
     if (e?.code === "ER_NO_SUCH_TABLE") {
       return NextResponse.json(
@@ -60,6 +81,7 @@ export async function POST(req: Request) {
 
   const country = normalizeCountryKey(body?.country) || "india";
   const segment = normalizeSegmentKey(body?.segment);
+  const month = normalizeMonthKey(body?.month);
   if (!segment) {
     return NextResponse.json({ error: "segment is required" }, { status: 400 });
   }
@@ -89,23 +111,24 @@ export async function POST(req: Request) {
   try {
     await conn.beginTransaction();
 
-    // Replace the whole set so deletions in the editor take effect.
+    // Replace the whole set for this month so deletions take effect. Scoped to
+    // month_key, so clearing one month never touches another or the default.
     await conn.execute(
-      "DELETE FROM flash_segment_forecast_reasons WHERE country_key = ? AND segment_key = ?",
-      [country, segment],
+      "DELETE FROM flash_segment_forecast_reasons WHERE country_key = ? AND segment_key = ? AND month_key = ?",
+      [country, segment, month],
     );
 
     for (const r of rows) {
       await conn.execute(
         `INSERT INTO flash_segment_forecast_reasons
-           (country_key, segment_key, rank_index, oem_name, description)
-         VALUES (?, ?, ?, ?, ?)`,
-        [country, segment, r.rank, r.oem, r.description || null],
+           (country_key, segment_key, month_key, rank_index, oem_name, description)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [country, segment, month, r.rank, r.oem, r.description || null],
       );
     }
 
     await conn.commit();
-    return NextResponse.json({ country, segment, saved: rows.length });
+    return NextResponse.json({ country, segment, month, saved: rows.length });
   } catch (e: any) {
     await conn.rollback();
     if (e?.code === "ER_NO_SUCH_TABLE") {
