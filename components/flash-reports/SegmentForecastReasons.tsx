@@ -27,9 +27,13 @@ interface SegmentForecastReasonsProps {
  * position across the whole window, and is maintained once in the CMS under
  * Flash Reports → Forecast Rationale.
  *
- * Shares come from the same cached request as the chart above. Rows are ranked
- * by average share across the window, so the order matches the chart. Renders
- * NOTHING when no rationale is published for the country/segment.
+ * The month cells carry the OEM's RANK that month (1 = segment leader), not its
+ * share: the share is already readable off the chart above, whereas rank makes
+ * position changes across the window obvious at a glance.
+ *
+ * Shares come from the same cached request as the chart above. Rows are ordered
+ * by average rank across the window. Renders NOTHING when no rationale is
+ * published for the country/segment.
  */
 
 // Medal-ish tints for the top three, neutral after that.
@@ -79,18 +83,37 @@ export function SegmentForecastReasons({
     };
   }, [segmentName, region]);
 
-  /** Average share per OEM across the window — used to order the rows. */
-  const avgShare = useMemo(() => {
-    if (!months.length) return null;
-    const totals: Record<string, number> = {};
+  /** Rank within each month: month key -> OEM -> 1-based position by share. */
+  const ranksByMonth = useMemo(() => {
+    const out: Record<string, Record<string, number>> = {};
     for (const m of months) {
-      for (const [oem, v] of Object.entries(m.values)) {
-        totals[oem] = (totals[oem] || 0) + (Number(v) || 0);
+      const ordered = Object.entries(m.values)
+        .filter(([, v]) => Number(v) > 0)
+        .sort((a, b) => Number(b[1]) - Number(a[1]));
+      const r: Record<string, number> = {};
+      ordered.forEach(([oem], i) => {
+        r[oem] = i + 1;
+      });
+      out[m.month] = r;
+    }
+    return out;
+  }, [months]);
+
+  /** Mean rank across the months an OEM appears in — used to order the rows. */
+  const avgRank = useMemo(() => {
+    const sums: Record<string, { total: number; n: number }> = {};
+    for (const m of months) {
+      for (const [oem, rank] of Object.entries(ranksByMonth[m.month] || {})) {
+        const acc = sums[oem] || { total: 0, n: 0 };
+        acc.total += rank;
+        acc.n += 1;
+        sums[oem] = acc;
       }
     }
-    for (const k of Object.keys(totals)) totals[k] /= months.length;
-    return totals;
-  }, [months]);
+    const out: Record<string, number> = {};
+    for (const [oem, { total, n }] of Object.entries(sums)) out[oem] = total / n;
+    return out;
+  }, [months, ranksByMonth]);
 
   const rows = useMemo(() => {
     const byOem = new Map(reasons.map((r) => [r.oem, r]));
@@ -106,14 +129,17 @@ export function SegmentForecastReasons({
       cmsRank: byOem.get(oem)?.rank ?? Number.MAX_SAFE_INTEGER,
     }));
 
-    if (avgShare && list.some((r) => avgShare[r.oem] != null)) {
-      list.sort((a, b) => (avgShare[b.oem] ?? -1) - (avgShare[a.oem] ?? -1));
-    } else {
-      list.sort((a, b) => a.cmsRank - b.cmsRank);
-    }
+    // Best average rank first; OEMs with no monthly data fall to the bottom in
+    // the editorial order.
+    const BOTTOM = Number.MAX_SAFE_INTEGER;
+    list.sort(
+      (a, b) =>
+        (avgRank[a.oem] ?? BOTTOM) - (avgRank[b.oem] ?? BOTTOM) ||
+        a.cmsRank - b.cmsRank,
+    );
 
-    return list.map((r, i) => ({ ...r, rank: i + 1 }));
-  }, [reasons, oems, avgShare]);
+    return list;
+  }, [reasons, oems, avgRank]);
 
   // The section is about the rationale, so it stays hidden until at least one
   // write-up is published — even though the shares alone would fill a table.
@@ -130,9 +156,10 @@ export function SegmentForecastReasons({
         {title}
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        All {rows.length} manufacturers in the forecast, ranked by average share
-        {span ? ` across ${span}` : ""}, with what drives the leaders&apos;
-        positions.
+        Each manufacturer&apos;s forecast rank in every month
+        {span ? ` of ${span}` : ""} — 1 is the segment leader that month — with
+        what drives the leaders&apos; positions. Rows are ordered by average
+        rank across the window.
       </p>
 
       <div className="mt-4 overflow-x-auto">
@@ -145,17 +172,11 @@ export function SegmentForecastReasons({
               >
                 OEM
               </th>
-              <th
-                scope="col"
-                className="w-16 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-              >
-                Rank
-              </th>
               {months.map((m) => (
                 <th
                   key={m.month}
                   scope="col"
-                  className="whitespace-nowrap px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  className="whitespace-nowrap px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                 >
                   {m.label}
                 </th>
@@ -178,24 +199,22 @@ export function SegmentForecastReasons({
                   {r.oem}
                 </td>
 
-                <td className="px-2 py-3 text-center">
-                  <span
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ring-1 ${
-                      RANK_STYLES[r.rank] || RANK_FALLBACK
-                    }`}
-                  >
-                    {r.rank}
-                  </span>
-                </td>
-
                 {months.map((m) => {
-                  const v = m.values[r.oem];
+                  const rank = ranksByMonth[m.month]?.[r.oem];
                   return (
-                    <td
-                      key={m.month}
-                      className="whitespace-nowrap px-2 py-3 text-right text-sm tabular-nums text-foreground"
-                    >
-                      {typeof v === "number" ? `${v.toFixed(1)}%` : "—"}
+                    <td key={m.month} className="px-2 py-3 text-center">
+                      {rank ? (
+                        <span
+                          title={`Rank ${rank} in ${m.label}`}
+                          className={`inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums ring-1 ${
+                            RANK_STYLES[rank] || RANK_FALLBACK
+                          }`}
+                        >
+                          {rank}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </td>
                   );
                 })}
