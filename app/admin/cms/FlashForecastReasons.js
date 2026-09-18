@@ -18,8 +18,12 @@ const { Text } = Typography;
 const { TextArea } = Input;
 
 /**
- * CMS editor for the "How this forecast was arrived at" table shown under the
- * segment forecast share chart on the flash report pages.
+ * CMS editor for the OEM Forecast Rationale table shown under the segment
+ * forecast share chart on the flash report pages.
+ *
+ * One explanation per OEM covering the whole forecast window — the site puts it
+ * beside that OEM's month-by-month shares, so there is no per-month copy to
+ * maintain.
  *
  * Saves the whole set for a country + segment in one POST, so deleting a row
  * here removes it from the site. The endpoint sits behind the admin basic-auth
@@ -45,52 +49,10 @@ const blankRow = (rank) => ({
   description: "",
 });
 
-// Same base month the Flash AI generator uses: the previous IST month, with a
-// 3rd-of-the-month cutoff, so the month list matches the site's forecast window.
-function getPrevMonthIST() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = Number(parts.find((p) => p.type === "year")?.value ?? "1970");
-  const m = Number(parts.find((p) => p.type === "month")?.value ?? "01");
-  const d = Number(parts.find((p) => p.type === "day")?.value ?? "01");
-  const back = d >= 3 ? 1 : 2;
-  let year = y;
-  let month = m - back;
-  while (month <= 0) {
-    month += 12;
-    year -= 1;
-  }
-  return `${year}-${String(month).padStart(2, "0")}`;
-}
-
-const MONTH_LABELS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-const monthLabel = (ym) => {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ""));
-  if (!m) return ym;
-  return `${MONTH_LABELS[Number(m[2]) - 1]} ${m[1].slice(2)}`;
-};
-
-// "" = the default set, used on any month with no copy of its own.
-const DEFAULT_MONTH = "";
-
 export default function FlashForecastReasons() {
   const [countries, setCountries] = useState([{ value: "india", label: "India" }]);
   const [country, setCountry] = useState("india");
   const [segment, setSegment] = useState("passenger vehicle");
-  const [month, setMonth] = useState(DEFAULT_MONTH);
-
-  const [monthOptions, setMonthOptions] = useState([
-    { value: DEFAULT_MONTH, label: "All months (default)" },
-  ]);
-  const [defaultCount, setDefaultCount] = useState(0);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -117,41 +79,17 @@ export default function FlashForecastReasons() {
     };
   }, []);
 
-  // Forecast months, from the same settings that drive the site's month list.
-  useEffect(() => {
-    let cancelled = false;
-    const baseMonth = getPrevMonthIST();
-    fetch(
-      `/api/scoreSettings?key=flashScoreSettings&baseMonth=${baseMonth}&horizon=6`,
-      { cache: "no-store" },
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (cancelled) return;
-        const names = (j?.yearNames || []).filter((x) => /^\d{4}-\d{2}$/.test(x));
-        setMonthOptions([
-          { value: DEFAULT_MONTH, label: "All months (default)" },
-          ...names.map((m) => ({ value: m, label: monthLabel(m) })),
-        ]);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(
         `/api/admin/flash-forecast-reasons?country=${encodeURIComponent(
           country,
-        )}&segment=${encodeURIComponent(segment)}&month=${encodeURIComponent(month)}`,
+        )}&segment=${encodeURIComponent(segment)}`,
         { cache: "no-store" },
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || `Failed to load (${res.status})`);
-      setDefaultCount(Number(json.defaultCount) || 0);
       setRows(
         (json.rows || []).map((r, i) => ({
           key: String(r.id ?? `row-${i}`),
@@ -166,7 +104,7 @@ export default function FlashForecastReasons() {
     } finally {
       setLoading(false);
     }
-  }, [country, segment, month]);
+  }, [country, segment]);
 
   useEffect(() => {
     load();
@@ -185,15 +123,11 @@ export default function FlashForecastReasons() {
       const res = await fetch("/api/admin/flash-forecast-reasons", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ country, segment, month, rows }),
+        body: JSON.stringify({ country, segment, rows }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || `Save failed (${res.status})`);
-      message.success(
-        `Saved ${json.saved} row(s) for ${segment} / ${country} / ${
-          month ? monthLabel(month) : "all months"
-        }.`,
-      );
+      message.success(`Saved ${json.saved} row(s) for ${segment} / ${country}.`);
       await load();
     } catch (e) {
       message.error(e?.message || "Failed to save");
@@ -272,15 +206,12 @@ export default function FlashForecastReasons() {
                 explanation of why the forecast places it there.
               </div>
               <div>
-                <b>All months (default)</b> is what the site shows for any month
-                you have not written separately. Pick a specific month only when
-                that month needs its own wording — the site falls back to the
-                default whenever a month is empty here.
+                One explanation per OEM, covering the whole forecast window. The
+                site shows it beside that OEM&apos;s monthly shares.
               </div>
               <div>
-                Saving replaces the whole set for the selected country, segment
-                and month — removing a row here removes it from the site, and
-                clearing a month never touches the default or other months.
+                Saving replaces the whole set for the selected country and
+                segment — removing a row here removes it from the site.
               </div>
               <div>
                 The section is hidden on the site when nothing is published for
@@ -305,12 +236,6 @@ export default function FlashForecastReasons() {
             options={SEGMENTS}
             style={{ minWidth: 220 }}
           />
-          <Select
-            value={month}
-            onChange={setMonth}
-            options={monthOptions}
-            style={{ minWidth: 200 }}
-          />
           <Button onClick={load} loading={loading}>
             Reload
           </Button>
@@ -327,17 +252,7 @@ export default function FlashForecastReasons() {
         </Space>
 
         <Text type="secondary" style={{ fontSize: 12 }}>
-          Editing <b>{segment}</b> for <b>{country}</b> —{" "}
-          <b>{month ? monthLabel(month) : "all months (default)"}</b> —{" "}
-          {rows.length} row(s).
-          {month && rows.length === 0 && (
-            <>
-              {" "}
-              Nothing written for this month, so the site shows the default set (
-              {defaultCount} row{defaultCount === 1 ? "" : "s"}). Add rows here
-              to override it.
-            </>
-          )}
+          Editing <b>{segment}</b> for <b>{country}</b> — {rows.length} row(s).
         </Text>
 
         <Table

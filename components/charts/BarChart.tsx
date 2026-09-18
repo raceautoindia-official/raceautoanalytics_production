@@ -82,6 +82,13 @@ interface BarChartProps {
    */
   xAxisLabel?: string;
   yAxisLabel?: string;
+
+  /**
+   * false = hovering a stacked column reports only the segment under the
+   * pointer, and the full-column highlight is dropped. Default (true) keeps
+   * recharts' shared tooltip, which lists every series in the column.
+   */
+  tooltipShared?: boolean;
 }
 
 export function BarChart({
@@ -99,6 +106,7 @@ export function BarChart({
   maxBarSize,
   xAxisLabel,
   yAxisLabel,
+  tooltipShared = true,
 }: BarChartProps) {
   const isReducedMotion = useReducedMotion();
   const animationConfig = getAnimationConfig(isReducedMotion);
@@ -399,6 +407,10 @@ export function BarChart({
 
           <Tooltip
             content={tooltipRenderer ? tooltipRenderer : DefaultTooltip}
+            shared={tooltipShared}
+            // The band highlight spans the whole column, which contradicts a
+            // per-segment tooltip.
+            cursor={tooltipShared === false ? false : undefined}
           />
 
           {showLegend && (

@@ -106,6 +106,8 @@ export function SegmentForecastShareChart({
         // growth or penetration.
         xAxisLabel="Forecast month"
         yAxisLabel="Share of segment (%)"
+        // Hovering reports the OEM box under the pointer, not the whole column.
+        tooltipShared={false}
         // Own legend below — the built-in one puts ten long OEM names on one
         // line and truncates them.
         showLegend={false}
