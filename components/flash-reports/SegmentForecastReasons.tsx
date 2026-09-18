@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppContext } from "@/components/providers/Providers";
 import { withCountry } from "@/lib/withCountry";
+import { useSegmentForecastShare } from "./useSegmentForecastShare";
 
 type Reason = { rank: number; oem: string; description: string };
 
@@ -16,11 +17,16 @@ interface SegmentForecastReasonsProps {
  * "How the forecast was arrived at" — sits under the segment forecast share
  * chart and explains, per OEM, the reasoning behind its projected share.
  *
- * Content is maintained in the CMS (Flash Reports → Forecast Rationale) and
- * read from /api/flash-reports/segment-forecast-reasons, scoped by country and
- * segment. Renders NOTHING when nothing is published for that pair, so pages
- * without rationale are not left with an empty heading.
+ * The month dropdown re-ranks the table by that month's forecast share, so the
+ * badge shows who actually tops the segment in the chosen month. The written
+ * reason stays one per OEM (it explains the OEM's position across the window,
+ * not a single month), and is maintained in the CMS under
+ * Flash Reports → Forecast Rationale.
+ *
+ * Renders NOTHING when nothing is published for the country/segment pair.
  */
+
+const ALL = "__avg__";
 
 // Medal-ish tints for the top three, neutral after that.
 const RANK_STYLES: Record<number, string> = {
@@ -34,8 +40,12 @@ export function SegmentForecastReasons({
   segmentName,
   title = "How this forecast was arrived at",
 }: SegmentForecastReasonsProps) {
-  const { region } = useAppContext();
+  const { region, month } = useAppContext();
   const [reasons, setReasons] = useState<Reason[]>([]);
+  const [selected, setSelected] = useState<string>(ALL);
+
+  // Same cached request the chart above uses.
+  const { months } = useSegmentForecastShare(segmentName, region, month);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,17 +76,93 @@ export function SegmentForecastReasons({
     };
   }, [segmentName, region]);
 
-  if (!reasons.length) return null;
+  // Drop a stale selection if the forecast window moves.
+  useEffect(() => {
+    setSelected((prev) =>
+      prev !== ALL && !months.some((m) => m.month === prev) ? ALL : prev,
+    );
+  }, [months]);
+
+  /**
+   * Share per OEM for the chosen month, or averaged across the window. Used to
+   * order the table so the rank badge reflects the selected month rather than
+   * a fixed editorial order.
+   */
+  const shares = useMemo(() => {
+    if (!months.length) return null;
+    const scope =
+      selected === ALL ? months : months.filter((m) => m.month === selected);
+    if (!scope.length) return null;
+
+    const totals: Record<string, number> = {};
+    for (const m of scope) {
+      for (const [oem, v] of Object.entries(m.values)) {
+        totals[oem] = (totals[oem] || 0) + (Number(v) || 0);
+      }
+    }
+    for (const k of Object.keys(totals)) totals[k] /= scope.length;
+    return totals;
+  }, [months, selected]);
+
+  // Rank by the selected month's share where we have it; otherwise keep the
+  // editorial rank set in the CMS.
+  const ordered = useMemo(() => {
+    const rows = [...reasons];
+    if (shares) {
+      rows.sort((a, b) => (shares[b.oem] ?? -1) - (shares[a.oem] ?? -1));
+      const anyShare = rows.some((r) => shares[r.oem] != null);
+      if (anyShare) {
+        return rows.map((r, i) => ({
+          ...r,
+          rank: i + 1,
+          share: shares[r.oem],
+        }));
+      }
+    }
+    return rows
+      .sort((a, b) => a.rank - b.rank)
+      .map((r) => ({ ...r, share: undefined as number | undefined }));
+  }, [reasons, shares]);
+
+  if (!ordered.length) return null;
+
+  const scopeLabel =
+    selected === ALL
+      ? "averaged across the forecast window"
+      : `for ${months.find((m) => m.month === selected)?.label ?? selected}`;
 
   return (
     <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-      <h3 className="text-base font-semibold text-foreground sm:text-lg">
-        {title}
-      </h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        The reasoning behind each manufacturer&apos;s projected share in the
-        chart above.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-foreground sm:text-lg">
+            {title}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The reasoning behind each manufacturer&apos;s projected share, ranked{" "}
+            {scopeLabel}.
+          </p>
+        </div>
+
+        {months.length > 0 && (
+          <label className="inline-flex flex-col items-start">
+            <span className="sr-only">Select month</span>
+            <select
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              aria-label="Rank by month"
+              className="h-9 min-w-[10rem] rounded-lg border border-border bg-card px-2 text-xs font-medium focus-ring hover:bg-accent transition-colors sm:px-3 sm:text-sm"
+            >
+              <option value={ALL}>All months (average)</option>
+              {months.map((m) => (
+                <option key={m.month} value={m.month}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[34rem] border-collapse text-left">
@@ -90,7 +176,7 @@ export function SegmentForecastReasons({
               </th>
               <th
                 scope="col"
-                className="w-48 py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                className="w-52 py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 OEM
               </th>
@@ -103,9 +189,9 @@ export function SegmentForecastReasons({
             </tr>
           </thead>
           <tbody>
-            {reasons.map((r) => (
+            {ordered.map((r) => (
               <tr
-                key={`${r.rank}-${r.oem}`}
+                key={r.oem}
                 className="border-b border-border/60 align-top last:border-0"
               >
                 <td className="py-3 pr-3">
@@ -117,8 +203,15 @@ export function SegmentForecastReasons({
                     {r.rank}
                   </span>
                 </td>
-                <td className="py-3 pr-4 text-sm font-semibold text-foreground">
-                  {r.oem}
+                <td className="py-3 pr-4">
+                  <div className="text-sm font-semibold text-foreground">
+                    {r.oem}
+                  </div>
+                  {typeof r.share === "number" && (
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {r.share.toFixed(1)}% share
+                    </div>
+                  )}
                 </td>
                 <td className="py-3 text-sm leading-6 text-muted-foreground">
                   {r.description || "—"}
