@@ -6,6 +6,7 @@ import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
 import { BrandModelsChart } from "@/components/flash-reports/BrandModelsChart";
 import { SegmentForecastShareChart } from "@/components/flash-reports/SegmentForecastShareChart";
+import { SegmentForecastReasons } from "@/components/flash-reports/SegmentForecastReasons";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
@@ -904,6 +905,9 @@ const showApplicationChartSection =
             segmentName="passenger vehicle"
             title="Passenger Vehicle Segment Forecast Share"
           />
+
+          {/* Per-OEM reasoning behind the forecast above */}
+          <SegmentForecastReasons segmentName="passenger vehicle" />
 
           {/* Brand → models bar chart (directly below market share) */}
           <BrandModelsChart segmentName="passenger vehicle" title="Passenger Vehicle Brand Models" />

@@ -8,7 +8,14 @@ const BASIC_PASS = process.env.ADMIN_BASIC_PASS || 'letMeIn321';
 export function middleware(req) {
   const { pathname } = req.nextUrl;
 
-  const protectedPaths = ['/admin', '/forecast-new', '/api/admin/insights'];
+  const protectedPaths = [
+    '/admin',
+    '/forecast-new',
+    '/api/admin/insights',
+    // Writes the forecast rationale shown on the public flash pages, so it is
+    // behind the same basic auth as the CMS itself.
+    '/api/admin/flash-forecast-reasons',
+  ];
   const isProtected = protectedPaths.some((path) => pathname === path || pathname.startsWith(path + '/'));
 
   if (isProtected) {
@@ -70,5 +77,7 @@ export const config = {
     // default matcher above excludes all /api).
     '/api/admin/insights',
     '/api/admin/insights/:path*',
+    '/api/admin/flash-forecast-reasons',
+    '/api/admin/flash-forecast-reasons/:path*',
   ],
 };

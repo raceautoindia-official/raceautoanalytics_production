@@ -11,6 +11,7 @@ import GraphList from "./GraphList";
 import ManageQuestions from "./ManageQuestions";
 import YearDropdownSettings from "./YearDropdownSettings";
 import FlashAIForecastGenerator from "./FlashAIForecastGenerator";
+import FlashForecastReasons from "./FlashForecastReasons";
 
 const TextEditor = dynamic(() => import("../components/TextEditor"), {
   ssr: false,
@@ -47,6 +48,11 @@ export default function FlashReportsTab() {
       key: "questions",
       label: "Flash Questions",
       children: <ManageQuestions context="flash" />,
+    },
+    {
+      key: "forecast-reasons",
+      label: "Forecast Rationale",
+      children: <FlashForecastReasons />,
     },
     {
       key: "settings",
