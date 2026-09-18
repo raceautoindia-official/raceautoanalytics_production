@@ -5,6 +5,7 @@ import { ChartWrapper } from "@/components/charts/ChartWrapper";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
 import { BrandModelsChart } from "@/components/flash-reports/BrandModelsChart";
+import { SegmentForecastShareChart } from "@/components/flash-reports/SegmentForecastShareChart";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { RegionSelector } from "@/components/ui/RegionSelector";
@@ -897,6 +898,12 @@ const showApplicationChartSection =
   html={segmentText?.passenger_vehicle_secondary}
   className="mt-2"
 />
+
+          {/* Forecast OEM share, stacked one column per month (below segment share) */}
+          <SegmentForecastShareChart
+            segmentName="passenger vehicle"
+            title="Passenger Vehicle Segment Forecast Share"
+          />
 
           {/* Brand → models bar chart (directly below market share) */}
           <BrandModelsChart segmentName="passenger vehicle" title="Passenger Vehicle Brand Models" />

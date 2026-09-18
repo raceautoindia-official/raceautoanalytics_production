@@ -31,6 +31,13 @@ interface BarChartProps {
     name: string;
     color?: string;
     useGradient?: boolean;
+    /**
+     * Bars sharing a stackId are stacked into one column instead of drawn
+     * side by side. Used by the segment forecast share chart, where each month
+     * is a single bar split by OEM. Omitted everywhere else, so grouped bars
+     * keep their existing behaviour.
+     */
+    stackId?: string;
   }>;
   height?: number;
   className?: string;
@@ -376,14 +383,31 @@ export function BarChart({
               bar.useGradient,
             );
 
+            // Only the top-most segment of a stack gets rounded corners;
+            // rounding every segment would leave gaps through the column.
+            const isStacked = !!bar.stackId;
+            const isTopOfStack = isStacked && index === bars.length - 1;
+            const stackRadius: [number, number, number, number] = isTopOfStack
+              ? layout === "vertical"
+                ? [0, 4, 4, 0]
+                : [4, 4, 0, 0]
+              : [0, 0, 0, 0];
+
             return (
               <Bar
                 key={bar.key}
                 dataKey={bar.key}
                 fill={fillColor}
                 name={bar.name}
+                stackId={bar.stackId}
                 maxBarSize={maxBarSize}
-                radius={layout === "vertical" ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+                radius={
+                  isStacked
+                    ? stackRadius
+                    : layout === "vertical"
+                      ? [0, 4, 4, 0]
+                      : [4, 4, 0, 0]
+                }
                 isAnimationActive={animationConfig.isAnimationActive}
                 animationDuration={
                   layout === "vertical"
