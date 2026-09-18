@@ -17,13 +17,19 @@ interface SegmentForecastReasonsProps {
  * Per-OEM view of the forecast: one row per manufacturer, the forecast share
  * for each month of the window, and a single written explanation.
  *
+ * Rows come from EVERY OEM in the chart above, not only the ones with CMS copy.
+ * Driving them off the CMS list made the ranking look frozen — whoever had a
+ * write-up stayed in the table no matter what the shares said, and the rest of
+ * the field was invisible. An OEM with no write-up still gets its row and
+ * shares, with the explanation left blank.
+ *
  * The explanation is deliberately NOT per month — it describes the OEM's
  * position across the whole window, and is maintained once in the CMS under
  * Flash Reports → Forecast Rationale.
  *
- * Shares come from the same cached request as the chart above. Rows are
- * ordered by average share across the window, so the ranking matches the
- * chart. Renders NOTHING when nothing is published for the country/segment.
+ * Shares come from the same cached request as the chart above. Rows are ranked
+ * by average share across the window, so the order matches the chart. Renders
+ * NOTHING when no rationale is published for the country/segment.
  */
 
 // Medal-ish tints for the top three, neutral after that.
@@ -42,7 +48,7 @@ export function SegmentForecastReasons({
   const [reasons, setReasons] = useState<Reason[]>([]);
 
   // Same cached request the chart above uses.
-  const { months } = useSegmentForecastShare(segmentName, region, month);
+  const { months, oems } = useSegmentForecastShare(segmentName, region, month);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,15 +93,31 @@ export function SegmentForecastReasons({
   }, [months]);
 
   const rows = useMemo(() => {
-    const list = [...reasons];
+    const byOem = new Map(reasons.map((r) => [r.oem, r]));
+
+    // Every OEM in the chart, plus any with CMS copy but no share data.
+    const names = [...oems];
+    for (const r of reasons) if (!names.includes(r.oem)) names.push(r.oem);
+
+    const list = names.map((oem) => ({
+      oem,
+      description: byOem.get(oem)?.description ?? "",
+      // Editorial rank only matters as a tie-break when no shares exist.
+      cmsRank: byOem.get(oem)?.rank ?? Number.MAX_SAFE_INTEGER,
+    }));
+
     if (avgShare && list.some((r) => avgShare[r.oem] != null)) {
       list.sort((a, b) => (avgShare[b.oem] ?? -1) - (avgShare[a.oem] ?? -1));
-      return list.map((r, i) => ({ ...r, rank: i + 1 }));
+    } else {
+      list.sort((a, b) => a.cmsRank - b.cmsRank);
     }
-    return list.sort((a, b) => a.rank - b.rank);
-  }, [reasons, avgShare]);
 
-  if (!rows.length) return null;
+    return list.map((r, i) => ({ ...r, rank: i + 1 }));
+  }, [reasons, oems, avgShare]);
+
+  // The section is about the rationale, so it stays hidden until at least one
+  // write-up is published — even though the shares alone would fill a table.
+  if (!rows.length || !reasons.length) return null;
 
   const span =
     months.length > 1
@@ -108,8 +130,9 @@ export function SegmentForecastReasons({
         {title}
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Forecast share by month{span ? ` (${span})` : ""}, with what drives each
-        manufacturer&apos;s position over the window.
+        All {rows.length} manufacturers in the forecast, ranked by average share
+        {span ? ` across ${span}` : ""}, with what drives the leaders&apos;
+        positions.
       </p>
 
       <div className="mt-4 overflow-x-auto">
@@ -121,6 +144,12 @@ export function SegmentForecastReasons({
                 className="sticky left-0 z-10 bg-card py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 OEM
+              </th>
+              <th
+                scope="col"
+                className="w-16 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Rank
               </th>
               {months.map((m) => (
                 <th
@@ -145,19 +174,18 @@ export function SegmentForecastReasons({
                 key={r.oem}
                 className="border-b border-border/60 align-top last:border-0"
               >
-                <td className="sticky left-0 z-10 bg-card py-3 pr-4">
-                  <div className="flex items-start gap-2">
-                    <span
-                      className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ring-1 ${
-                        RANK_STYLES[r.rank] || RANK_FALLBACK
-                      }`}
-                    >
-                      {r.rank}
-                    </span>
-                    <span className="text-sm font-semibold text-foreground">
-                      {r.oem}
-                    </span>
-                  </div>
+                <td className="sticky left-0 z-10 bg-card py-3 pr-4 text-sm font-semibold text-foreground">
+                  {r.oem}
+                </td>
+
+                <td className="px-2 py-3 text-center">
+                  <span
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ring-1 ${
+                      RANK_STYLES[r.rank] || RANK_FALLBACK
+                    }`}
+                  >
+                    {r.rank}
+                  </span>
                 </td>
 
                 {months.map((m) => {
