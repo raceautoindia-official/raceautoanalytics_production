@@ -1,7 +1,166 @@
+import OpenAI from "openai";
 import { seasonalIndices } from "@/lib/forecastSeasonality";
 import { holtWinters } from "@/lib/holtWinters";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+const SEGMENT_HINT = {
+  "2W": "two-wheeler (motorcycle and scooter)",
+  "3W": "three-wheeler",
+  PV: "passenger vehicle / passenger car",
+  CV: "commercial vehicle",
+  TRAC: "agricultural tractor",
+  CE: "construction equipment",
+  Total: "total automotive market (all vehicle types combined)",
+  Truck: "truck",
+  Bus: "bus and coach",
+  Tipper: "tipper truck",
+  Trailer: "tractor-trailer / articulated truck",
+};
+
+const prettyRegion = (r) =>
+  String(r || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+
+/**
+ * OPTIONAL online-research forecast. Runs ONLY when the caller passes
+ * useResearch: true, because it spends OpenAI credits on every call.
+ *
+ * Two stages, the way a person would do it: find out what is actually
+ * happening in the market right now, then forecast with that in hand.
+ *
+ *   1. RESEARCH — the model is given web search and asked who publishes the
+ *      volumes, which months are already published, the recent trend, any
+ *      policy change landing in the window, and the festive/plate-change
+ *      calendar. Everything must be sourced; unfindable comes back NOT FOUND.
+ *
+ *   2. FORECAST — history for scale and seasonal shape, the research for
+ *      direction and turning points, and the computed statistical forecast as
+ *      a stated starting point it must justify departing from.
+ *
+ * The analyst (Race) line is NEVER sent and never read here. The model is not
+ * told what the analyst thinks, so it cannot anchor to it.
+ *
+ * Returns null on any failure — the caller then keeps the free statistical
+ * forecast, so an exhausted key or a bad answer degrades instead of breaking.
+ */
+async function researchForecast({ region, segHint, series, periods, baseline }) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+
+  const openai = new OpenAI({ apiKey: key });
+  const place = prettyRegion(region);
+  const now = new Date();
+  const today = `${now.toLocaleString("en-GB", { month: "long" })} ${now.getFullYear()}`;
+  const first = periods[0];
+  const last = periods[periods.length - 1];
+  const values = series.map((p) => p.value);
+  const lo = Math.min(...values) * 0.4;
+  const hi = Math.max(...values) * 1.6;
+
+  let brief = "";
+  let sources = [];
+  try {
+    const research = await openai.responses.create({
+      model: "gpt-4o",
+      tools: [{ type: "web_search" }],
+      input: `Research the CURRENT state of the ${segHint} market in ${place}, as of ${today}.
+
+Report ONLY what you can source, naming the source and its date:
+1. Who publishes monthly sales/registration volumes for this market, and which months are already published — INCLUDING any month between ${first} and ${last}. If an actual figure for one of those months has already been published, state it explicitly.
+2. The year-on-year growth trend over the last six months.
+3. Any tax, incentive, emissions or registration change affecting demand between ${first} and ${last}.
+4. Calendar effects in that window, with dates: festivals that move year to year (for example Diwali in India), plate-change months, winter demand collapse.
+5. Any published industry forecast for this market covering that window.
+
+Be concise and factual. Write NOT FOUND for anything you cannot source. Do not speculate.`,
+    });
+    brief = String(research.output_text || "").trim();
+    sources = [
+      ...new Set(
+        (JSON.stringify(research.output || "").match(/https?:\/\/[^"\\\s)]+/g) || []).map(
+          (u) => u.replace(/[.,]+$/, ""),
+        ),
+      ),
+    ].slice(0, 8);
+  } catch (e) {
+    console.error("ai-forecast: research stage failed:", e?.message || e);
+    return null;
+  }
+  if (!brief) return null;
+
+  const prompt = `You are an automotive market analyst producing a monthly volume forecast for ${place} / ${segHint}.
+
+ACTUAL MONTHLY HISTORY. This is the client's own dataset. Your forecast must be on exactly this scale and definition — not the units used by any news source.
+${series.map((p) => `${p.month}: ${p.value.toLocaleString()}`).join("\n")}
+
+STATISTICAL STARTING POINT, computed from that history alone:
+${periods.map((p) => `${p}: ${Math.round(baseline[p]).toLocaleString()}`).join("\n")}
+
+MARKET RESEARCH, gathered online just now:
+${brief}
+
+How to build the forecast:
+- Start from the statistical figures above. Depart from them only where the research gives you a reason you can name — a published actual, a policy change, a festival that has moved, a capacity or model-launch change.
+- If the research reports an ALREADY-PUBLISHED actual for one of the forecast months, use it, converted to the scale of the history above.
+- Every value must be a realistic monthly volume for THIS dataset. The history runs from ${Math.min(...values).toLocaleString()} to ${Math.max(...values).toLocaleString()}.
+- Consecutive months must not move by a constant increment.
+
+Return ONLY a JSON object with exactly these ${periods.length} keys as plain integers (no commas, no units): ${periods.join(", ")}. Add "_why" with one short sentence naming what moved you off the statistical figures.`;
+
+  const ask = async (correction) => {
+    const chat = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an automotive market analyst. You ground every forecast in the supplied history and research, and return a strict JSON object.",
+        },
+        { role: "user", content: correction ? `${prompt}\n\n${correction}` : prompt },
+      ],
+    });
+    let obj;
+    try {
+      obj = JSON.parse(chat.choices?.[0]?.message?.content || "");
+    } catch {
+      return { vals: null, reason: "the response was not valid JSON" };
+    }
+    const vals = {};
+    for (const p of periods) {
+      const n = Number(obj?.[p]);
+      if (Number.isFinite(n) && n > 0) vals[p] = Math.round(n);
+    }
+    if (Object.keys(vals).length !== periods.length) {
+      return { vals: null, reason: `it did not contain all ${periods.length} months as positive numbers` };
+    }
+    const arr = periods.map((p) => vals[p]);
+    if (arr.some((v) => v < lo || v > hi)) {
+      return {
+        vals: null,
+        reason: `the values were off the scale of this market — every month must be between ${Math.round(lo).toLocaleString()} and ${Math.round(hi).toLocaleString()}, in the same units as the history`,
+      };
+    }
+    return { vals, why: String(obj?._why || "").slice(0, 300) };
+  };
+
+  try {
+    let r = await ask(null);
+    if (!r.vals) {
+      r = await ask(`Your previous answer was rejected because ${r.reason}. Correct it and return all ${periods.length} months.`);
+    }
+    if (!r.vals) return null;
+    return { values: r.vals, why: r.why || "", sources };
+  } catch (e) {
+    console.error("ai-forecast: forecast stage failed:", e?.message || e);
+    return null;
+  }
+}
 
 /**
  * Flash / CMS forecast generator.
@@ -371,7 +530,8 @@ function blend(scored, series, periods) {
 
 export async function POST(req) {
   try {
-    const { region, volumeData, years } = await req.json();
+    const { region, volumeData, years, useResearch, categoryName } =
+      await req.json();
 
     if (!volumeData || !years) {
       return new Response(
@@ -444,6 +604,31 @@ export async function POST(req) {
       }
     }
 
+    // Opt-in only: spends OpenAI credits, so nothing runs unless the caller
+    // explicitly asked. A failure returns null and we keep the free forecast.
+    let researchNote = "off";
+    let sourceList = "";
+    if (useResearch) {
+      const segKey = String(categoryName || "")
+        .replace(/^Flash\s+/i, "")
+        .trim();
+      const researched = await researchForecast({
+        region,
+        segHint: SEGMENT_HINT[segKey] || segKey || "automotive",
+        series,
+        periods,
+        baseline: { ...out },
+      });
+      if (researched) {
+        Object.assign(out, researched.values);
+        method = `${method}+research`;
+        researchNote = researched.why || "ok";
+        sourceList = researched.sources.join(" | ");
+      } else {
+        researchNote = "failed — kept the statistical forecast";
+      }
+    }
+
     // Sanity bound from the market's own history — NOT from the Race line.
     // Wide enough to allow a genuine festive peak or a plate-change month,
     // narrow enough to catch a runaway trend.
@@ -471,6 +656,8 @@ export async function POST(req) {
         "x-forecast-points": String(series.length),
         // Which methods earned their weight here, and their backtest error.
         "x-forecast-weights": weightNote.slice(0, 300),
+        "x-forecast-research": researchNote.replace(/[^\x20-\x7e]/g, "").slice(0, 300),
+        "x-forecast-sources": sourceList.slice(0, 1500),
       },
     });
   } catch (err) {

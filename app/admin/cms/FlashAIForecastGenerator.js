@@ -12,6 +12,7 @@ import {
   Table,
   Typography,
   Select,
+  Switch,
 } from "antd";
 
 const { Text } = Typography;
@@ -124,6 +125,9 @@ export default function FlashAIForecastGenerator() {
   // Per-graph reasons from the last run. Without these the generator reported
   // only the first error and gave no way to tell what actually failed.
   const [failures, setFailures] = useState([]);
+  // Opt-in: the research pass spends OpenAI credits on every graph, so it is
+  // off unless deliberately switched on.
+  const [useResearch, setUseResearch] = useState(false);
 
   const baseMonth = useMemo(() => getPrevMonthIST(), []);
 
@@ -340,6 +344,7 @@ export default function FlashAIForecastGenerator() {
             weight: q.weight,
             type: q.type,
           })),
+          useResearch,
         };
 
         // One graph failing must not abandon the rest of the batch. Previously
@@ -451,12 +456,20 @@ export default function FlashAIForecastGenerator() {
           description={
             <div style={{ fontSize: 12 }}>
               <div>
-                1) The forecast is calculated from each graph&apos;s own volume
-                history — no API key or credits are used, and re-running gives
-                the same result.
+                1) By default the forecast is calculated from each graph&apos;s
+                own volume history — no API key or credits are used, and
+                re-running gives the same result.
               </div>
               <div>
-                2) A graph needs at least 6 months of history to be forecast.
+                2) Turning on <b>online research</b> additionally asks OpenAI to
+                search the web for published figures, policy changes and
+                festival dates, then adjust the calculated forecast. This
+                SPENDS CREDITS on every selected graph — roughly two calls each,
+                one of them a web search. If a call fails the calculated
+                forecast is kept, so nothing breaks.
+              </div>
+              <div>
+                3) A graph needs at least 6 months of history to be forecast.
               </div>
               <div>
                 3) Ensure Flash segment mapping is set; otherwise the segment is guessed from the graph name.
