@@ -36,13 +36,25 @@ interface SegmentForecastReasonsProps {
  * published for the country/segment.
  */
 
-// Medal-ish tints for the top three, neutral after that.
-const RANK_STYLES: Record<number, string> = {
-  1: "bg-amber-400/15 text-amber-300 ring-amber-400/30",
-  2: "bg-slate-300/15 text-slate-200 ring-slate-300/30",
-  3: "bg-orange-500/15 text-orange-300 ring-orange-500/30",
+/**
+ * Rank badges carry the navbar Subscribe button's yellow by default, and
+ * switch colour only where the OEM's rank MOVED against the previous month:
+ * green for a climb, red for a slip. The tinted-by-position styling they had
+ * before was too faint to read on the dark card.
+ */
+const RANK_BADGE = {
+  same: "bg-gradient-to-b from-yellow-400 to-amber-500 text-slate-900",
+  up: "bg-gradient-to-b from-emerald-400 to-green-500 text-slate-900",
+  down: "bg-gradient-to-b from-red-400 to-rose-500 text-slate-900",
+} as const;
+
+type Move = keyof typeof RANK_BADGE;
+
+const MOVE_NOTE: Record<Move, string> = {
+  same: "unchanged",
+  up: "up",
+  down: "down",
 };
-const RANK_FALLBACK = "bg-muted text-muted-foreground ring-border";
 
 export function SegmentForecastReasons({
   segmentName,
@@ -199,18 +211,37 @@ export function SegmentForecastReasons({
                   {r.oem}
                 </td>
 
-                {months.map((m) => {
+                {months.map((m, i) => {
                   const rank = ranksByMonth[m.month]?.[r.oem];
+                  const prev =
+                    i > 0 ? ranksByMonth[months[i - 1].month]?.[r.oem] : undefined;
+
+                  // A smaller number is a better position, so rank < prev is a
+                  // climb. The first month has nothing to compare against.
+                  const move: Move =
+                    rank && prev
+                      ? rank < prev
+                        ? "up"
+                        : rank > prev
+                          ? "down"
+                          : "same"
+                      : "same";
+
+                  const note =
+                    rank && prev && move !== "same"
+                      ? `Rank ${rank} in ${m.label}, ${MOVE_NOTE[move]} from ${prev}`
+                      : `Rank ${rank} in ${m.label}`;
+
                   return (
                     <td key={m.month} className="px-2 py-3 text-center">
                       {rank ? (
                         <span
-                          title={`Rank ${rank} in ${m.label}`}
-                          className={`inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums ring-1 ${
-                            RANK_STYLES[rank] || RANK_FALLBACK
-                          }`}
+                          title={note}
+                          className={`inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums shadow-sm ${RANK_BADGE[move]}`}
                         >
                           {rank}
+                          {/* Colour alone should not carry the meaning. */}
+                          <span className="sr-only"> ({note})</span>
                         </span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
@@ -227,6 +258,24 @@ export function SegmentForecastReasons({
           </tbody>
         </table>
       </div>
+
+      <ul className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 list-none p-0 text-xs text-muted-foreground">
+        {(
+          [
+            ["same", "Position held"],
+            ["up", "Moved up from the previous month"],
+            ["down", "Moved down from the previous month"],
+          ] as Array<[Move, string]>
+        ).map(([key, label]) => (
+          <li key={key} className="inline-flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className={`inline-block h-3.5 w-3.5 shrink-0 rounded-full ${RANK_BADGE[key]}`}
+            />
+            <span>{label}</span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
