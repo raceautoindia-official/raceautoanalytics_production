@@ -878,12 +878,15 @@ const yAxisDomain = useMemo(() => {
                 Drag either handle to reach further back — scrolling left
                 reveals more history and pushes the forecast out of view,
                 which is the behaviour that was asked for. */}
+            {/* Amber rather than the border token: at 30% opacity on the dark
+                card the handles were effectively invisible, so the range
+                control read as a thin empty strip. */}
             <Brush
               dataKey="month"
-              height={isMobile ? 14 : 18}
-              stroke="hsl(var(--border))"
-              fill="hsl(var(--background))"
-              travellerWidth={8}
+              height={isMobile ? 18 : 24}
+              stroke="#F59E0B"
+              fill="hsl(var(--muted))"
+              travellerWidth={10}
               startIndex={brushRange?.startIndex}
               endIndex={brushRange?.endIndex}
               onChange={(range: any) => {

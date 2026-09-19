@@ -113,7 +113,7 @@ export function SegmentForecastShareChart({
         showLegend={false}
       />
 
-      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 list-none p-0 m-0">
+      <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 list-none p-0 m-0">
         {series.map((s) => (
           <li
             key={s.full}
@@ -130,7 +130,10 @@ export function SegmentForecastShareChart({
         ))}
       </ul>
 
-      <p style={{ margin: 0, padding: 0 }} className="mt-3 text-sm text-muted-foreground">
+      <p
+        style={{ padding: 0 }}
+        className="mt-4 border-t border-border/60 pt-3 text-sm text-muted-foreground"
+      >
         Note: Forecast share of segment volume by OEM. Hover a column for the
         exact share in that month.
       </p>

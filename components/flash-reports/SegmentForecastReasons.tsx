@@ -174,13 +174,13 @@ export function SegmentForecastReasons({
         rank across the window.
       </p>
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[52rem] border-collapse text-left">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+        <table className="w-full min-w-[52rem] border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-border bg-muted/40">
               <th
                 scope="col"
-                className="sticky left-0 z-10 bg-card py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                className="sticky left-0 z-10 border-r border-border bg-muted/40 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 OEM
               </th>
@@ -188,14 +188,14 @@ export function SegmentForecastReasons({
                 <th
                   key={m.month}
                   scope="col"
-                  className="whitespace-nowrap px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  className="whitespace-nowrap border-r border-border px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                 >
                   {m.label}
                 </th>
               ))}
               <th
                 scope="col"
-                className="min-w-[20rem] py-2 pl-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                className="min-w-[20rem] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 Why
               </th>
@@ -205,9 +205,9 @@ export function SegmentForecastReasons({
             {rows.map((r) => (
               <tr
                 key={r.oem}
-                className="border-b border-border/60 align-top last:border-0"
+                className="border-b border-border/60 align-middle transition-colors last:border-0 odd:bg-muted/10 hover:bg-accent/30"
               >
-                <td className="sticky left-0 z-10 bg-card py-3 pr-4 text-sm font-semibold text-foreground">
+                <td className="sticky left-0 z-10 border-r border-border bg-card px-4 py-3 font-semibold text-foreground">
                   {r.oem}
                 </td>
 
@@ -233,7 +233,10 @@ export function SegmentForecastReasons({
                       : `Rank ${rank} in ${m.label}`;
 
                   return (
-                    <td key={m.month} className="px-2 py-3 text-center">
+                    <td
+                      key={m.month}
+                      className="border-r border-border/60 px-3 py-3 text-center"
+                    >
                       {rank ? (
                         <span
                           title={note}
@@ -250,7 +253,7 @@ export function SegmentForecastReasons({
                   );
                 })}
 
-                <td className="py-3 pl-4 text-sm leading-6 text-muted-foreground">
+                <td className="px-4 py-3 align-top text-sm leading-6 text-muted-foreground">
                   {r.description || "—"}
                 </td>
               </tr>
