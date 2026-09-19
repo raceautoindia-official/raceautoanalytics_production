@@ -461,12 +461,12 @@ export default function FlashAIForecastGenerator() {
                 re-running gives the same result.
               </div>
               <div>
-                2) Turning on <b>online research</b> additionally asks OpenAI to
-                search the web for published figures, policy changes and
-                festival dates, then adjust the calculated forecast. This
-                SPENDS CREDITS on every selected graph — roughly two calls each,
-                one of them a web search. If a call fails the calculated
-                forecast is kept, so nothing breaks.
+                2) Turning on <b>online research</b> additionally searches the
+                web for policy changes, festival dates and published figures,
+                and nudges the calculated forecast accordingly. It costs ONE
+                search per country per run (not per graph) — roughly $0.03 for
+                a country, and the result is reused for 12 hours. If it fails,
+                the calculated forecast is kept, so nothing breaks.
               </div>
               <div>
                 3) A graph needs at least 6 months of history to be forecast.
