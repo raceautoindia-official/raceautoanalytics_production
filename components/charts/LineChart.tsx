@@ -77,7 +77,7 @@ const legendHelp: Record<string, string> = {
   "Forecast (BYF)":
     "Build your own forecast arrived user scoring",
   "Forecast (AI)":
-    "Forecast produced by AI model using historical patterns and learned seasonality.",
+    "Model forecast from this market's own history. Several methods are scored on months held back from them, and the best-performing are blended. Where it tracks the Race line, the two agree; where the data supports a different view, it departs from it.",
   "Forecast (Race)":
     "Survey input based on expert opinion",
   // If you ever re-enable:
@@ -554,20 +554,27 @@ const latestIndexForKey = (dataKey: string) => {
         strokeDasharray: undefined,
       });
 
-    if (enabled.has("ai"))
-      out.push({
-        key: `${selectedCat}_forecast_ai`,
-        name: "Forecast (AI)",
-        color: forecastColors.ai,
-        strokeDasharray: "4 4",
-      });
-
+    // Race first, AI second, because this order is the SVG paint order: the
+    // solid white width-3 Race line was drawn last and covered the AI line
+    // wherever the two agreed, which reads as the AI line "merging" into it.
+    // Drawn on top, the AI dashes stay visible over Race with white showing
+    // through the gaps.
     if (enabled.has("race"))
       out.push({
         key: `${selectedCat}_forecast_race`,
         name: "Forecast (Race)",
         color: forecastColors.race,
         strokeDasharray: undefined,
+      });
+
+    if (enabled.has("ai"))
+      out.push({
+        key: `${selectedCat}_forecast_ai`,
+        name: "Forecast (AI)",
+        color: forecastColors.ai,
+        // Longer dash than the other series: a 4/4 dash over a solid line of
+        // the same path is hard to separate at a glance.
+        strokeDasharray: "10 6",
       });
 
     return out;
