@@ -472,7 +472,7 @@ export default function FlashAIForecastGenerator() {
                 3) A graph needs at least 6 months of history to be forecast.
               </div>
               <div>
-                3) Ensure Flash segment mapping is set; otherwise the segment is guessed from the graph name.
+                4) Ensure Flash segment mapping is set; otherwise the segment is guessed from the graph name.
               </div>
             </div>
           }
@@ -517,6 +517,18 @@ export default function FlashAIForecastGenerator() {
             onChange={(v) => setSelectedCountry(String(v))}
             disabled={generating}
           />
+
+          <Switch
+            checked={useResearch}
+            onChange={setUseResearch}
+            disabled={generating}
+          />
+          <Text style={{ fontSize: 13 }}>
+            Online research{" "}
+            <Text type="warning" style={{ fontSize: 13 }}>
+              (~$0.03 per country, one search shared by all its graphs)
+            </Text>
+          </Text>
         </Space>
 
         <Space wrap>
