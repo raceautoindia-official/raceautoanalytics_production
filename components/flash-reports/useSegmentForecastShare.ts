@@ -116,21 +116,32 @@ export function shortOemName(raw: string): string {
 }
 
 /**
- * Muted plotting colours. Hues still jump between consecutive entries, because
- * stack segments are drawn touching, but each is desaturated so a full column
- * of ten reads as one chart rather than a set of warning lights.
+ * Built from the four inks in the Race logo — blue #428FD1, gold #FDC60B,
+ * coral #F25858, green #58C6A5 — sampled from public/images/logo.webp.
+ *
+ * The four brand colours come first, then a darker and a lighter variant of
+ * each. The order rotates through the hue families rather than walking one
+ * family at a time, because stack segments are drawn touching and two shades
+ * of the same ink side by side read as a single block.
  */
 export const FORECAST_PALETTE = [
-  "#5B8DEF", // soft blue
-  "#D9A05B", // soft amber
-  "#C97B7B", // soft rose
-  "#5FA88E", // soft green
-  "#9689C2", // soft violet
-  "#6FA8BD", // soft cyan
-  "#C98BAC", // soft pink
-  "#9FAE72", // soft olive
-  "#D68F6A", // soft orange
-  "#7B86B8", // soft indigo
-  "#69A09B", // soft teal
-  "#AC8CBE", // soft purple
+  "#428FD1", // brand blue
+  "#FDC60B", // brand gold
+  "#F25858", // brand coral
+  "#58C6A5", // brand green
+  "#2E6FA8", // blue, dark
+  "#C79A00", // gold, dark
+  "#C2403F", // coral, dark
+  "#3E9C80", // green, dark
+  "#7FB4E3", // blue, light
+  "#FEDE6B", // gold, light
+  "#F79191", // coral, light
+  "#8FDCC4", // green, light
 ];
+
+/** Everything outside the top N is grouped into this slice. */
+export const OTHERS_LABEL = "Others";
+export const OTHERS_COLOR = "#8A94A6";
+
+/** How many OEMs get their own slice before the rest are grouped. */
+export const TOP_OEM_COUNT = 10;

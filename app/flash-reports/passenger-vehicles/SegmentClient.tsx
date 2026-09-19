@@ -903,13 +903,13 @@ const showApplicationChartSection =
           {/* Forecast OEM share, stacked one column per month (below segment share) */}
           <SegmentForecastShareChart
             segmentName="passenger vehicle"
-            title="Passenger Vehicle Segment Forecast Share"
+            title="Passenger Vehicle OEM Market Share Forecast"
           />
 
           {/* Per-OEM reasoning behind the forecast above */}
           <SegmentForecastReasons
             segmentName="passenger vehicle"
-            title="Passenger Vehicle OEM Forecast Rationale"
+            title="Passenger Vehicle OEM Forecast Rankings"
           />
 
           {/* Brand → models bar chart (directly below market share) */}
