@@ -20,19 +20,24 @@ export const dynamic = "force-dynamic";
  * Spain's Passenger Cars and Truck graphs were hitting. A calculation cannot
  * fail that way: any history long enough to show a trend yields a forecast.
  *
- * METHOD, in order of preference:
+ * METHOD: backtested ensemble.
  *
- *  1. Year-over-year anchoring. Each forecast month starts from the SAME
- *     CALENDAR MONTH one year earlier, grown by the market's own rate. Last
- *     year's actual already contains the seasonal shape, so nothing has to be
- *     inferred. This is what makes Ireland's January plate-change peak and
- *     Finland's winter collapse come out right, where a seasonal index built
- *     from one or two observations per month flattened them into nonsense.
+ * Five forecasters compete — seasonal naive, year-over-year anchoring, level x
+ * a seasonal profile fitted across all years, damped-trend Holt-Winters, and a
+ * festive-aware variant where a movable-festival calendar is known. They
+ * deliberately disagree: one replays last year, one rebuilds the month from
+ * every year on record, one ignores seasonality entirely.
  *
- *  2. Level x seasonal index, when the history does not cover a full year back
- *     from every forecast month.
+ * The last few months are HELD OUT, each method forecasts them from the
+ * truncated history, and its mean absolute percentage error against the real
+ * values sets its weight (1/error^2). The published line is the weighted blend
+ * of those that earn their place.
  *
- *  3. Damped-trend Holt-Winters, when there is too little history for either.
+ * So the method is chosen by evidence per market rather than fixed in code: a
+ * market whose last year was atypical leans on the multi-year profile, a smooth
+ * one leans on the trend model, and a strongly seasonal one leans on the
+ * year-over-year anchor. No value is invented — every candidate is computed
+ * from this market's own actuals, and the weights come from measured accuracy.
  *
  * MOVABLE FESTIVALS. A festive peak belongs to an event, not to a calendar
  * month, and year-over-year anchoring cannot know that: Diwali fell in October
@@ -152,6 +157,218 @@ function festiveProfile(series, festiveByYear) {
   };
 }
 
+/**
+ * The candidate forecasters. Each takes a history and a list of target months
+ * and returns { month: value }, or null if this history cannot support it.
+ *
+ * They deliberately disagree: one replays last year, one rebuilds the month
+ * from a seasonal profile fitted across ALL years, one is pure level-and-trend.
+ * Which of them is right is a property of the market, not something to decide
+ * once in code — that is what the backtest below is for.
+ */
+function buildCandidates(series, festiveByYear) {
+  const list = [];
+
+  const at = (s) => Object.fromEntries(s.map((p) => [p.month, p.value]));
+  const growthOf = (s) => estimateGrowth(s, at(s));
+
+  // 1. Seasonal naive: last year's same month, unchanged. The honest baseline
+  //    every other method has to beat.
+  list.push({
+    name: "seasonal-naive",
+    forecast: (s, targets) => {
+      const map = at(s);
+      const out = {};
+      for (const t of targets) {
+        const a = map[prevYearOf(t)];
+        if (!(a > 0)) return null;
+        out[t] = a;
+      }
+      return out;
+    },
+  });
+
+  // 2. Year-over-year anchor with the market's growth, damped across the
+  //    horizon.
+  list.push({
+    name: "yoy",
+    forecast: (s, targets) => {
+      const map = at(s);
+      const g = growthOf(s);
+      const out = {};
+      targets.forEach((t, i) => {
+        const a = map[prevYearOf(t)];
+        if (!(a > 0)) return;
+        out[t] = a * (1 + g * (1 - 0.06 * i));
+      });
+      return Object.keys(out).length === targets.length ? out : null;
+    },
+  });
+
+  // 3. Trailing level x seasonal index fitted across every year available.
+  //    Differs from (2) wherever last year's month was itself unusual.
+  list.push({
+    name: "level-seasonal",
+    forecast: (s, targets) => {
+      const idx = seasonalIndices(s);
+      if (!idx) return null;
+      const vals = s.map((p) => p.value);
+      if (vals.length < 12) return null;
+      const level = mean(vals.slice(-12));
+      const g = growthOf(s);
+      const out = {};
+      targets.forEach((t, i) => {
+        const m = monthNum(t);
+        const f = m && idx[m] > 0 ? idx[m] : 1;
+        out[t] = level * f * (1 + g * ((i + 1) / targets.length));
+      });
+      return out;
+    },
+  });
+
+  // 4. Damped-trend Holt-Winters. Strong on long, smooth histories; degrades
+  //    to a ramp on short ones, which the backtest will punish.
+  list.push({
+    name: "damped-trend",
+    forecast: (s, targets) => {
+      const hw = holtWinters(
+        s.map((p) => p.value),
+        targets.length,
+      );
+      if (!Array.isArray(hw)) return null;
+      const out = {};
+      targets.forEach((t, i) => {
+        out[t] = hw[i];
+      });
+      return out;
+    },
+  });
+
+  // 5. Festive-aware, only where a movable-festival calendar is known. Rebuilds
+  //    the peak on the month that actually holds the festival this year.
+  if (festiveByYear) {
+    list.push({
+      name: "festive",
+      forecast: (s, targets) => {
+        const profile = festiveProfile(s, festiveByYear);
+        if (!profile?.uplift || !(profile.level > 0)) return null;
+        const map = at(s);
+        const idx = seasonalIndices(s);
+        const g = growthOf(s);
+        const out = {};
+        targets.forEach((t, i) => {
+          const grown = 1 + g * (1 - 0.06 * i);
+          const m = monthNum(t);
+          const thisYear = festiveByYear[yearOf(t)];
+          if (Array.isArray(thisYear) && thisYear.includes(m)) {
+            out[t] = profile.level * grown * profile.uplift;
+            return;
+          }
+          if (profile.isFestive(prevYearOf(t))) {
+            const f = idx && m && idx[m] > 0 ? idx[m] : 1;
+            out[t] = profile.level * grown * f;
+            return;
+          }
+          const a = map[prevYearOf(t)];
+          out[t] = a > 0 ? a * grown : profile.level * grown;
+        });
+        return out;
+      },
+    });
+  }
+
+  return list;
+}
+
+/**
+ * Score each candidate on months it did NOT see.
+ *
+ * The last few months are held out, every method forecasts them from the
+ * truncated history, and the mean absolute percentage error against the real
+ * values decides how much that method is trusted here. This is why the answer
+ * can differ market by market without anyone choosing a rule per market.
+ */
+function scoreCandidates(candidates, series) {
+  const holdout = Math.min(6, Math.floor(series.length / 4));
+  if (holdout < 2) return [];
+
+  const train = series.slice(0, -holdout);
+  const test = series.slice(-holdout);
+  const targets = test.map((p) => p.month);
+
+  const scored = [];
+  for (const c of candidates) {
+    let pred = null;
+    try {
+      pred = c.forecast(train, targets);
+    } catch {
+      pred = null;
+    }
+    if (!pred) continue;
+
+    let errSum = 0;
+    let n = 0;
+    for (const p of test) {
+      const f = Number(pred[p.month]);
+      if (!Number.isFinite(f) || f <= 0 || !(p.value > 0)) continue;
+      errSum += Math.abs(f - p.value) / p.value;
+      n++;
+    }
+    if (n < holdout) continue;
+    scored.push({ ...c, mape: errSum / n });
+  }
+
+  return scored.sort((a, b) => a.mape - b.mape);
+}
+
+/**
+ * Accuracy-weighted blend of the candidates, using the FULL history.
+ *
+ * Weights go as 1/error^2, so a clearly better method dominates while a close
+ * second still contributes — which is what keeps the line from snapping between
+ * methods month to month. Anything more than twice the best method's error is
+ * dropped rather than allowed to drag the result.
+ */
+function blend(scored, series, periods) {
+  if (!scored.length) return null;
+
+  const best = scored[0].mape;
+  const kept = scored.filter((c) => c.mape <= Math.max(best * 2, best + 0.02));
+
+  const parts = [];
+  for (const c of kept) {
+    let pred = null;
+    try {
+      pred = c.forecast(series, periods);
+    } catch {
+      pred = null;
+    }
+    if (!pred) continue;
+    if (periods.some((p) => !Number.isFinite(Number(pred[p])) || pred[p] <= 0)) {
+      continue;
+    }
+    // Floor the error so a freak-perfect backtest cannot take all the weight.
+    const w = 1 / Math.pow(Math.max(c.mape, 0.01), 2);
+    parts.push({ name: c.name, mape: c.mape, weight: w, pred });
+  }
+  if (!parts.length) return null;
+
+  const total = parts.reduce((a, p) => a + p.weight, 0);
+  const values = {};
+  for (const p of periods) {
+    values[p] = parts.reduce((a, part) => a + part.weight * part.pred[p], 0) / total;
+  }
+
+  const note = parts
+    .map(
+      (p) =>
+        `${p.name} ${Math.round((p.weight / total) * 100)}% (mape ${(p.mape * 100).toFixed(1)}%)`,
+    )
+    .join(", ");
+
+  return { values, note };
+}
+
 export async function POST(req) {
   try {
     const { region, volumeData, years } = await req.json();
@@ -194,6 +411,7 @@ export async function POST(req) {
 
     const out = {};
     let method;
+    let weightNote = "";
 
     if (annual) {
       // No seasonality to carry; compound the trend off the last actual.
@@ -204,69 +422,26 @@ export async function POST(req) {
       method = "annual-trend";
     } else {
       const festiveByYear = FESTIVE_MONTHS[String(region || "").toLowerCase()];
-      const profile = festiveByYear
-        ? festiveProfile(series, festiveByYear)
-        : null;
-      const useFestive = !!(profile && profile.uplift && profile.level > 0);
 
-      // Damped so a growth rate is not compounded unchanged across the horizon.
-      const grown = (i) => 1 + growth * (1 - 0.06 * i);
+      const candidates = buildCandidates(series, festiveByYear);
+      const scored = scoreCandidates(candidates, series);
 
-      const idx = seasonalIndices(series);
-      const anchored = periods.every((p) => byKey[prevYearOf(p)] > 0);
+      // Accuracy-weighted blend of the methods that actually forecast this
+      // market well, rather than one hand-picked rule for every market.
+      const ensemble = blend(scored, series, periods);
 
-      periods.forEach((p, i) => {
-        const m = monthNum(p);
-        const thisYearFestive =
-          useFestive &&
-          Array.isArray(festiveByYear[yearOf(p)]) &&
-          festiveByYear[yearOf(p)].includes(m);
-
-        if (useFestive) {
-          // Festive months are rebuilt from the ordinary level and the observed
-          // uplift, so the peak lands on the month that actually holds the
-          // festival this year rather than the one that held it last year.
-          if (thisYearFestive) {
-            out[p] = profile.level * grown(i) * profile.uplift;
-            return;
-          }
-          // A month that was festive LAST year cannot be anchored to itself —
-          // it would carry a peak that has moved away. Use the ordinary level.
-          if (profile.isFestive(prevYearOf(p))) {
-            const f = idx && m ? idx[m] : 1;
-            out[p] = profile.level * grown(i) * (f > 0 ? f : 1);
-            return;
-          }
-        }
-
-        const anchor = byKey[prevYearOf(p)];
-        if (anchor > 0) {
-          out[p] = anchor * grown(i);
-          return;
-        }
-
-        if (idx && m) {
-          const level =
-            series.length >= 12
-              ? mean(values.slice(-12))
-              : mean(values.slice(-Math.min(6, values.length)));
-          out[p] = level * (idx[m] > 0 ? idx[m] : 1) * grown(i);
-          return;
-        }
-
-        const hw = holtWinters(values, periods.length);
-        out[p] = Array.isArray(hw) && Number.isFinite(hw[i])
-          ? hw[i]
-          : values[values.length - 1] * grown(i);
-      });
-
-      method = useFestive
-        ? "yoy-anchored+festive"
-        : anchored
-          ? "yoy-anchored"
-          : idx
-            ? "level-x-seasonal"
-            : "holt-winters";
+      if (ensemble) {
+        Object.assign(out, ensemble.values);
+        method = "ensemble";
+        weightNote = ensemble.note;
+      } else {
+        // Nothing backtested (very short history) — fall back to the single
+        // most robust estimator available.
+        const fallback =
+          candidates.find((c) => c.name === "yoy") || candidates[0];
+        Object.assign(out, fallback.forecast(series, periods));
+        method = `${fallback.name}-only`;
+      }
     }
 
     // Sanity bound from the market's own history — NOT from the Race line.
@@ -294,6 +469,8 @@ export async function POST(req) {
         "x-forecast-growth": `${(growth * 100).toFixed(1)}%`,
         "x-forecast-bounded": `${bounded}/${periods.length}`,
         "x-forecast-points": String(series.length),
+        // Which methods earned their weight here, and their backtest error.
+        "x-forecast-weights": weightNote.slice(0, 300),
       },
     });
   } catch (err) {
